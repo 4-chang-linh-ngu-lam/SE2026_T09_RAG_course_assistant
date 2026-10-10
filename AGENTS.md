@@ -1,6 +1,6 @@
 # Agent Instructions — RAG Course Assistant
 
-Read `docs/BUSINESS_RULES.md` (authoritative product constraints), `docs/ARCHITECTURE.md` (architecture proposal/status), `docs/TASK_PLAN.md` (provisional plan) and `docs/CONTRIBUTING.md` (Git workflow) before modifying code.
+Read `docs/architect/BUSINESS_RULES.md` (authoritative product constraints), `docs/architect/ARCHITECTURE.md` (architecture proposal/status), `docs/tasks/TASK_PLAN.md` (provisional plan) and `docs/CONTRIBUTING.md` (Git workflow) before modifying code.
 
 - Never invent, relax, or silently modify an accepted business rule. Cite Rule IDs in plans/PRs.
 - Distinguish approved decisions from [ĐỀ XUẤT] and [CHƯA CHỐT]. Ask for approval before introducing unapproved architecture decisions.
