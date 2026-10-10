@@ -1,7 +1,7 @@
 # RAG Course Assistant — Kiến trúc hệ thống
 
 **Version:** 0.3.0-draft | **Updated:** 2026-10-10 | **Status:** Bản đề xuất để nhóm review.
-**Nguồn nghiệp vụ:** [BUSINESS_RULES.md](BUSINESS_RULES.md), Baseline v1.0. **Kế hoạch:** [TASK_PLAN.md](../tasks/TASK_PLAN.md). **Quy trình Git:** [CONTRIBUTING.md](CONTRIBUTING.md).
+**Nguồn nghiệp vụ:** [BUSINESS_RULES.md](BUSINESS_RULES.md), Baseline v1.0. **Kế hoạch:** [TASK_PLAN.md](../tasks/TASK_PLAN.md). **Quy trình Git:** [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 > Phân biệt **[BR]** quy tắc đã chốt, **[ĐỀ XUẤT]** phương án kỹ thuật chờ review, **[CHƯA CHỐT]** quyết định chưa đủ thông tin. Tài liệu không tự phê duyệt framework, database, model hay dịch vụ cloud.
 
