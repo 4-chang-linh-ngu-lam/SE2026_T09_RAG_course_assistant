@@ -10,7 +10,7 @@
 - Nếu feature quá lớn hoặc chặn module khác, tách vertical slice thành feature/PR nhỏ hơn, không giữ branch kéo dài nhiều tuần.
 
 ## Issue → Task → Branch → Commits → PR → Review → Merge
-1. Tạo Issue và liên kết `docs/TASK_PLAN.md`; Task có owner, Rule IDs, dependency, acceptance, test evidence.
+1. Tạo Issue và liên kết `docs/tasks/TASK_PLAN.md`; Task có owner, Rule IDs, dependency, acceptance, test evidence.
 2. Owner tạo feature branch từ `main` mới nhất; thống nhất API contract với người phụ thuộc trước khi code.
 3. Mỗi Task nhỏ tạo commit có ý nghĩa, ví dụ `feat(documents): implement version history`, `test(rag): deny revoked documents`.
 4. Mở Draft PR sớm khi cần trao đổi; chuyển ready khi feature/slice hoàn thiện.
