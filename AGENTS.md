@@ -1,10 +1,11 @@
 # Agent Instructions — RAG Course Assistant
 
-Read `docs/architect/BUSINESS_RULES.md` (authoritative product constraints), `docs/architect/ARCHITECTURE.md` (architecture proposal/status), `docs/tasks/TASK_PLAN.md` (provisional plan) and `docs/CONTRIBUTING.md` (Git workflow) before modifying code.
+Read `docs/architect/BUSINESS_RULES.md` (authoritative product constraints), `docs/architect/microservices-v1/ARCHITECTURE.md` (accepted Microservices architecture direction; implementation choices marked [ĐỀ XUẤT] remain pending), `docs/architect/microservices-v1/ADR-001.md`, `docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md`, `docs/tasks/TASK_PLAN.md` (provisional plan) and `docs/CONTRIBUTING.md` (Git workflow) before modifying code.
 
 - Never invent, relax, or silently modify an accepted business rule. Cite Rule IDs in plans/PRs.
+- The team has selected Microservices as the architecture direction. Treat specific technologies, service contracts and unverified quality thresholds as proposals until approved.
 - Distinguish approved decisions from [ĐỀ XUẤT] and [CHƯA CHỐT]. Ask for approval before introducing unapproved architecture decisions.
-- One large feature per branch, multiple small Tasks/meaningful commits per feature. Branch from main; do not push directly to main.
+- One large feature per branch, multiple small Tasks/meaningful commits per feature. Branch from main; do not push directly to main unless explicitly authorized.
 - Do not merge PRs, change branch protections, deploy, or perform destructive operations without explicit human approval.
 - Do not modify unrelated modules. Communicate shared API/schema changes and test consumers.
 - Enforce class/document permissions at Backend and before retrieval/source opening; never leak revoked content.
