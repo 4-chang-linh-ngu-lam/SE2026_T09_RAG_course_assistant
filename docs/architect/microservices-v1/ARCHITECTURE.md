@@ -6,7 +6,7 @@
 
 > [ĐÃ CHỐT] là quy tắc nghiệp vụ hoặc mức ưu tiên đã thống nhất; [ĐỀ XUẤT] là quyết định kỹ thuật chưa duyệt; [CHƯA CHỐT] là vấn đề cần thảo luận. Không tự suy diễn đã chọn công nghệ hoặc đã kiểm thử thành công.
 
-## 1. Mục tiêu và phạm vi
+**Hướng dẫn triển khai cho nhóm:** [Lộ trình Core-first](IMPLEMENTATION_ROADMAP.md) · [Thiết kế Core](core/DESIGN.md) · [Hợp đồng API Core](core/API_CONTRACT.md). Các tài liệu chi tiết này đều là **[ĐỀ XUẤT]**, chưa phải đặc tả được phê duyệt.\n\n## 1. Mục tiêu và phạm vi
 RAG Course Assistant là nền tảng **ưu tiên học tập thông minh**: trung tâm tri thức môn học, trợ giảng AI có trích dẫn, luyện tập, đánh giá chính thức, mô hình năng lực người học và gợi ý học tập cá nhân hóa. Chức năng quản lý lớp học hỗ trợ các mục tiêu này. Có ba vai trò đăng nhập: Quản trị viên, Giảng viên, Sinh viên. Một môn có thể có nhiều lớp; sinh viên có thể học nhiều lớp. Ưu tiên ứng dụng Web; Mobile chỉ xem xét sau khi Web ổn định. [A, C, D, E, G, O]
 
 ## 2. Các dịch vụ nghiệp vụ
