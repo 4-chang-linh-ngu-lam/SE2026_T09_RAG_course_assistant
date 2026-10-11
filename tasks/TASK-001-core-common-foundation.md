@@ -56,15 +56,19 @@ Xây dựng lớp hạ tầng kỹ thuật dùng chung cho toàn bộ Core servi
 
 ### 2.7. `app/common/db.py`
 - Base Model Declarative SQLAlchemy với:
-  - `id: UUID` làm khóa chính mặc định (`uuid_generate_v4()`).
+  - `id: UUID` làm khóa chính mặc định (`uuid4` phía Python, `gen_random_uuid()` có sẵn trong PostgreSQL 16; không cần extension `uuid-ossp`).
   - `created_at`, `updated_at` (UTC timestamp).
 - Quản lý transaction context manager.
 
 ---
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
-- [ ] Chạy unit test hash Argon2id: xác minh mật khẩu đúng, từ chối mật khẩu sai, hash không thể đảo ngược.
-- [ ] Chạy unit test JWT: sinh token đúng thời hạn 15 phút, từ chối token hết hạn hoặc giả mạo.
-- [ ] Middleware trích xuất hoặc sinh mới `correlation_id` cho mọi request.
-- [ ] Exception handler trả về đúng định dạng JSON lỗi chuẩn hóa cho mọi lỗi HTTP (400, 401, 403, 404, 409, 422).
-- [ ] `ruff check app/common/` và `pytest tests/test_common.py` đạt 100% không cảnh báo.
+- [x] Chạy unit test hash Argon2id: xác minh mật khẩu đúng, từ chối mật khẩu sai, dùng hash một chiều Argon2id với salt riêng (test không chứng minh tính không thể đảo ngược).
+- [x] Chạy unit test JWT: sinh token đúng thời hạn 15 phút, từ chối token hết hạn hoặc giả mạo.
+- [x] Middleware trích xuất hoặc sinh mới `correlation_id` cho mọi request.
+- [x] Exception handler trả về đúng định dạng JSON lỗi chuẩn hóa cho mọi lỗi HTTP (400, 401, 403, 404, 409, 422).
+- [x] `ruff check app/common/` và `pytest tests/test_common.py -W error` đạt, không cảnh báo.
+
+**Bằng chứng kiểm thử (2026-10-11):** Python 3.12.14; unit Common 36/36 đạt; toàn Core `pytest -q -W error` với `TEST_DATABASE_URL` đạt 38/38; `ruff check app tests migrations` đạt. Integration test dùng PostgreSQL 18 tạm, kiểm tra migration 0002, schema drift, audit persistence, UUID/timestamp UTC và rollback. Chưa kiểm chứng Docker Compose/PostgreSQL 16 ở bước này.
+
+**Điểm tích hợp:** TASK-002 đã nối lookup Identity DB hiện hành cho `get_current_user`; ứng dụng chưa nối lookup vẫn fail closed. TASK-003 đã áp dụng cookie/CSRF tại endpoint; TASK-004 mở rộng public workflows. Đây là hoàn thành Common foundation, chưa phải hoàn thành toàn bộ Identity. Hướng dẫn cấu hình và interface tại [Core README](../services/core/README.md#common-foundation-task-001).

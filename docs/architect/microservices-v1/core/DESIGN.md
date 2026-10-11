@@ -1,6 +1,6 @@
 # Core Service — Thiết kế v1
 
-**Trạng thái:** BASELINE THIẾT KẾ · **Ngày:** 2026-10-11. Đây là thiết kế, chưa xác nhận đã lập trình/kiểm thử.
+**Trạng thái:** BASELINE THIẾT KẾ · **Ngày:** 2026-10-11. Identity có triển khai và bằng chứng test tại TASK-001–004; các phần còn lại vẫn là thiết kế, chưa xác nhận toàn Core hoàn thành.
 
 ## 1. Công nghệ và xác thực
 - Một Core FastAPI service, Next.js Web, PostgreSQL schema `core`, SQLAlchemy, Alembic, Docker Compose.
@@ -8,11 +8,13 @@
 - JWT access **15 phút**, refresh **7 ngày**; refresh rotation, server lưu hash/phiên/revocation. Refresh cookie `HttpOnly; Secure; SameSite=Lax` trong mô hình cùng-site, access token giữ trong bộ nhớ client, không dùng localStorage. Hash password Argon2id.
 - Khóa tài khoản, đổi mật khẩu, logout-all thu hồi phiên; backend kiểm tra trạng thái hiện hành. CSRF/Origin protection cho cookie mutations; rate limit login/register/reset/join code. Email verification/reset token một lần, hết hạn, lưu hash.
 - Service-to-service access-check dùng service credential/scope riêng, không tin user_id từ browser.
+- Access JWT có `sub` UUID, `roles`, `session_version`, `iat`, `exp`. Backend dùng role/status/session version hiện hành từ Identity public interface; role trong JWT không tự cấp quyền. Bootstrap đã nối Common lookup với Identity DB ở TASK-002; ứng dụng chưa nối vẫn từ chối an toàn.
+- Token xác minh/reset lưu SHA-256, mặc định hết hạn sau 24 giờ/60 phút và cấu hình được. Refresh rotation giữ hạn gốc 7 ngày; dùng lại token revoked thu hồi family, không kéo dài hạn phiên. Logout thu hồi refresh hiện tại; logout-all/đổi mật khẩu/khóa tài khoản tăng session version và thu hồi toàn bộ refresh session.
 
 ## 2. Module và ownership
 | Module | Trách nhiệm |
 |---|---|
-| identity | User, RoleAssignment, AuthSession, one-time token |
+| identity | User, RoleAssignment, AuthSession, one-time token, DataRequest |
 | classroom | Course, Class, Membership, JoinRequest, co-lecturer invitation, ownership |
 | social/feed | ClassPost |
 | social/comments | PostComment |
@@ -23,13 +25,16 @@
 
 Các module giao tiếp qua `public.py`; không import repository module khác. [Folder Structure](FOLDER_STRUCTURE.md).
 
+Public Identity trả DTO an toàn, batch summary một query; Admin helpers kiểm tra actor/role/status hiện hành, ghi audit cùng transaction và hỗ trợ session caller sở hữu. Chữ ký/cách dùng tại [Core README](../../../../services/core/README.md#identity-public-interface-và-data-requests-task-004).
+
 ## 3. Schema logic (UUID PK, UTC timestamptz)
 | Bảng | Trường chính | Constraint |
 |---|---|---|
-| users | id,email,password_hash,status,email_verified_at,session_version | email unique; status PENDING_VERIFICATION/ACTIVE/LOCKED |
+| users | id,email,display_name,password_hash,status,email_verified_at,session_version | email lowercase unique; status PENDING_VERIFICATION/ACTIVE/LOCKED; session_version mặc định 1 |
 | role_assignments | user_id,role | unique(user_id,role); STUDENT/LECTURER/ADMIN |
 | auth_sessions | id,user_id,refresh_hash,family_id,expires_at,revoked_at | refresh_hash unique; rotation atomically |
 | one_time_tokens | id,user_id,purpose,token_hash,expires_at,consumed_at | token_hash unique |
+| data_requests | id,user_id,request_type,reason,status,resolution_note,created_at,updated_at | ACCESS/EXPORT/DELETE; PENDING/IN_REVIEW/COMPLETED/REJECTED; FK user không cascade; index(user_id,id) |
 | courses | id,code,name | code unique |
 | classes | id,course_id,owner_user_id,name,join_code_hash,join_enabled,status | status ACTIVE/ARCHIVED; join_code_hash unique |
 | class_memberships | id,class_id,user_id,class_role,status,joined_at,ended_at | role OWNER/CO_LECTURER/STUDENT; status ACTIVE/LEFT/REMOVED; partial unique ACTIVE(class_id,user_id) |
@@ -68,12 +73,14 @@ Mọi request kiểm tra role + membership ACTIVE + class status + action; quy�
 
 ## 6. Luồng
 1. Register → verify email → ACTIVE; Admin create → set-password invitation.
+   Lời mời ADMIN_INVITATION một lần (mặc định 24 giờ, cấu hình được) được chấp nhận qua password/reset; đặt mật khẩu và xác minh email cho PENDING, không mở tài khoản LOCKED.
 2. Login → access JWT + refresh cookie; refresh rotation; logout/revoke và khóa tài khoản chặn phiên.
 3. Join code → PENDING → lecturer approve → membership ACTIVE → outbox notification.
 4. Feed/comments: kiểm tra membership/status, soft delete và audit.
 5. Calendar: CORE event được chỉnh bởi lecturer; LEARNING deadline chỉ phản chiếu event versioned, thay deadline phải thông báo.
 6. Admin lock/role/class intervention và xử lý yêu cầu dữ liệu cá nhân; báo cáo tổng hợp nhiều service tích hợp ở G5.
 7. Notification dùng outbox/dedup, lỗi gửi không rollback nghiệp vụ gốc.
+8. User tạo/xem data requests của chính mình; chỉ ghi PENDING, không tự xóa/xuất dữ liệu. Administration xử lý thủ công theo K1/K4/O8; retention cụ thể cần người vận hành duyệt.
 
 ## 7. Test bắt buộc
 Cross-class, PENDING/LEFT/REMOVED/LOCKED, archived, owner transfer, concurrent approve, JWT refresh replay/revoke, CSRF/rate limit, feed delete, notification dedup, calendar LEARNING read-only, Admin audit. Mọi endpoint có permission/contract test; integration test dùng PostgreSQL thực.

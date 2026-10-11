@@ -44,8 +44,12 @@ Xây dựng các route thuộc prefix `/api/v1/auth`:
 ---
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
-- [ ] Kiểm thử luồng đăng ký $\to$ đăng nhập $\to$ nhận JWT và cookie Set-Cookie thành công.
-- [ ] Kiểm thử luồng gọi `/auth/refresh` bằng cookie thành công và nhận được token mới.
-- [ ] Kiểm thử tấn công CSRF: request thiếu header Origin/Referer hợp lệ bị chặn 403.
-- [ ] Rate limit hoạt động: gửi quá 5 request login lỗi trả về `429 RATE_LIMITED`.
-- [ ] Sinh OpenAPI schema đầy đủ, phản ánh chính xác cấu trúc request/response của các endpoint trên.
+- [x] Kiểm thử luồng đăng ký $\to$ xác minh email $\to$ đăng nhập $\to$ nhận JWT và cookie Set-Cookie thành công.
+- [x] Kiểm thử luồng gọi `/auth/refresh` bằng cookie thành công và nhận được token mới.
+- [x] Kiểm thử tấn công CSRF: request thiếu header Origin/Referer hợp lệ bị chặn 403.
+- [x] Rate limit hoạt động: gửi quá 5 request login lỗi trả về `429 RATE_LIMITED`.
+- [x] Sinh OpenAPI schema đầy đủ, phản ánh chính xác cấu trúc request/response/error của các endpoint trên; snapshot được kiểm tra cùng pytest trong CI.
+
+**Bằng chứng (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; các test HTTP/security/SMTP giả/OpenAPI mới đạt 38/38, toàn Core `pytest -q -W error` với `TEST_DATABASE_URL` đạt 98/98; `ruff check app tests migrations` đạt. Đã kiểm tra cookie attributes/rotation/clear, CSRF Origin/Referer, limit login/register/forgot, reset/logout-all vô hiệu hóa token cũ, quyền profile, rollback khi gửi email thất bại, idempotency replay/conflict và cache không vượt quyền/phiên hiện hành.
+
+**Giới hạn triển khai:** Rate limiter và idempotency TTL 24 giờ dùng RAM một process, không bền vững qua restart/multi-worker. SMTP adapter dùng TLS và callback trước DB commit; chưa có outbox/retry hoặc tính nguyên tử SMTP–DB. SMTP thật và Docker Compose/PostgreSQL 16 chưa được kiểm chứng; test không gửi email ra ngoài. Các biến cấu hình, phạm vi key và cách chạy tại [Core README](../services/core/README.md#identity-http-api-task-003). Shared files/Compose và API contract cần reviewer TV1/TV4 khi mở PR.

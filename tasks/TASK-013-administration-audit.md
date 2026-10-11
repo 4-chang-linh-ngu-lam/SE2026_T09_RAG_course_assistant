@@ -42,6 +42,8 @@ Bảng kiểm toán trong schema `core`:
   - Kiểm tra quyền: Chỉ tài khoản có vai trò `ADMIN`.
   - Gọi `identity.public.admin_create_user(...)`. Sinh link đặt mật khẩu một lần (OneTimeToken).
   - Ghi audit log.
+
+  **Hợp đồng Identity đã triển khai ở TASK-004:** `public.admin_create_user` và `public.admin_set_user_status` yêu cầu `actor_id` từ authentication, `correlation_id` và hỗ trợ `session=` do workflow sở hữu. Trả DTO/token SecretStr, không trả ORM User; hai hàm đã kiểm tra Admin hiện hành và ghi audit tối thiểu trong cùng transaction. Consumer không import model/repository hoặc tạo audit trùng; tham khảo [Core README](../services/core/README.md#identity-public-interface-và-data-requests-task-004) khi bổ sung lý do can thiệp/role workflows.
 - **Khóa / Mở khóa tài khoản (`set_user_status`):**
   - Cập nhật trạng thái người dùng sang `LOCKED` hoặc `ACTIVE`.
   - Khi khóa: ngay lập tức vô hiệu hóa các phiên đăng nhập hiện tại bằng cách gọi hàm thu hồi token của Identity.

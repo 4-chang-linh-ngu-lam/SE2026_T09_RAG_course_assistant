@@ -48,7 +48,7 @@ Xây dựng các bảng trong schema `core`:
 
 ### 2.2. `schemas.py`
 - Pydantic models cho input/output:
-  - `RegisterRequest`: `email` (EmailStr), `password` (12..128 ký tự, đủ độ phức tạp)
+  - `RegisterRequest`: `email` (EmailStr), `password` (12..128 ký tự theo API contract; chính sách độ phức tạp chi tiết chưa được chốt, không tự thêm quy tắc ký tự).
   - `RegisterResponse`: `user_id`, `email`, `status`
   - `VerifyEmailRequest`: `token`
   - `LoginRequest`: `email`, `password`
@@ -79,8 +79,12 @@ Xây dựng các bảng trong schema `core`:
 ---
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
-- [ ] Test đăng ký thành công tạo user với role `STUDENT` và status `PENDING_VERIFICATION`.
-- [ ] Test đăng nhập bị từ chối khi status là `PENDING_VERIFICATION` hoặc `LOCKED`.
-- [ ] Test refresh token rotation: sau khi refresh, token cũ không thể dùng lại; nếu cố tình dùng lại token cũ sẽ kích hoạt thu hồi toàn bộ family_id.
-- [ ] Test `logout_all`: tăng `session_version` và vô hiệu hóa mọi access token cũ.
-- [ ] Không có query nào select thừa hoặc để lộ hash mật khẩu ra bên ngoài service.
+- [x] Test đăng ký thành công tạo user với role `STUDENT` và status `PENDING_VERIFICATION`.
+- [x] Test đăng nhập bị từ chối khi status là `PENDING_VERIFICATION` hoặc `LOCKED`.
+- [x] Test refresh token rotation: sau khi refresh, token cũ không thể dùng lại; nếu cố tình dùng lại token cũ sẽ kích hoạt thu hồi toàn bộ family_id.
+- [x] Test `logout_all`: tăng `session_version` và vô hiệu hóa mọi access token cũ.
+- [x] Query lấy quyền hiện hành chỉ select ID/status/version/role, không select hash; DTO response không chứa hash. Query xác thực chỉ dùng model sở hữu bởi Identity.
+
+**Bằng chứng (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; `pytest tests/identity -q -W error` đạt 22/22; toàn Core với `TEST_DATABASE_URL` đạt 60/60; `ruff check app tests migrations` đạt. Đã kiểm tra register/verify/reset/refresh đồng thời, token hết hạn/sai purpose/dùng lại, khóa/mở tài khoản, logout-all qua dependency DB thực, role hiện hành và query không lấy hash. Migration 0003 upgrade/downgrade/upgrade và `alembic check` đạt, không drift.
+
+**Phạm vi tiếp theo:** TASK-003 đã triển khai router, cookie/CSRF/rate limit và SMTP adapter (test bằng bộ gửi giả, chưa gửi email thật). TASK-004 mở rộng public workflows/data requests; TASK-013 kiểm tra quyền/audit thao tác Admin. Chưa kiểm chứng Compose/PostgreSQL 16. Hướng dẫn gọi service, cấu hình expiry và transaction tại [Core README](../services/core/README.md#identity-auth-core-task-002).
