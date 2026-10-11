@@ -55,4 +55,4 @@ Công nghệ cụ thể, cách quản lý phiên đăng nhập, cách mời đ�
 ## 7. Liên kết
 - [Thiết kế Core](core/DESIGN.md)
 - [Hợp đồng API Core](core/API_CONTRACT.md)
-- [Task Plan hiện hành](../../tasks/TASK_PLAN.md) — backlog tổng thể; dùng tài liệu này làm thứ tự ưu tiên Core-first cho tới khi nhóm duyệt cập nhật task plan.
+- Backlog chi tiết quản lý qua GitHub Issues/Project khi bắt đầu triển khai; lộ trình này là tài liệu điều phối duy nhất trong docs. Kế hoạch phân công cũ đã được loại khỏi nhánh main để tránh mâu thuẫn.
