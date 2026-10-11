@@ -1,6 +1,6 @@
 # RAG Course Assistant — Kiến trúc Microservices
 
-**Phiên bản:** 1.0.0-draft | **Ngày:** 10/10/2026 | **Trạng thái:** Đề xuất, chờ nhóm duyệt.
+**Phiên bản:** 1.0.0-draft | **Ngày:** 10/10/2026 | **Trạng thái:** Đã chọn định hướng Microservices; các quyết định kỹ thuật và ngưỡng kiểm thử chưa duyệt.
 
 **Định hướng:** Thiết kế hệ thống theo Microservices ngay từ đầu, không phải tài liệu chuyển đổi từ Monolith. **Nguồn nghiệp vụ có hiệu lực:** [Quy tắc nghiệp vụ](../BUSINESS_RULES.md). **Cơ sở lựa chọn:** [ADR-001](ADR-001.md). **Tiêu chí kiểm chứng:** [Thuộc tính chất lượng](QUALITY_ATTRIBUTES.md).
 
@@ -114,15 +114,57 @@ Phân quyền theo vai trò và tài nguyên; ngăn truy cập chéo lớp; gi�
 
 Theo dõi tỷ lệ lỗi, p95, độ trễ hàng đợi, số tác vụ lỗi, xung đột nộp bài, từ chối truy cập, trích dẫn RAG, nhật ký có mã truy vết. Kiểm chứng sao lưu và phục hồi trước demo.
 
-## 10. Thuộc tính chất lượng
+## 10. Ngăn xếp công nghệ và môi trường thực nghiệm — [ĐỀ XUẤT, CHƯA PHÊ DUYỆT]
+
+**Toàn bộ nội dung mục này là phương án tham khảo dành cho nhóm 4 sinh viên, chưa phải quyết định công nghệ chính thức.** Chưa kiểm chứng chi phí, giới hạn dịch vụ hay năng lực đáp ứng TP-01. Chỉ kiến trúc Microservices là định hướng đã được nhóm lựa chọn.
+
+### 10.1. Công nghệ đề xuất
+| Thành phần | Công nghệ [ĐỀ XUẤT] | Ghi chú về chi phí và sử dụng |
+|---|---|---|
+| Giao diện Web | Next.js, TypeScript, Tailwind CSS | Mã nguồn mở; hosting có thể tính phí |
+| Backend cho 5 dịch vụ | Python, FastAPI | Giảm số ngôn ngữ cần học; cần hạ tầng chạy API |
+| Dữ liệu giao dịch | PostgreSQL; SQLAlchemy; Alembic | Tự host miễn phí; tách schema và tài khoản theo dịch vụ, không truy cập bảng chéo |
+| Truy hồi vector | Qdrant tự host | Không mất phí dịch vụ phần mềm khi tự host; vẫn tốn tài nguyên máy |
+| Lưu tệp | Kho lưu trữ tương thích S3; cân nhắc MinIO hoặc lựa chọn tương đương | Tự host hoặc dùng dịch vụ trả phí; cần kiểm tra giấy phép và phương án sao lưu |
+| Tác vụ nền | Celery + Redis (phương án khởi đầu) | Không thay thế yêu cầu Transactional Outbox, chống trùng, đối soát; cần thử nghiệm độ bền hàng đợi trước khi dùng cho sự kiện quan trọng |
+| AI/RAG | PyTorch, Sentence Transformers, embedding đa ngôn ngữ và LLM API | Thư viện có thể miễn phí; API thương mại/GPU có thể phát sinh phí; model cụ thể chưa chốt |
+| Cổng API | Traefik Proxy | Dùng bản phù hợp để tự host; cần cấu hình HTTPS và xác thực đúng |
+| Đóng gói | Docker Engine + Docker Compose trên Linux | Không cần Kubernetes ở giai đoạn đầu; Docker Desktop có điều kiện giấy phép riêng |
+| CI/CD | GitHub Actions | Có hạn mức/điều kiện miễn phí; vượt hạn mức có thể tính phí |
+| Kiểm thử | pytest, Playwright, k6 tự chạy | Tập trung chức năng, quyền truy cập, tải và lỗi phân tán |
+| Quan sát | Health check và log có cấu trúc trước; cân nhắc Prometheus, Grafana, Loki khi cần | Tự host phần mềm có thể miễn phí nhưng tăng chi phí tài nguyên/vận hành |
+
+**Lưu ý:** Redis và MinIO có các điều kiện cấp phép/phân phối tùy phiên bản; không mặc định mọi bản phát hành hoặc mọi cách dùng đều không có ràng buộc. Các mức miễn phí của nhà cung cấp API/hosting thay đổi theo thời gian và phải kiểm tra trước khi đăng ký.
+
+### 10.2. Môi trường triển khai — [ĐỀ XUẤT]
+1. **Development (phát triển):** máy cá nhân, Docker Compose, dữ liệu giả lập; khởi chạy các service cần thiết và PostgreSQL/Redis/Qdrant/kho tệp. Không sử dụng dữ liệu riêng tư thật trong fixture.
+2. **Staging (tích hợp và thực nghiệm):** một VPS Linux có cấu hình cố định, Docker Compose, dữ liệu thử nghiệm và image được khóa phiên bản. **Cấu hình khởi đầu tham khảo:** 4 vCPU, 8 GB RAM, 80 GB SSD; không bảo đảm đạt TP-01 nếu chưa đo. Khi benchmark, ghi CPU/RAM, vùng mạng, DB, phiên bản model và lưu lượng.
+3. **Demo (trình diễn):** môi trường có HTTPS, dữ liệu demo, bản triển khai đã qua kiểm thử; có thể chung máy Staging nhưng phải tách dữ liệu/cấu hình và tránh benchmark đồng thời.
+4. **Máy tạo tải:** ưu tiên tách khỏi máy chạy hệ thống để tránh làm sai lệch số đo.
+5. **Huấn luyện/embedding nặng:** dùng máy cá nhân, tài nguyên lab hoặc môi trường tính toán riêng khi cần; không mặc định chạy chung VPS demo.
+
+### 10.3. Kế hoạch thực nghiệm — [ĐỀ XUẤT]
+- **Chức năng:** pytest và Playwright kiểm tra luồng đăng nhập, phân quyền, tài liệu, nộp bài, chấm điểm và trợ giảng.
+- **Hiệu năng:** k6 đo theo TP-01 và QAS-05; tách thời gian xử lý AI khỏi các API giao dịch.
+- **Cô lập lỗi và toàn vẹn:** dừng AI/worker, gửi nộp bài trùng, phát lại sự kiện, thu hồi quyền, làm hỏng lập chỉ mục; đối chiếu QAS-01 đến QAS-04 và QAS-10.
+- **Chất lượng RAG:** bộ câu hỏi được gán nhãn, đánh giá Recall@k (nếu có nhãn truy hồi), độ đúng trích dẫn, mức bám sát nguồn và từ chối khi thiếu căn cứ theo QAS-06.
+- **Triển khai độc lập:** kiểm tra cập nhật AI mà không triển khai lại Learning theo QAS-08.
+
+### 10.4. Ngân sách — [ƯỚC TÍNH, KHÔNG PHẢI BÁO GIÁ]
+- Phát triển local: có thể không tốn phí thuê dịch vụ nếu không gọi API trả phí; vẫn có điện, internet và thiết bị.
+- Khi thuê hạ tầng: dự trù sơ bộ **150.000–400.000 VNĐ/tháng cho VPS nhỏ**, **0–250.000 VNĐ/tháng cho LLM API**, và **0–50.000 VNĐ/tháng cho sao lưu bổ sung**; tổng tùy mức sử dụng, chưa gồm GPU, thuế và phí phát sinh.
+- Không mua Kubernetes, Kafka cluster, GPU server riêng hoặc dịch vụ giám sát thương mại khi chưa có nhu cầu được đo đạc.
+- [CHƯA CHỐT] Ngân sách tối đa, nhà cung cấp VPS, model embedding, LLM, cơ chế xác thực, kho tệp, hàng đợi sự kiện nghiệp vụ, RPO/RTO và chính sách lưu giữ.
+
+## 11. Thuộc tính chất lượng
 Tham chiếu [QUALITY_ATTRIBUTES.md](QUALITY_ATTRIBUTES.md). **P0:** Availability (sẵn sàng), Fault Isolation (cô lập lỗi), Data Integrity (toàn vẹn dữ liệu), Security & Privacy (bảo mật và riêng tư), Performance (hiệu năng), RAG Quality (chất lượng RAG). **P1:** Scalability (mở rộng), Deployability (triển khai độc lập), Modifiability (dễ thay đổi), Recoverability (phục hồi), Recommendation Quality (chất lượng gợi ý). Ngưỡng đo là mục tiêu dự kiến, chưa phải kết quả đạt được.
 
-## 11. Rủi ro và vấn đề chưa chốt
+## 12. Rủi ro và vấn đề chưa chốt
 - Đánh đổi giữa tính sẵn sàng và xác minh quyền: ưu tiên bảo mật, từ chối khi không xác minh được quyền.
 - Cơ chế kích hoạt chỉ mục tài liệu, thu hồi quyền trong lúc AI đang sinh câu trả lời.
 - Core là phụ thuộc quan trọng; cần giảm chuỗi gọi đồng bộ và xử lý sự cố quyền.
 - Chi phí vận hành hàng đợi, sự kiện, nhật ký và các dịch vụ độc lập cho nhóm 4 người.
-- Công nghệ cụ thể, môi trường triển khai, mục tiêu phục hồi RPO/RTO, thời hạn lưu dữ liệu.
+- Công nghệ và môi trường triển khai mới có **phương án đề xuất tại mục 10**, chưa được phê duyệt; mục tiêu phục hồi RPO/RTO và thời hạn lưu dữ liệu vẫn chưa chốt.
 - Chủ sở hữu chuẩn của mục tiêu học tập, ánh xạ câu hỏi sang chủ đề và các tác vụ quản trị xuyên dịch vụ.
 
-**Trạng thái cuối:** kiến trúc Microservices-first ở mức đề xuất, chưa triển khai hoặc kiểm thử thực tế.
+**Trạng thái cuối:** định hướng Microservices-first đã được nhóm lựa chọn; bộ công nghệ, môi trường triển khai và các ngưỡng đo vẫn ở mức **[ĐỀ XUẤT]**, chưa triển khai hoặc kiểm thử thực tế.
