@@ -12,4 +12,4 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 3. [Core Design](docs/architect/microservices-v1/core/DESIGN.md), [Core API](docs/architect/microservices-v1/core/API_CONTRACT.md), [Folder Structure](docs/architect/microservices-v1/core/FOLDER_STRUCTURE.md) — triển khai Core.
 4. [Roadmap](docs/architect/microservices-v1/IMPLEMENTATION_ROADMAP.md), [Quality Attributes](docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md), [Contributing](docs/CONTRIBUTING.md).
 
-**Trạng thái:** Baseline tài liệu thiết kế, không phải tuyên bố code hay test đã hoàn thành. Hướng dẫn chạy sẽ bổ sung khi có skeleton.
+**Trạng thái:** Core đã có Common, Identity và hạ tầng Compose/CI; các module Core khác vẫn chưa hoàn thành. Xem [Core README](services/core/README.md) để cấu hình, migration và kiểm thử. Sau khi cấu hình môi trường theo `.env.example`, chạy `docker compose up --build -d`; Compose tự chạy migration trước Core. Chưa nghiệm thu toàn Core/G2 hoặc chuyển G3.

@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-rag_course}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -14,11 +14,29 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+  migrate:
+    image: ${CORE_IMAGE:-rag-course-core:local}
+    build: ./services/core
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_course:change-me-local-only@db:5432/rag_course}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
   core:
+    image: ${CORE_IMAGE:-rag-course-core:local}
     build: ./services/core
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_course:change-me-local-only@db:5432/rag_course}
-      CORS_ORIGINS: '["http://localhost:3000"]'
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
       SECRET_KEY:
       INTERNAL_SERVICE_SECRET:
       COOKIE_SECURE:
@@ -30,15 +48,25 @@ services:
       SMTP_SECURITY:
       SMTP_TIMEOUT_SECONDS:
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${CORE_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 5
+      start_period: 10s
   web:
     build:
       context: ./apps/web
@@ -47,7 +75,7 @@ services:
     environment:
       NEXT_PUBLIC_CORE_API_URL: ${NEXT_PUBLIC_CORE_API_URL:-http://localhost:8000}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
     depends_on:
       core:
         condition: service_healthy

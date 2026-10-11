@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, MetaData, create_engine, func, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from app.common.config import settings
@@ -25,7 +26,11 @@ engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
     hide_parameters=True,
-    connect_args={"options": "-c timezone=UTC"},
+    pool_timeout=settings.database_pool_timeout_seconds,
+    connect_args={
+        "options": "-c timezone=UTC",
+        "connect_timeout": settings.database_connect_timeout_seconds,
+    },
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
@@ -49,3 +54,11 @@ def transaction(session: Session) -> Iterator[Session]:
 def ping_database() -> None:
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
+        usable = connection.scalar(
+            text(
+                "SELECT has_schema_privilege(current_user, oid, 'USAGE') "
+                "FROM pg_namespace WHERE nspname = 'core'"
+            )
+        )
+        if not usable:
+            raise SQLAlchemyError("Core schema unavailable")

@@ -5,6 +5,8 @@ __pycache__/
 .ruff_cache/
 .venv/
 .coverage
+/services/core/coverage.xml
+/services/core/test-results.xml
 # Next.js
 node_modules/
 .next/

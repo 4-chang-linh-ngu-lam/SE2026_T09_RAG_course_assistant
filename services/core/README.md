@@ -1,12 +1,14 @@
 # Core FastAPI service
 
-Chạy tại thư mục repo: `docker compose up --build -d`.
+Chuẩn bị môi trường theo `.env.example` tại root repo (chỉ mẫu local, không chứa credential production), rồi chạy tại root: `docker compose up --build -d`. Dùng Docker Compose v2 trở lên, Linux containers. Compose chờ PostgreSQL healthy → chạy service `migrate` một lần → chỉ khởi động Core khi migration thành công → khởi động Web khi Core healthy. Không sửa/xóa volume có sẵn để xử lý lỗi migration.
 
 - Liveness: http://localhost:8000/health/live
 - Readiness (kiểm tra DB): http://localhost:8000/health/ready
 - OpenAPI: http://localhost:8000/docs
 - Migration: `docker compose exec core alembic upgrade head`
 - Test cục bộ: `cd services/core && pip install -e '.[dev]' && pytest -q`
+
+Health contract: `/health/live` trả `{status:"live"}` (thay `{status:"ok"}` từ skeleton theo TASK-016); `/health/ready` trả `{status:"ready",db:"connected"}` khi kết nối và quyền USAGE schema `core` hợp lệ, ngược lại trả 503 error envelope. Liveness không phụ thuộc DB. Timeout kết nối/pool cấu hình bằng `DATABASE_CONNECT_TIMEOUT_SECONDS` và `DATABASE_POOL_TIMEOUT_SECONDS` (mặc định 3 giây).
 
 Common và Identity auth/profile/data-request API đã triển khai. Classroom, Social, Notification và các endpoint Admin chưa triển khai. Migration 0001 khởi tạo baseline; 0002 tạo `core.audit_events`; 0003 tạo bốn bảng xác thực Identity; 0004 tạo `core.data_requests`. Không dùng mật khẩu DB mặc định trong production.
 
@@ -73,3 +75,16 @@ Data request API:
 POST chỉ ghi nhận yêu cầu; không tự xuất/xóa/ẩn danh dữ liệu, khóa tài khoản hoặc đặt thời hạn retention pháp lý. Admin phân loại/xử lý thủ công và ghi resolution ở TASK-013 theo K1/K4/O8. FK không cascade xóa yêu cầu khi xóa user; luồng xóa thật phải xử lý lịch sử theo retention đã duyệt.
 
 Coverage public interface: `pytest tests/identity/test_public.py -W error --cov=app.modules.identity.public --cov-branch --cov-report=term-missing --cov-fail-under=100`. Test PostgreSQL/HTTP nằm trong `test_service.py` và `test_router.py`, cần `TEST_DATABASE_URL` là DB test riêng.
+
+## Docker, migration và CI (TASK-016)
+
+- Core image multi-stage Python 3.12-slim: builder tạo wheel có `app`, runtime chỉ cài wheel/dependencies và copy migrations. Runtime UID/GID 10001, root filesystem read-only, `/tmp` tmpfs, drop capabilities/no-new-privileges. Một Uvicorn worker vì limiter/idempotency còn process-local; proxy headers tắt đến khi có cấu hình proxy tin cậy. Không tự tăng worker khi chưa có backend limiter/cache dùng chung.
+- PostgreSQL 16 dùng named volume `pgdata` theo project, port chỉ bind loopback. Các port cấu hình bằng `POSTGRES_PORT` (5432), `CORE_PORT` (8000), `WEB_PORT` (3000); cập nhật `NEXT_PUBLIC_CORE_API_URL` và `CORS_ORIGINS` tương ứng khi đổi port. `CORE_IMAGE` tùy chọn cho tag test độc lập, mặc định `rag-course-core:local`.
+- DB credentials và `DATABASE_URL` cần khớp; URL-encode ký tự đặc biệt trong credential. Các default trong mẫu chỉ dùng local. Thay môi trường không tự đổi credential của volume PostgreSQL đã khởi tạo. Stack này chưa phải cấu hình production HA hoặc phân quyền DB cho cả năm service.
+- Kiểm tra cấu hình bằng `docker compose config --quiet` (không xuất nội dung secret). Xem trạng thái bằng `docker compose ps -a`; retry migration sau khi sửa nguyên nhân bằng `docker compose run --rm migrate`. Thay đổi schema luôn tạo revision mới; không sửa migration đã áp dụng.
+- `.github/workflows/core-ci.yml` chạy trên mọi PR và push main/feature/fix/codex: lint/format, PostgreSQL 16, upgrade/drift check, OpenAPI snapshot, toàn bộ tests có DB và coverage/JUnit artifact, public coverage 100%, Web build và Compose smoke riêng. Smoke kiểm tra non-root/package/migration/health/Web, dừng DB rồi kiểm tra 503/live và phục hồi. Cleanup chỉ project CI riêng, không prune Docker toàn cục.
+- Formatter giữ nguyên migration 0001 đã áp dụng bằng exclusion riêng (baseline cũ không được format); lint vẫn kiểm tra file đó. Không có cấu hình mypy hiện tại nên chưa thêm type-check Python; Next build có kiểm tra TypeScript.
+
+Kiểm tra tương đương CI tại `services/core` với `DATABASE_URL`/`TEST_DATABASE_URL` trỏ đến DB test riêng đã cấu hình: `ruff check app tests migrations`, `ruff format --check app tests migrations`, `alembic upgrade head`, `alembic check`, `pytest -W error --cov=app --cov-branch --cov-report=xml --junitxml=test-results.xml`. Không chạy các integration test trên DB có dữ liệu cần giữ. Reports local không được track.
+
+**Bằng chứng local 2026-10-12:** Docker 29.8.2/Compose 5.5.1 Linux engine, project/volume/cổng/image tag riêng từ môi trường sạch; Core UID 10001, wheel/migrations đúng; live/ready/Web đạt. PostgreSQL 16 chạy toàn bộ 124 test, không warning; coverage app 96%, public 100%. Dừng/khởi động DB giữ schema, ready 503→200 và live vẫn 200. GitHub Actions chưa được chạy từ remote ở bước này. Checklist toàn Core còn chờ Classroom, Social, Notification, Admin và các test tương ứng; không coi TASK-016 là nghiệm thu G2/G3.

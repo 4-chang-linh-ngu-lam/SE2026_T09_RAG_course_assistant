@@ -40,7 +40,13 @@ Hoàn thiện hạ tầng đóng gói Docker cho Core Service, chuẩn hóa file
 ---
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
-- [ ] Lệnh `docker compose up --build -d` khởi động thành công từ môi trường sạch không báo lỗi.
-- [ ] Endpoint `/health/live` trả về 200; endpoint `/health/ready` phản ánh chính xác trạng thái kết nối PostgreSQL.
+- [x] Lệnh `docker compose up --build -d` khởi động thành công từ môi trường sạch không báo lỗi (project test riêng, thêm `--wait` để xác minh health).
+- [x] Endpoint `/health/live` trả về 200; endpoint `/health/ready` phản ánh chính xác trạng thái kết nối PostgreSQL và quyền dùng schema Core.
 - [ ] GitHub Actions CI chạy thành công (green build) trên mọi PR mới.
 - [ ] Toàn bộ checklist nghiệm thu Core tại [IMPLEMENTATION_ROADMAP.md](../docs/architect/microservices-v1/IMPLEMENTATION_ROADMAP.md#checklist-nghiệm-thu-core) được tích hợp kiểm tra tự động.
+
+**Đã triển khai:** Core wheel image multi-stage/non-root/read-only/single worker, migration job trước startup, health typed schemas/timeouts, Compose env/port config, CI PostgreSQL 16 + migration/contract/tests/coverage/public gate/Web/Compose smoke. CI trigger PR và push main/feature/fix/codex; mypy chưa có cấu hình nên không thêm. Không sửa migration đã áp dụng; formatter exclusion chỉ dành cho baseline 0001 cũ, lint vẫn chạy.
+
+**Bằng chứng local (2026-10-12):** Docker 29.8.2, Compose 5.5.1, Linux engine; build và startup project test với volume/cổng/image riêng đạt, Core UID 10001/wheel installed, schema drift không có, Web/health đạt. Toàn bộ 124 test chạy PostgreSQL 16, không warning; app coverage 96%, public interface 100%; lint/format đạt. Khi dừng DB: ready 503 và live 200; sau khởi động lại: ready 200, schema/migration giữ nguyên. Stack test được dọn riêng, không tác động stack/volume khác.
+
+**Chưa nghiệm thu đầy đủ:** GitHub green build cần chạy sau khi người dùng mở/push PR; chưa có xác nhận remote. Checklist toàn Core bị phụ thuộc TASK-005–015 chưa hoàn thành (Classroom, Social, Notification, Admin và các test tích hợp tương ứng). Pipeline hiện kiểm tra toàn bộ code/tests đã có, không chứng minh tính năng chưa triển khai. Giữ trạng thái hai tiêu chí này pending; chưa chuyển G3. Hướng dẫn chính: [Core README](../services/core/README.md#docker-migration-và-ci-task-016). Shared CI/Compose/contracts cần TV1/TV4 review trong PR.
