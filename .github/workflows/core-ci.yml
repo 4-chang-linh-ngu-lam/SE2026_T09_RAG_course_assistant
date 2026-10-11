@@ -17,6 +17,7 @@ jobs:
       - run: pip install -e '.[dev]'
       - run: ruff check app tests migrations
       - run: pytest -q
+      - run: pytest tests/identity/test_public.py -W error --cov=app.modules.identity.public --cov-branch --cov-report=term-missing --cov-fail-under=100
   web-build:
     runs-on: ubuntu-latest
     defaults:
