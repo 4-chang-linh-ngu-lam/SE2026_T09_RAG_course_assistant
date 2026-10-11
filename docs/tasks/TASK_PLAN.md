@@ -4,7 +4,7 @@
 
 > Đây là kế hoạch ở mức **Feature → Tasks**, không phải Task specification cuối cùng. Mỗi feature lớn có một branch, bên trong gồm nhiều Tasks nhỏ và các commit thực chất. **Không tạo 16 branch cùng lúc**. Tạo khi feature bắt đầu, merge qua PR và xóa sau khi hoàn tất. Thực hiện và cập nhật Task theo nhu cầu; không lập lịch cố định từ đầu.
 
-## Nguyên tắc và Definition of Done
+**Cập nhật định hướng triển khai:** Nhóm ưu tiên **Core → tích hợp/kiểm thử Core → Document + AI → Learning → Learner Intelligence** theo [IMPLEMENTATION_ROADMAP.md](../architect/microservices-v1/IMPLEMENTATION_ROADMAP.md). Phân công TV1–TV4 và thứ tự phát triển song song bên dưới là **backlog đề xuất cũ**, chưa được cập nhật/phê duyệt theo Core-first; không được hiểu là phải phát triển đồng thời 5 service. Không loại bỏ tính năng MVP đã chốt chỉ vì lùi sang increment sau.\n\n## Nguyên tắc và Definition of Done
 
 - Nhóm có 4 người, mỗi người sở hữu nhóm module; cross-review tối thiểu một người khác.
 - Feature phải có acceptance criteria theo Business Rules, API contract nếu liên quan, kiểm thử unit/integration, xử lý lỗi, tài liệu cập nhật và demo được.
