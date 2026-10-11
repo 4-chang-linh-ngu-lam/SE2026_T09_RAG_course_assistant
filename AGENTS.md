@@ -1,6 +1,6 @@
 # Agent Instructions — RAG Course Assistant
 
-Read `docs/architect/BUSINESS_RULES.md` (authoritative product constraints), `docs/architect/microservices-v1/ARCHITECTURE.md` (accepted Microservices architecture direction; implementation choices marked [ĐỀ XUẤT] remain pending), `docs/architect/microservices-v1/ADR-001.md`, `docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md`, `docs/tasks/TASK_PLAN.md` (provisional plan) and `docs/CONTRIBUTING.md` (Git workflow) before modifying code.
+Read `docs/architect/BUSINESS_RULES.md` (authoritative product constraints), `docs/architect/microservices-v1/ARCHITECTURE.md` (accepted Microservices architecture direction; implementation choices marked [ĐỀ XUẤT] remain pending), `docs/architect/microservices-v1/ADR-001.md`, `docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md`, `docs/architect/microservices-v1/IMPLEMENTATION_ROADMAP.md` (proposed Core-first roadmap), `docs/architect/microservices-v1/core/DESIGN.md` and `core/API_CONTRACT.md` (proposed Core design/contracts), and `docs/CONTRIBUTING.md` (Git workflow) before modifying code.
 
 - Never invent, relax, or silently modify an accepted business rule. Cite Rule IDs in plans/PRs.
 - The team has selected Microservices as the architecture direction. Treat specific technologies, service contracts and unverified quality thresholds as proposals until approved.
