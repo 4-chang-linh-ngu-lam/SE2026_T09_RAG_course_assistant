@@ -17,23 +17,35 @@ def include_name(name, type_, parent_names):
 
 
 def run_migrations_offline() -> None:
-    context.configure(url=settings.database_url, target_metadata=target_metadata, literal_binds=True,
-                      version_table_schema="core")
+    context.configure(
+        url=settings.database_url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        version_table_schema="core",
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(config.get_section(config.config_ini_section, {}), prefix="sqlalchemy.", poolclass=pool.NullPool)
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section, {}),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
     with connectable.connect() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS core"))
         connection.commit()
         connection.execute(text("SET search_path TO public"))
         # End SQLAlchemy's implicit transaction so Alembic owns and commits its DDL transaction.
         connection.commit()
-        context.configure(connection=connection, target_metadata=target_metadata,
-                          version_table_schema="core", include_schemas=True,
-                          include_name=include_name)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            version_table_schema="core",
+            include_schemas=True,
+            include_name=include_name,
+        )
         with context.begin_transaction():
             context.run_migrations()
 

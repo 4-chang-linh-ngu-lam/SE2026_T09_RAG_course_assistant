@@ -1,11 +1,31 @@
-name: Core skeleton CI
+name: Core CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'feature/**', 'fix/**', 'codex/**']
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   core-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: core_ci
+          POSTGRES_USER: core_ci
+          POSTGRES_PASSWORD: ci-only-${{ github.run_id }}-${{ github.run_attempt }}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U core_ci -d core_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://core_ci:ci-only-${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/core_ci
+      TEST_DATABASE_URL: postgresql+psycopg://core_ci:ci-only-${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/core_ci
     defaults:
       run:
         working-directory: services/core
@@ -15,11 +35,32 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e '.[dev]'
-      - run: ruff check app tests migrations
-      - run: pytest -q
-      - run: pytest tests/identity/test_public.py -W error --cov=app.modules.identity.public --cov-branch --cov-report=term-missing --cov-fail-under=100
+      - name: Lint and format
+        run: |
+          ruff check app tests migrations
+          ruff format --check app tests migrations
+      - name: Apply migrations and detect drift
+        run: |
+          alembic upgrade head
+          alembic check
+      - name: OpenAPI contract snapshot
+        run: pytest tests/identity/test_openapi.py -q -W error
+      - name: Full Core tests against PostgreSQL
+        run: pytest -q -W error --cov=app --cov-branch --cov-report=term-missing --cov-report=xml --junitxml=test-results.xml
+      - name: Public interface coverage gate
+        run: pytest tests/identity/test_public.py -q -W error --cov=app.modules.identity.public --cov-branch --cov-report=term-missing --cov-fail-under=100
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-test-evidence
+          path: |
+            services/core/coverage.xml
+            services/core/test-results.xml
+          if-no-files-found: warn
   web-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/web
@@ -30,3 +71,51 @@ jobs:
           node-version: "22"
       - run: npm install --no-audit --no-fund
       - run: npm run build
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: core-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      POSTGRES_PORT: '15432'
+      CORE_PORT: '18000'
+      WEB_PORT: '13000'
+      NEXT_PUBLIC_CORE_API_URL: http://localhost:18000
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure isolated test credentials
+        shell: bash
+        run: |
+          for name in SECRET_KEY INTERNAL_SERVICE_SECRET; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      - name: Build and start a clean Compose project
+        run: docker compose up --build -d --wait --wait-timeout 180
+      - name: Verify runtime user, installed package and migration
+        run: |
+          test "$(docker compose exec -T core id -u)" != "0"
+          docker compose exec -T core python -c "from pathlib import Path; import app; assert 'site-packages' in str(Path(app.__file__))"
+          docker compose exec -T core python -m alembic check
+      - name: Probe live, ready and Web
+        run: |
+          curl --fail --silent http://localhost:18000/health/live | python -c "import json,sys; assert json.load(sys.stdin) == {'status':'live'}"
+          curl --fail --silent http://localhost:18000/health/ready | python -c "import json,sys; assert json.load(sys.stdin) == {'status':'ready','db':'connected'}"
+          curl --fail --silent http://localhost:13000/ > /dev/null
+      - name: Verify DB outage and recovery
+        run: |
+          docker compose stop db
+          test "$(curl --silent --max-time 10 -o /tmp/core-ready.json -w '%{http_code}' http://localhost:18000/health/ready)" = "503"
+          python -c "import json; assert json.load(open('/tmp/core-ready.json'))['error']['code'] == 'SERVICE_UNAVAILABLE'"
+          curl --fail --silent http://localhost:18000/health/live > /dev/null
+          docker compose start db
+          curl --fail --silent --retry 10 --retry-delay 2 --retry-all-errors http://localhost:18000/health/ready > /dev/null
+      - name: Diagnose failed stack
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=100
+      - name: Remove only this job's isolated stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
