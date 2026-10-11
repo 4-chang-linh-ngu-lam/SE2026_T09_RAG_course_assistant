@@ -1,52 +1,32 @@
-# Quy trình cộng tác GitHub — RAG Course Assistant
+# Quy trình cộng tác — Monorepo
 
-**Status:** Đề xuất áp dụng sau khi nhóm review. **Nhóm:** 4 thành viên; môn học đánh giá quá trình.
+## Branch, PR và commit
+- Chỉ **một GitHub repository**. `main` là nhánh tích hợp; phát triển trên `feature/<issue>-<slug>` hoặc `fix/<issue>-<slug>`.
+- Mỗi PR tập trung vào một chức năng/nhóm thay đổi có thể review và test; ít nhất **một reviewer khác tác giả**, CI/test liên quan đạt.
+- **Squash merge** mặc định để lịch sử main gọn; không bắt buộc merge commit và **không commit theo từng file/task**. Không tạo commit giả để tăng thống kê.
+- Không push trực tiếp main, force push nhánh chia sẻ hoặc tự thay đổi branch protection khi chưa thống nhất.
 
-## Branch strategy
-- `main`: nhánh chính duy nhất tồn tại lâu dài, phải build/test được.
-- **Một feature lớn = một branch**, có nhiều Task nhỏ và commit thực chất. Ví dụ: `feat/auth-and-users`, `feat/classroom`, `feat/documents`, `feat/ai-tutor`, `feat/assessment`.
-- Sau khi merge, xóa branch; sửa lỗi/nâng cấp tạo `fix/<area>-<issue>`, `perf/<area>-<goal>`, `test/<area>-<scenario>`, `docs/<topic>`.
-- Không tạo toàn bộ branch trước; chỉ tạo khi bắt đầu feature. Không dùng branch cố định theo tên thành viên.
-- Nếu feature quá lớn hoặc chặn module khác, tách vertical slice thành feature/PR nhỏ hơn, không giữ branch kéo dài nhiều tuần.
+## Owner Core (trách nhiệm chính, không độc quyền)
+| Thành viên | Module chính | Phối hợp |
+|---|---|---|
+| TV1 | identity | auth/security chung |
+| TV2 | classroom | membership, quyền lớp |
+| TV3 | social (feed/comments/calendar) | UI/API/test theo feature |
+| TV4 | notification, administration | audit, CI/Compose, test tích hợp |
 
-## Issue → Task → Branch → Commits → PR → Review → Merge
-1. Tạo Issue và liên kết `docs/architect/microservices-v1/IMPLEMENTATION_ROADMAP.md`; Task có owner, Rule IDs, dependency, acceptance, test evidence.
-2. Owner tạo feature branch từ `main` mới nhất; thống nhất API contract với người phụ thuộc trước khi code.
-3. Mỗi Task nhỏ tạo commit có ý nghĩa, ví dụ `feat(documents): implement version history`, `test(rag): deny revoked documents`.
-4. Mở Draft PR sớm khi cần trao đổi; chuyển ready khi feature/slice hoàn thiện.
-5. PR ghi mục tiêu, Rule IDs, Architecture sections, Task IDs, ảnh/demo khi có UI, test và rủi ro/migration.
-6. Tối thiểu 1 reviewer khác owner, CI xanh, giải quyết review comments; chọn **Create a merge commit**, không squash.
-7. Xóa branch sau merge; cập nhật Issue/Project, changelog nếu cần.
+Các file `main.py`, `bootstrap.py`, `common/`, `pyproject.toml`, `Dockerfile`, `migrations/env.py`, `tests/conftest.py` là shared; thay đổi phải có review của người bị ảnh hưởng. Mỗi người vẫn làm frontend và test theo tính năng.
 
-## Bảo vệ main
-Khuyến nghị ruleset: require PR, ít nhất 1 approval, required status checks, resolve conversations, block force push/delete. Tính khả dụng phụ thuộc quyền quản trị/gói GitHub. Không push trực tiếp main. Không cho agent tự merge hoặc tự thay đổi ruleset.
+## Quy trình
+1. Issue ghi mục tiêu, Business Rule ID, module, tiêu chí nghiệm thu.
+2. Chốt API/public interface và fixture/mock trước khi code song song.
+3. Làm feature branch, test, mở PR ghi thay đổi, ảnh hưởng DB/API, test đã chạy và rủi ro.
+4. Review chéo, giải quyết conflict và comment, merge sau khi kiểm tra.
+5. Migration Alembic mới cho thay đổi schema; không sửa revision đã merge/áp dụng; nếu nhiều head phối hợp merge revision.
+6. Nếu đổi Business Rules hoặc contract: yêu cầu phê duyệt, cập nhật tài liệu/test cùng PR.
 
-## Commit và đánh giá quá trình
-- Mỗi người cấu hình GitHub email được xác minh, commit bằng danh tính thật của mình; không dùng tài khoản chung.
-- **Không tạo commit giả, không trì hoãn merge để rải commit, không chia nhỏ vô nghĩa.**
-- Nhóm hướng tới mỗi tuần mỗi người có hoạt động kỹ thuật được ghi nhận: code, test, docs, review, bug fixes; theo dõi cả PR/Issue/review thay vì chỉ đếm commits.
-- Tích hợp increment chạy được mỗi 1–2 tuần, có demo/chứng cứ kiểm thử.
-- Kiểm tra thực tế cách giảng viên tính commit và cách GitHub hiển thị contributions; không suy đoán.
-
-## Multi-agent safety
-Một người chịu trách nhiệm chính mỗi feature branch; nhiều agent nên dùng working tree/worktree riêng, tránh cùng sửa một file chưa đồng bộ. Agent chỉ sửa phạm vi Task; nếu gặp breaking change, dừng và đề xuất. Không tự sửa Business Rules, Architecture đã duyệt, migration dữ liệu nhạy cảm hoặc xóa file quan trọng.
-
-## PR template
-```md
-## Mục tiêu và phạm vi
-## Issue / Feature / Tasks
-## Business Rules liên quan
-## Architecture / API contracts
-## Thay đổi chính
-## Kiểm thử và bằng chứng
-## Rủi ro, migration, bảo mật, dữ liệu
-## Checklist
-- [ ] Không thay đổi rule ngoài phạm vi được duyệt
-- [ ] Đã kiểm tra quyền truy cập và trường hợp ngoại lệ
-- [ ] Tests/build pass
-- [ ] Đã tự review code AI-generated
-- [ ] Docs/API contracts cập nhật nếu cần
-```
-
-## Quy tắc khi có xung đột
-Ưu tiên cập nhật nhánh từ `main` và giải quyết conflict cẩn thận; không force push nhánh chia sẻ nếu chưa thống nhất. Thay đổi DB schema/API chung phải thông báo các owner liên quan. Quyền truy cập và versioned assessment phải được test sau mỗi lần tích hợp.
+## PR checklist
+- [ ] Có Issue/Rule ID và phạm vi rõ.
+- [ ] Thay đổi shared interface/schema được thông báo và review.
+- [ ] Test chạy thực tế, ghi kết quả.
+- [ ] Không có secret, dữ liệu cá nhân hoặc chat riêng tư.
+- [ ] Docs, migration, API contract đã đồng bộ.

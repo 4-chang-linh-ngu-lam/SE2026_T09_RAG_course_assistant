@@ -1,6 +1,6 @@
 # Microservices v1 — Thuộc tính chất lượng và tiêu chí nghiệm thu
 
-**Phiên bản:** 1.0.0-draft | **Ngày:** 10/10/2026 | **Trạng thái:** Đã chốt mức ưu tiên; ngưỡng đo còn là đề xuất.
+**Phiên bản:** 1.0.0 | **Ngày:** 2026-10-11 | **Trạng thái:** BASELINE TIÊU CHÍ NGHIỆM THU; chưa có kết quả đo. Các ngưỡng là mục tiêu, không phải thành tích đã đạt.
 
 **Kiến trúc liên quan:** [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -50,7 +50,7 @@ Mỗi kịch bản gồm: **Nguồn tác động, Sự kiện, Môi trường, T
 - **Nguồn/sự kiện:** ít nhất 100 câu hỏi gồm có đáp án, thiếu bằng chứng, nhiều nguồn và nguồn không được phép.
 - **Môi trường/thành phần:** hệ thống truy hồi và trợ giảng AI.
 - **Phản ứng:** trả lời dựa trên bằng chứng được cấp quyền, trích dẫn đúng hoặc nói rõ khi không đủ dữ liệu.
-- **Đo đề xuất:** độ đúng trích dẫn ≥90%; mức độ bám sát nguồn ≥90%; từ chối trả lời đúng khi thiếu chứng cứ ≥90%; không rò rỉ dữ liệu xuyên lớp trong bộ kiểm thử.
+- **Mục tiêu đo:** độ đúng trích dẫn ≥90%; mức độ bám sát nguồn ≥90%; từ chối trả lời đúng khi thiếu chứng cứ ≥90%; không rò rỉ dữ liệu xuyên lớp trong bộ kiểm thử.
 
 ## 3. Kịch bản ưu tiên P1
 ### QAS-07 — Khả năng mở rộng (Scalability)
@@ -63,10 +63,10 @@ Nhà phát triển phát hành phiên bản AI mới qua CI/CD. Không cần tha
 Thay thuật toán ước lượng năng lực trong Learner Intelligence mà không sửa mã nộp bài/chấm điểm của Learning. Kiểm thử hợp đồng và đối soát bằng chứng đạt.
 
 ### QAS-10 — Khả năng phục hồi (Recoverability)
-Tiến trình xử lý tài liệu lỗi giữa lúc lập chỉ mục. Tệp gốc và phiên bản hợp lệ trước đó vẫn còn; thử lại an toàn; không công bố chỉ mục chưa hoàn chỉnh. Đo thời gian phục hồi và độ trễ hàng đợi. RPO/RTO cụ thể chưa chốt.
+Tiến trình xử lý tài liệu lỗi giữa lúc lập chỉ mục. Tệp gốc và phiên bản hợp lệ trước đó vẫn còn; thử lại an toàn; không công bố chỉ mục chưa hoàn chỉnh. Đo thời gian phục hồi và độ trễ hàng đợi. Chưa đặt ngưỡng RPO/RTO cho Core local; kế hoạch production cần được bổ sung khi có môi trường vận hành.
 
 ### QAS-11 — Chất lượng gợi ý (Recommendation Quality)
-Tối thiểu 50 tình huống học tập do giảng viên kiểm tra. Gợi ý phải phù hợp chủ đề yếu, có bằng chứng, có thể giải thích và không kết luận năng lực khi dữ liệu thiếu. Báo cáo mức phù hợp, khả năng truy vết bằng chứng và từ chối khi thiếu dữ liệu. Ngưỡng phần trăm chờ phê duyệt thang chấm.
+Tối thiểu 50 tình huống học tập do giảng viên kiểm tra. Gợi ý phải phù hợp chủ đề yếu, có bằng chứng, có thể giải thích và không kết luận năng lực khi dữ liệu thiếu. Báo cáo mức phù hợp, khả năng truy vết bằng chứng và từ chối khi thiếu dữ liệu. Báo cáo kết quả đánh giá và tỷ lệ phù hợp theo bộ tình huống đã duyệt; không tuyên bố đạt trước khi đo.
 
 ## 4. Bộ thử nghiệm kiến trúc
 | Mã | Thử nghiệm | Mục tiêu |
@@ -81,8 +81,16 @@ Tối thiểu 50 tình huống học tập do giảng viên kiểm tra. Gợi ý
 
 ## 5. Quy trình nghiệm thu
 1. Nhóm review kịch bản và cách đo.
-2. Duyệt hoặc điều chỉnh các ngưỡng dự kiến và cấu hình môi trường.
+2. Ghi cấu hình môi trường và xác nhận phương pháp đo trước khi chạy.
 3. Triển khai đo đạc, kiểm thử lỗi, tải, bảo mật và đánh giá RAG.
 4. Lưu kết quả thực tế, bằng chứng và sai lệch; chỉ đánh dấu **đã kiểm chứng** khi có kết quả.
 
 **Lưu ý:** 0 lỗi trong một bộ kiểm thử hữu hạn không chứng minh hệ thống tuyệt đối không thể xảy ra lỗi.
+
+## 6. Kiểm thử Core (G1–G2)
+- Core-01: toàn bộ ca cross-class, LOCKED, PENDING, REMOVED, archived phải bị chặn.
+- Core-02: 100 lần thử approve/transfer đồng thời không sinh membership ACTIVE hoặc owner trùng.
+- Core-03: refresh rotation/replay, logout-all, password reset, CSRF, rate limit và khóa tài khoản được kiểm tra.
+- Core-04: soft delete feed/comments, calendar LEARNING read-only, notification dedup, admin audit chạy end-to-end.
+- Core-05: Docker Compose từ môi trường sạch, migration, health, contract/unit/integration test chạy có bằng chứng.
+- Core-06: đo p95 danh sách lớp ≤500ms theo TP-01; lưu cấu hình, script, kết quả thực tế.

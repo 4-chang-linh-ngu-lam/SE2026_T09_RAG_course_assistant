@@ -1,6 +1,6 @@
 # Quy ước tổ chức mã nguồn Core Service
 
-**Trạng thái:** [ĐỀ XUẤT] để nhóm review trước khi tạo skeleton. **Phạm vi:** `services/core/` trong **một monorepo**; Core là **một FastAPI microservice**, không tách module nội bộ thành các service riêng.
+**Trạng thái:** BASELINE QUY ƯỚC THƯ MỤC; chưa tạo skeleton. **Phạm vi:** `services/core/` trong **một monorepo**; Core là **một FastAPI microservice**, không tách module nội bộ thành các service riêng.
 
 ## 1. Mục tiêu và cách đọc
 - Người mới biết đặt file ở đâu, mỗi thư mục chịu trách nhiệm gì, ai thường sửa.
@@ -93,7 +93,7 @@ Ví dụ: `social/feed/service.py` muốn xác minh quyền đăng bài thì g�
 
 ## 4. Quy tắc giảm Git conflict cho 4 người
 
-| Người phụ trách chính (đề xuất) | Vùng code ưu tiên | Vùng phối hợp |
+| Người phụ trách chính (đã chọn) | Vùng code ưu tiên | Vùng phối hợp |
 |---|---|---|
 | TV1 | `modules/identity/` | `common/security.py`, `auth_dependencies.py` |
 | TV2 | `modules/classroom/` | Hợp đồng quyền `classroom/public.py` |
@@ -130,7 +130,7 @@ HTTP request → router → service → repository → PostgreSQL (Core)
 5. Giảng viên duyệt: `classroom/service.py` kiểm tra quyền, transaction cập nhật trạng thái và membership; audit hành động.
 6. `tests/classroom/` kiểm tra chờ duyệt không xem được lớp, duyệt lặp, duyệt đồng thời, bị khóa tài khoản và truy cập chéo lớp.
 
-**Không** gọi Notification trực tiếp trước khi transaction của JoinRequest thành công; cơ chế giao sự kiện tin cậy sẽ được đặc tả khi cần.
+**Không** gọi Notification trực tiếp trước khi transaction của JoinRequest thành công; sử dụng transactional outbox và consumer idempotent theo Core Design.
 
 ## 7. Quy ước cho AI coding agent
 
@@ -143,10 +143,10 @@ HTTP request → router → service → repository → PostgreSQL (Core)
 7. Không tự push main, merge PR hay thay đổi bảo vệ nhánh nếu chưa được cho phép.
 8. Khi cấu trúc triển khai khác tài liệu, cập nhật chính phần liên quan của tài liệu này trong PR; tránh tài liệu lỗi thời.
 
-## 8. Những gì cần nhóm phê duyệt trước khi tạo skeleton
-- Tên `app/common/` và `app/modules/` là quy ước đề xuất; có thể đổi đồng bộ một lần.
-- Phân công TV1–TV4 chỉ là **owner chính**, không thay thế kế hoạch phân chia frontend/test.
-- DB schema, OpenAPI, state machine và ma trận quyền phải được chốt tại `core/DESIGN.md` và `core/API_CONTRACT.md`, không lấy ví dụ trong tài liệu này làm quyết định nghiệp vụ.
-- Các module `social`, `notification`, `administration` thuộc phạm vi Core hoàn chỉnh theo định hướng mới; cần cập nhật roadmap và thiết kế Core trước khi code.
+## 8. Quy tắc khi tạo skeleton
+- Giữ `app/common/` và `app/modules/` đúng cấu trúc; đổi phải qua PR cập nhật thiết kế.
+- TV1–TV4 là **owner chính**; mỗi người vẫn thực hiện frontend/test theo feature.
+- Schema/state machine/quyền theo `DESIGN.md`; API theo `API_CONTRACT.md`; sinh OpenAPI từ FastAPI và kiểm tra contract khi triển khai.
+- `social`, `notification`, `administration` thuộc G1–G2, phải hoàn thành trước khi chuyển sang Document/AI.
 
 **Nguyên tắc cuối:** ít file dùng chung, ownership rõ, interface ổn định, PR nhỏ, commit có ý nghĩa. Không cố tối ưu conflict bằng cách sao chép logic hoặc bỏ kiểm tra quyền.

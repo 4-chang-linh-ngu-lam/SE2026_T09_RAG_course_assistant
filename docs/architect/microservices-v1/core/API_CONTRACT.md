@@ -1,98 +1,81 @@
-# Hợp đồng API Core v0 — Bản thảo
+# Core API Contract v1
 
-**Trạng thái:** [ĐỀ XUẤT], chưa được duyệt, chưa có OpenAPI chạy thực tế. **Ngày:** 11/10/2026.
+**Trạng thái:** BASELINE HỢP ĐỒNG · **Ngày:** 2026-10-11. API chưa được xác nhận đã triển khai. Business Rules ưu tiên khi có xung đột.
 
-Tài liệu giúp Frontend/Backend thống nhất giao tiếp trước khi code; **không phải danh sách endpoint đã tồn tại**. Đối chiếu [thiết kế Core](DESIGN.md), [Business Rules](../../BUSINESS_RULES.md) và [lộ trình](../IMPLEMENTATION_ROADMAP.md).
+## Quy ước
+- Public `/api/v1`, HTTP/JSON, Bearer access JWT; refresh/logout qua HttpOnly Secure cookie + CSRF/Origin protection.
+- UUID cho ID; ISO-8601 UTC cho thời gian. List: `?limit=20&cursor=<opaque>`, limit 1..100; `{"items":[],"next_cursor":null}`.
+- `200` đọc/cập nhật, `201` tạo, `204` xóa; lỗi `400 BAD_REQUEST`, `401 UNAUTHENTICATED`, `403 FORBIDDEN`, `404 NOT_FOUND`, `409 CONFLICT`, `422 VALIDATION_ERROR`, `429 RATE_LIMITED`.
+- Error: `{"error":{"code":"FORBIDDEN","message":"Không có quyền","correlation_id":"uuid"}}`. Che tài nguyên ngoài quyền bằng 404.
+- Mutations hỗ trợ `Idempotency-Key` UUID (scope user+endpoint, giữ 24h); cùng key khác payload trả 409. Mọi API nội dung lớp kiểm tra membership hiện hành và status.
 
-## 1. Quy ước — [ĐỀ XUẤT]
-- Base path: `/api/v1`; HTTP/JSON; tài nguyên dùng ID không đoán được.
-- Xác thực: chưa chọn cookie-session hay bearer token; ví dụ không áp đặt một cơ chế.
-- Mã lỗi tham khảo: `401 UNAUTHENTICATED`, `403 FORBIDDEN`, `404 NOT_FOUND`, `409 CONFLICT`, `422 VALIDATION_ERROR`, `429 RATE_LIMITED`.
-- Không tiết lộ thông tin lớp/tài khoản không có quyền; có thể trả `404` thay `403` tùy chính sách.
-- `correlation_id` trong log và phản hồi lỗi; không đưa mật khẩu/token vào log.
-- Phân trang cho danh sách; mọi kiểm tra quyền thực hiện tại Backend.
-- Các tên field và mã trạng thái dưới đây chỉ là **bản phác thảo hợp đồng**.
+## Auth / User
+| Method | Endpoint | Quyền / Body → Kết quả |
+|---|---|---|
+| POST | /auth/register | Public; {email,password} → 201 {user_id,status:PENDING_VERIFICATION} |
+| POST | /auth/verify-email | Public; {token} → 200 {verified:true} |
+| POST | /auth/login | Public; {email,password} → 200 {access_token,token_type:bearer,expires_in:900} + refresh cookie |
+| POST | /auth/refresh | Refresh cookie + CSRF → 200 access + rotated cookie |
+| POST | /auth/logout | Refresh cookie + CSRF → 204, revoke/clear |
+| POST | /auth/logout-all | Bearer → 204 |
+| POST | /auth/password/forgot | Public; {email} → 200 generic |
+| POST | /auth/password/reset | Public; {token,new_password} → 204 |
+| GET/PATCH | /users/me | Bearer; GET profile, PATCH {display_name?} |
+| GET/POST | /users/me/data-requests | Bearer; GET list, POST {type:ACCESS/EXPORT/DELETE,reason?} → 201 PENDING |
 
-## 2. Endpoint dự kiến
-| Method | Đường dẫn | Người được phép | Mục đích / Rule |
-|---|---|---|---|
-| POST | `/auth/login` | Chưa đăng nhập | Xác thực (F1, K2) |
-| POST | `/auth/logout` | Đã đăng nhập | Kết thúc phiên |
-| GET | `/users/me` | Đã đăng nhập | Xem hồ sơ và vai trò |
-| POST | `/classes` | Lecturer | Tạo lớp, không cần Admin duyệt |
-| GET | `/classes` | Đã đăng nhập | Danh sách lớp được phép xem |
-| GET | `/classes/{class_id}` | Thành viên được phép / Admin | Xem lớp; kiểm tra quyền hiện tại |
-| PATCH | `/classes/{class_id}` | Giảng viên có quyền / Admin | Cập nhật cấu hình, nhận yêu cầu (A6) |
-| POST | `/classes/join-requests` | Student | Xin vào bằng mã lớp (A1) |
-| GET | `/classes/{class_id}/join-requests` | Giảng viên có quyền | Danh sách chờ duyệt |
-| POST | `/classes/{class_id}/join-requests/{request_id}/approve` | Giảng viên có quyền | Duyệt thành viên (A1) |
-| POST | `/classes/{class_id}/join-requests/{request_id}/reject` | Giảng viên có quyền | Từ chối |
-| GET | `/classes/{class_id}/members` | Thành viên được phép | Danh sách thành viên theo chính sách |
-| DELETE | `/classes/{class_id}/members/me` | Student / Lecturer theo điều kiện | Rời lớp (A5, H2) |
-| DELETE | `/classes/{class_id}/members/{user_id}` | Giảng viên có quyền / Admin | Loại thành viên (A4, M2) |
-| POST | `/classes/{class_id}/co-lecturers/invitations` | Giảng viên chính | Mời đồng giảng viên (A3) |
-| POST | `/classes/{class_id}/ownership-transfer` | Giảng viên chính / Admin | Chuyển chủ (H1–H2) |
-| POST | `/classes/{class_id}/archive` | Giảng viên chính / Admin | Lưu trữ (F5) |
-| POST | `/classes/{class_id}/restore` | Giảng viên chính / Admin | Khôi phục (M5) |
-| PATCH | `/admin/users/{user_id}/status` | Admin | Khóa/mở tài khoản (F1, K2) |
-| GET | `/internal/v1/classes/{class_id}/access` | Service tin cậy, xác thực nội bộ | Kiểm tra quyền hiện tại cho service khác |
+## Course / Class / Membership
+| Method | Endpoint | Quyền / tác dụng |
+|---|---|---|
+| POST/GET | /courses | Lecturer/Admin tạo {code,name}; authenticated list |
+| POST/GET | /classes | Lecturer tạo {course_id,name}; authenticated list lớp có quyền |
+| GET/PATCH | /classes/{class_id} | ACTIVE member xem; Owner/Admin cập nhật {name?,join_enabled?} |
+| POST | /classes/join-requests | Student {join_code} → 201 {request_id,class_id,status:PENDING} |
+| GET | /classes/{class_id}/join-requests | Owner/Co-lecturer/Admin |
+| POST | /classes/{class_id}/join-requests/{id}/approve | Owner/Co-lecturer/Admin → 200 ACTIVE membership |
+| POST | /classes/{class_id}/join-requests/{id}/reject | Owner/Co-lecturer/Admin → 200 REJECTED |
+| POST | /classes/{class_id}/join-requests/{id}/cancel | Request owner → 200 CANCELLED |
+| GET | /classes/{class_id}/members | ACTIVE member / Admin intervention |
+| DELETE | /classes/{class_id}/members/me | Student; Owner chỉ sau transfer → 204 |
+| DELETE | /classes/{class_id}/members/{user_id} | Owner/Co-lecturer/Admin → 204 |
+| POST | /classes/{class_id}/co-lecturers/invitations | Owner/Admin {lecturer_id} → 201 |
+| POST | /classes/{class_id}/co-lecturers/invitations/{id}/accept | Invitee → 200 |
+| POST | /classes/{class_id}/co-lecturers/invitations/{id}/reject | Invitee → 200 |
+| POST | /classes/{class_id}/ownership-transfer | Owner/Admin {new_owner_user_id} → 200 |
+| POST | /classes/{class_id}/archive | Owner/Admin → 200 ARCHIVED |
+| POST | /classes/{class_id}/restore | Owner/Admin → 200 ACTIVE |
 
-**Chưa đặc tả trong bảng này:** quản lý tài khoản/role đầy đủ, feed, comments, lịch, thông báo, ghi chú, yêu cầu dữ liệu cá nhân, báo cáo. Những phần này **vẫn thuộc MVP** và phải được thêm hợp đồng khi bắt đầu increment tương ứng.
+Approve lặp đã APPROVED trả 200 cùng membership, terminal khác trả 409; không tạo trùng. Bị REMOVED cần giảng viên cho phép trước khi vào lại.
 
-## 3. Ví dụ request/response — [ĐỀ XUẤT]
-### Xin tham gia lớp
-```http
-POST /api/v1/classes/join-requests
-Content-Type: application/json
+## Feed / Comments / Calendar / Notifications
+| Method | Endpoint | Quyền / Body |
+|---|---|---|
+| GET/POST | /classes/{class_id}/posts | ACTIVE member; POST {body} |
+| PATCH/DELETE | /classes/{class_id}/posts/{post_id} | Author hoặc lecturer moderation |
+| GET/POST | /classes/{class_id}/posts/{post_id}/comments | ACTIVE member; POST {body} |
+| PATCH/DELETE | /classes/{class_id}/posts/{post_id}/comments/{id} | Author hoặc lecturer moderation |
+| GET | /classes/{class_id}/calendar | ACTIVE member; ?from=ISO&to=ISO |
+| POST | /classes/{class_id}/calendar | Owner/Co-lecturer; {title,starts_at,ends_at} |
+| PATCH/DELETE | /classes/{class_id}/calendar/{id} | Owner/Co-lecturer; chỉ CORE-origin event |
+| GET | /notifications | Authenticated; chỉ của mình, paginated |
+| PATCH | /notifications/{id}/read | Recipient → 200 {read:true} |
+| POST | /notifications/read-all | Authenticated → 204 |
 
-{"join_code":"EXAMPLE123"}
-```
-```json
-{"request_id":"req_example","class_id":"class_example","status":"PENDING"}
-```
-Sinh viên **chưa có quyền xem nội dung** cho đến khi được duyệt (A1).
+Soft delete bài đăng/bình luận ẩn khỏi danh sách; archived từ chối hoạt động ghi chung. Deadline LEARNING chỉ đồng bộ qua integration, không chỉnh tại Core.
 
-### Duyệt tham gia
-```http
-POST /api/v1/classes/class_example/join-requests/req_example/approve
-```
-```json
-{"request_id":"req_example","class_id":"class_example","student_id":"user_example","membership_status":"ACTIVE"}
-```
-Duyệt lặp phải có kết quả xác định, không tạo membership trùng; lựa chọn trả `200` hay `409` khi duyệt lại vẫn [CHƯA CHỐT].
+## Admin / Internal
+| Method | Endpoint | Quyền / Body |
+|---|---|---|
+| POST | /admin/users | Admin {email,roles} → 201, gửi link đặt mật khẩu |
+| PATCH | /admin/users/{id}/status | Admin {status:ACTIVE/LOCKED} + audit |
+| PUT | /admin/users/{id}/roles | Admin {roles:[...]} + audit; không xóa Admin cuối |
+| GET | /admin/audit-events | Admin; paginated redacted audit |
+| GET/PATCH | /admin/data-requests/{id} | Admin; PATCH {status:IN_REVIEW/COMPLETED/REJECTED,resolution_note} |
+| GET | /admin/data-requests | Admin; paginated |
+| GET | /internal/v1/classes/{class_id}/access?user_id=&action= | Authenticated service scope core:check_access → {allowed,class_id,user_id,action} |
 
-### Kiểm tra quyền nội bộ
-```http
-GET /internal/v1/classes/class_example/access?user_id=user_example&action=read
-```
-```json
-{"allowed":true,"class_id":"class_example","user_id":"user_example","action":"read"}
-```
-**Bắt buộc:** chỉ service đã xác thực và được cấp quyền mới gọi được; không tin `user_id` từ client công khai. Khi Core không khả dụng, service gọi phải từ chối thao tác nhạy cảm (fail closed). Kết quả không thay thế kiểm tra quyền tài liệu hiện hành tại Document.
+Admin can thiệp lớp cần `X-Admin-Reason` và audit; không tự có quyền xem chat riêng tư. Internal API không chấp nhận browser trực tiếp; fail closed.
 
-### Lỗi thống nhất
-```json
-{"error":{"code":"FORBIDDEN","message":"Không có quyền thực hiện thao tác","correlation_id":"trace_example"}}
-```
-
-## 4. Ma trận quyền tối thiểu
-| Hành động | Admin | Lecturer chính | Đồng giảng viên | Student |
-|---|---|---|---|---|
-| Tạo lớp | Theo quyền quản trị [CHƯA CHỐT] | Có | Có khi tạo lớp của chính mình | Không |
-| Duyệt thành viên | Can thiệp | Có | Có | Không |
-| Loại thành viên | Can thiệp | Có | Có trong phạm vi quyền | Không |
-| Chuyển chủ lớp | Can thiệp | Có | Không | Không |
-| Lưu trữ/khôi phục | Can thiệp | Có | Không mặc định | Không |
-| Xem nội dung lớp | Theo quyền quản trị [CHƯA CHỐT] | Có | Có | Chỉ khi ACTIVE |
-
-Ma trận diễn giải các Business Rules để triển khai; các ô [CHƯA CHỐT] không được coi là quyền đã duyệt.
-
-## 5. Checklist trước khi đóng băng API
-- [ ] Thống nhất xác thực, thu hồi phiên, CSRF/rate limit.
-- [ ] Thống nhất trạng thái lớp, membership, join request và xử lý lặp/cạnh tranh.
-- [ ] Bổ sung JSON Schema/OpenAPI cho từng endpoint, lỗi và phân trang.
-- [ ] Review ma trận quyền với Business Rules; test unauthorized và cross-class.
-- [ ] Thống nhất service-to-service authentication và contract test.
-- [ ] Có mock server/fixtures để Frontend phát triển song song.
-
-Không tuyên bố API đã hoạt động khi chưa có code và test.
+## Validation / Contract tests
+- Email chuẩn hóa lowercase; mật khẩu 12..128 ký tự; body post/comment 1..10000, title/name 1..200; starts_at < ends_at. Không expose password_hash, refresh_hash, join_code_hash.
+- Test: unauthorized/cross-class, PENDING/LEFT/REMOVED/LOCKED/archived, concurrent approve, ownership, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.
+- FastAPI phải sinh OpenAPI phản ánh request/response/error schemas cho từng endpoint; CI kiểm tra contract snapshot. **Bảng endpoint và DTO trên là hợp đồng hành vi, không phải bằng chứng đã có OpenAPI chạy thực tế.**
