@@ -1,12 +1,12 @@
-# RAG Course Assistant — Business Rules Baseline
+# Lumi — Business Rules Baseline
 
-**Version:** 1.0 | **Status:** Baseline nghiệp vụ đã thống nhất | **Ngày hệ thống hóa:** 2026-10-10
+**Status:** Baseline hiện hành | **Ngày hệ thống hóa ban đầu:** 2026-10-10
 
 Tài liệu này ghi lại các quyết định nghiệp vụ đã được nhóm sản phẩm thống nhất qua trao đổi. **Không tự ý sửa rule để thuận tiện triển khai.** Khi có thay đổi, lập đề xuất, xác định Rule ID bị tác động, review, ghi phiên bản và cập nhật Architecture/Tasks. Những chi tiết triển khai chưa được chốt phải được ghi là đề xuất, không được ngầm coi là business rule.
 
 ## Phạm vi và vai trò
 
-Sản phẩm hỗ trợ nhiều môn, mỗi môn có nhiều lớp độc lập. **Admin**, **Lecturer**, **Student** là ba vai trò đăng nhập. Nhà trường là stakeholder nhận báo cáo thông qua Admin, không có tài khoản riêng. Giảng viên có thể tạo lớp mà không cần Admin duyệt.
+Sản phẩm hỗ trợ nhiều môn, mỗi môn có nhiều lớp độc lập. **Admin**, **Lecturer**, **Student** là ba vai trò đăng nhập. Nhà trường là stakeholder nhận báo cáo thông qua Admin, không có tài khoản riêng. Giáo viên tạo lớp trong phạm vi phân công được xác minh; cơ chế xác minh còn cần chốt.
 
 ## A. Lớp học và thành viên
 - **A1** Học sinh được ghi danh bởi giáo viên/Admin có thẩm quyền; mã lớp là tùy chọn và cần giáo viên duyệt; khi chờ duyệt chưa được truy cập nội dung.
