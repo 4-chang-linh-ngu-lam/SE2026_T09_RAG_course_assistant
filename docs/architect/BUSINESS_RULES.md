@@ -2,6 +2,8 @@
 
 **Status:** Baseline hiện hành | **Ngày hệ thống hóa ban đầu:** 2026-10-10
 
+> **Cập nhật 2026-10-14:** phần “Baseline nghiệp vụ Lumi — 20 quyết định” cuối tài liệu là quy tắc mới nhất, ưu tiên khi phần lịch sử phía trên mâu thuẫn.
+
 Tài liệu này ghi lại các quyết định nghiệp vụ đã được nhóm sản phẩm thống nhất qua trao đổi. **Không tự ý sửa rule để thuận tiện triển khai.** Khi có thay đổi, xác định Rule ID bị tác động, review và cập nhật trực tiếp các tài liệu hiện hành gồm Architecture/Tasks. Những chi tiết triển khai chưa được chốt phải được ghi là đề xuất, không được ngầm coi là business rule.
 
 ## Phạm vi và vai trò
@@ -145,3 +147,21 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - **Classroom:** Cần chốt cách xác minh phân công giáo viên và schema metadata môn/khối/năm học/lớp hành chính; luồng ghi danh trực tiếp chưa được triển khai. Không được mở API tự rời lớp cho Student.
 - **Bảo vệ dữ liệu:** Xác định thời hạn lưu giữ và quyền xử lý dữ liệu học sinh theo yêu cầu áp dụng trước khi phát hành; không tự suy đoán thời hạn hoặc ngưỡng tuổi pháp lý.
 - **Triển khai:** Tài liệu mô tả nghiệp vụ mục tiêu, không xác nhận schema, migration, API, test hay UI đã hoàn thành. Các thay đổi phải được phản ánh trong Core Design, API Contract và acceptance criteria trước nghiệm thu.
+
+
+## Baseline nghiệp vụ Lumi — 20 quyết định chốt 2026-10-14
+
+**Phạm vi:** MVP một trường THCS/THPT (khối 6–12), thiết kế sẵn `school_id` cho mở rộng; chỉ ba role kỹ thuật `ADMIN`, `LECTURER`, `STUDENT`. Các quy tắc dưới đây **thay thế mô tả cũ mâu thuẫn** về self-registration Student, giáo viên tạo lớp/ghi danh, join code, mời giáo viên, chuyển chủ lớp, archive/restore. Đây là **thiết kế mục tiêu**, không khẳng định code/migration đã hoàn thành.
+
+1. Lớp môn học gắn môn/khối/năm học/học kỳ và lớp hành chính; tạo lớp mới mỗi năm học; lớp cũ lưu trữ, lịch sử cá nhân vẫn còn.
+2. **Chỉ Admin** tạo lớp môn học, quản lý lớp hành chính/danh sách, phân công giáo viên chính và phối hợp, điều chỉnh ghi danh, chuyển lớp, archive/restore; giáo viên không tự tạo lớp, mời giáo viên, chuyển quyền chủ lớp hay quản lý roster chính thức.
+3. Ghi danh lớp môn học theo `AUTO` (đồng bộ roster lớp hành chính) hoặc `MANUAL` (Admin quản lý danh sách riêng cho lớp ghép/tự chọn/ngoại lệ). Lớp AUTO muốn điều chỉnh ngoại lệ cá nhân phải chuyển MANUAL trước. Chuyển MANUAL→AUTO phải xem trước tác động và xác nhận. Đồng bộ idempotent, audit, giữ lịch sử; Student không tự rời lớp.
+4. **Không dùng join code/join request trong MVP chính khóa**; route/schema cũ nếu có phải đánh dấu legacy/ngoài phạm vi, không mở cho người dùng, không xóa source/migration lịch sử khi cập nhật tài liệu.
+5. Admin tạo tài khoản Student (ưu tiên CSV/Excel có preview, kiểm tra trùng/lỗi, nhập lại an toàn); Student không cần email và không tự đăng ký; cấp username duy nhất + mã kích hoạt một lần có hạn, học sinh tự đặt mật khẩu. Quên mật khẩu do Admin xác minh và hỗ trợ. Lecturer/Admin có thể giữ luồng email. Không dùng mật khẩu mặc định chung.
+6. Co-lecturer được đăng tài liệu/chia sẻ trong phạm vi quyền nguồn, tạo bài tập/luyện tập, tạo nháp assessment, chấm bài được phân công, xem analytics trong lớp. **Giáo viên chính** phê duyệt/công bố assessment chính thức, phê duyệt sửa điểm đã công bố/hủy hay điều chỉnh kết quả; co-lecturer chỉ đề xuất. Mọi sửa điểm nhạy cảm có lý do/audit; Admin chỉ can thiệp ngoại lệ có lý do/audit. Không thêm role toàn cục CO_LECTURER.
+7. Khi chuyển lớp, quyền tham gia lớp cũ chấm dứt theo hiệu lực chuyển; bài đã nộp vẫn được giáo viên cũ chấm, điểm/lịch sử/phúc khảo còn theo quyền cá nhân; bài chưa nộp đóng, attempt đang dở kết thúc theo chính sách, không tự coi là hoàn thành. Admin xử lý ngoại lệ có audit; không tự chuyển điểm sang lớp mới.
+8. Student xem điểm, bài nộp, tiến độ, nhận xét, ghi chú tự viết và hội thoại AI cá nhân cũ; có thể sửa ghi chú. Bookmark giữ lại nhưng mở tài liệu/trích đoạn gốc chỉ khi quyền nguồn còn hiệu lực; nguồn thu hồi phải che trích đoạn; không hỏi AI mới hay tham gia hoạt động mới của lớp cũ. Quyền xem lịch sử cá nhân **khác** membership ACTIVE.
+9. AI chat riêng tư mặc định; học sinh chủ động chia sẻ cuộc hội thoại cụ thể với giáo viên; giáo viên chỉ thấy analytics tổng hợp, Admin không mặc định đọc chat. Kiểm tra ngoại lệ phải có thẩm quyền, phạm vi, lý do và audit.
+10. Dữ liệu phân loại (hồ sơ giáo dục chính thức, chat, notes, tài liệu, điểm/bài nộp, log); yêu cầu xem/xuất/chỉnh sửa/xóa được xác minh và xử lý có kiểm soát; khóa tài khoản không đồng nghĩa xóa. MVP có admin workflow xử lý thủ công, audit và nhập CSV/Excel; chưa yêu cầu xuất/xóa tự động liên dịch vụ, cổng phụ huynh, đa trường. Thời hạn retention, căn cứ xử lý dữ liệu học sinh, đại diện/đồng ý nếu áp dụng phải được phê duyệt trước khi vận hành dữ liệu thật; **không tự đặt thời hạn pháp lý**.
+
+**Open questions triển khai:** thời điểm hiệu lực chuyển lớp; TTL/phân phối/xác minh mã kích hoạt; retention/căn cứ xử lý/đại diện; quy tắc nhập lại CSV/Excel. Các phần Identity đã triển khai theo email và các migration cũ phải được mô tả đúng trạng thái; thay đổi cần task, migration mới, API contract và kiểm thử quyền.
