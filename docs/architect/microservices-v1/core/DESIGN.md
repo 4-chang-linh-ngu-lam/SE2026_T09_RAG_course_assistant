@@ -52,7 +52,7 @@ FK chỉ trong Core; index theo class_id/user_id/created_at. Alembic migration l
 ## 4. State machine
 - User: PENDING_VERIFICATION → ACTIVE ↔ LOCKED; LOCKED vô hiệu hóa phiên.
 - Class: ACTIVE ↔ ARCHIVED; archived chỉ đọc, không thêm thành viên/bài đăng/bài nộp hoặc hỏi AI mới; ngoại lệ notes/bookmarks thuộc Document theo O2.
-- JoinRequest: PENDING → APPROVED/REJECTED/CANCELLED; terminal. Bị từ chối hoặc tự rời có thể tạo request mới; bị REMOVED chỉ tham gia lại khi giảng viên cho phép.
+- JoinRequest: PENDING → APPROVED/REJECTED/CANCELLED; terminal. Bị từ chối có thể tạo request mới nếu lớp cho phép; học sinh không tự rời lớp chính khóa. Bị REMOVED chỉ tham gia lại khi giáo viên cho phép.
 - Membership: ACTIVE → LEFT/REMOVED; tái tham gia tạo record mới, giữ lịch sử. Một ACTIVE/class/user.
 - Transfer owner: chỉ OWNER hoặc Admin can thiệp chuyển cho CO_LECTURER ACTIVE; một transaction đổi owner và membership roles, audit; không bao giờ có hai OWNER. OWNER phải transfer trước khi rời.
 - Approve/reject/remove cạnh tranh dùng transaction, row locking/unique constraints; approve lặp APPROVED trả 200 không tạo trùng, trạng thái terminal khác trả 409.
@@ -60,7 +60,7 @@ FK chỉ trong Core; index theo class_id/user_id/created_at. Alembic migration l
 ## 5. Quyền
 | Hành động | Admin | Owner | Co-lecturer | Student ACTIVE |
 |---|---|---|---|---|
-| Tạo lớp | Can thiệp quản trị; có role LECTURER để tạo lớp riêng | Có | Có nếu là Lecturer | Không |
+| Tạo lớp | Theo thẩm quyền quản trị và audit | Có nếu được phân công | Có nếu được phân công | Không |
 | Duyệt/loại Student | Can thiệp + audit | Có | Có | Không |
 | Mời co-lecturer/transfer | Can thiệp + audit | Có | Không | Không |
 | Archive/restore | Can thiệp + audit | Có | Không | Không |
@@ -69,13 +69,13 @@ FK chỉ trong Core; index theo class_id/user_id/created_at. Alembic migration l
 | Xem lớp | Không mặc định; can thiệp có lý do/audit | Có | Có | Có |
 | Xem chat riêng tư | Không mặc định | Không mặc định | Không mặc định | Chủ chat |
 
-Mọi request kiểm tra role + membership ACTIVE + class status + action; quyền lịch sử không tự cấp quyền hiện hành. Người rời lớp vẫn có quyền giới hạn xem/appeal điểm theo M1/O4 qua Learning.
+Mọi request kiểm tra role + membership ACTIVE + class status + action; quyền lịch sử không tự cấp quyền hiện hành. Người đã chuyển lớp hoặc kết thúc ghi danh vẫn có quyền giới hạn xem/appeal điểm theo M1/O4 qua Learning.
 
 ## 6. Luồng
 1. Register → verify email → ACTIVE; Admin create → set-password invitation.
    Lời mời ADMIN_INVITATION một lần (mặc định 24 giờ, cấu hình được) được chấp nhận qua password/reset; đặt mật khẩu và xác minh email cho PENDING, không mở tài khoản LOCKED.
 2. Login → access JWT + refresh cookie; refresh rotation; logout/revoke và khóa tài khoản chặn phiên.
-3. Join code → PENDING → lecturer approve → membership ACTIVE → outbox notification.
+3. Giáo viên/Admin ghi danh theo phân công → membership ACTIVE; hoặc join code (nếu bật) → PENDING → giáo viên approve → membership ACTIVE → outbox notification. Luồng ghi danh trực tiếp chưa triển khai.
 4. Feed/comments: kiểm tra membership/status, soft delete và audit.
 5. Calendar: CORE event được chỉnh bởi lecturer; LEARNING deadline chỉ phản chiếu event versioned, thay deadline phải thông báo.
 6. Admin lock/role/class intervention và xử lý yêu cầu dữ liệu cá nhân; báo cáo tổng hợp nhiều service tích hợp ở G5.
@@ -83,7 +83,7 @@ Mọi request kiểm tra role + membership ACTIVE + class status + action; quy�
 8. User tạo/xem data requests của chính mình; chỉ ghi PENDING, không tự xóa/xuất dữ liệu. Administration xử lý thủ công theo K1/K4/O8; retention cụ thể cần người vận hành duyệt.
 
 ## 7. Test bắt buộc
-Cross-class, PENDING/LEFT/REMOVED/LOCKED, archived, owner transfer, concurrent approve, JWT refresh replay/revoke, CSRF/rate limit, feed delete, notification dedup, calendar LEARNING read-only, Admin audit. Mọi endpoint có permission/contract test; integration test dùng PostgreSQL thực.
+Cross-class, PENDING/REMOVED/LOCKED, archived, owner transfer, concurrent approve, JWT refresh replay/revoke, CSRF/rate limit, feed delete, notification dedup, calendar LEARNING read-only, Admin audit. Mọi endpoint có permission/contract test; integration test dùng PostgreSQL thực.
 
 ## Phạm vi chính khóa THCS/THPT và thay đổi cần triển khai
 - Role kỹ thuật hiện tại `ADMIN`, `LECTURER`, `STUDENT` **giữ nguyên** để không phá vỡ Identity đã triển khai; tên UI lần lượt là Quản trị viên, Giáo viên, Học sinh. Không thêm Parent hoặc School Admin trong MVP.
