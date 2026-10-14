@@ -140,28 +140,8 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - Nếu rule mơ hồ, ghi Open Question; không tự biến giả định kỹ thuật thành rule.
 - Baseline này là tài liệu tham chiếu nghiệp vụ, không phải tuyên bố đã được chuyên gia pháp lý xác minh.
 
-## Ràng buộc triển khai và phạm vi áp dụng — Lumi phổ thông chính khóa
-- Đối tượng: học sinh THCS/THPT (lớp 6–12), giáo viên và Admin; không bao gồm tiểu học, đại học, lớp học thêm trong MVP.
-- Giữ đúng ba vai trò kỹ thuật `ADMIN`, `LECTURER`, `STUDENT`; trên UI gọi lần lượt là **Quản trị viên**, **Giáo viên**, **Học sinh**. Nhà trường tiếp tục là stakeholder nhận báo cáo qua Admin, không có tài khoản đăng nhập riêng. Không bổ sung Parent hay School Admin.
-- Các quy tắc hiện có về bảo mật, trích dẫn RAG, chấm điểm chính thức, audit, retention, lưu vết phiên bản và xử lý ngoại lệ vẫn có hiệu lực trừ các điều chỉnh được ghi rõ dưới đây.
-
-### Điều chỉnh A — lớp học chính khóa
-- **A1 (điều chỉnh)** Lớp thuộc hoạt động dạy học chính khóa. Giáo viên/Admin có thể ghi danh học sinh theo danh sách được phép quản lý; nếu cho phép mã tham gia, học sinh gửi yêu cầu và giáo viên duyệt trước khi truy cập. Không coi tự tham gia bằng mã là con đường bắt buộc duy nhất.
-- **A2 (giữ)** Học sinh có thể học nhiều lớp môn học, kể cả nhiều lớp của cùng một môn nếu được phân công hợp lệ.
-- **A3–A4 (giữ phạm vi quyền)** Giáo viên phụ trách có thể mời giáo viên phối hợp và quản lý thành viên trong phạm vi lớp; can thiệp của Admin phải được ghi audit.
-- **A5 (điều chỉnh)** Học sinh không tự ý rời lớp chính khóa qua chức năng tự rời. Việc chuyển lớp, kết thúc ghi danh hoặc loại khỏi lớp do giáo viên/Admin có thẩm quyền thực hiện và phải giữ nguyên lịch sử kết quả theo chính sách lưu giữ.
-- **A6 (điều chỉnh)** Giáo viên có thể bật/tắt nhận yêu cầu bằng mã nếu lớp cho phép; tắt mã không ngăn việc ghi danh theo phân công.
-- **A7 (bổ sung)** Mỗi lớp môn học gắn môn học, khối 6–12, năm học và định danh lớp hành chính nếu có. Mô hình trường/lớp hành chính là metadata tổ chức phục vụ chính khóa, **không tự tạo role Admin theo trường**. Cần chốt mô hình dữ liệu và quyền trước khi triển khai API.
-- **A8 (bổ sung)** Giáo viên tạo/quản lý lớp theo phân công hoặc phạm vi được Admin xác nhận; không mặc định mọi tài khoản giáo viên được tạo lớp chính khóa không giới hạn. Cơ chế xác minh phân công là quyết định triển khai còn mở.
-
-### Điều chỉnh tài khoản và người chưa thành niên
-- **F1/K1–K6 (bổ sung ràng buộc)** Học sinh lớp 6–12 có thể chưa thành niên. Trước khi triển khai thực tế phải xác định cơ chế cấp/kích hoạt tài khoản, thông báo quyền riêng tư phù hợp độ tuổi, quy trình đồng ý/đại diện hợp lệ khi pháp luật yêu cầu, kiểm soát truy cập, xử lý yêu cầu dữ liệu và thời hạn lưu giữ đã được phê duyệt. Không suy đoán ngưỡng tuổi hay thời hạn pháp lý.
-- **Identity (quyết định chuyển tiếp)** Email/password và self-registration `STUDENT` vẫn là hành vi kỹ thuật hiện có; **chưa mặc định đây là luồng onboarding phù hợp để phát hành cho học sinh phổ thông**. Phương án cấp tài khoản bởi Admin/nhà trường và xác minh quyền đại diện phải được quyết định, đặc tả, kiểm thử trước khi mở cho học sinh thật. Không bổ sung role Phụ huynh trong MVP.
-
-### Điều chỉnh AI và phân tích học tập
-- **C4/C6 (bổ sung)** AI Tutor điều chỉnh độ dài, từ vựng, ví dụ và mức hướng dẫn theo khối lớp 6–12, ưu tiên gợi mở từng bước, tránh thay học sinh hoàn thành bài; giáo viên vẫn cấu hình hướng dẫn trong giới hạn chính sách hệ thống.
-- **D6 (giữ)** Không cung cấp AI Tutor tích hợp trong phiên Assessment chính thức; không tuyên bố ngăn được công cụ bên ngoài.
-- **E3/E6/J1/J5 (bổ sung)** Phân tích tiến độ phải gắn bằng chứng, không tự động gắn nhãn năng lực cố định hay kỷ luật học sinh. UI ưu tiên diễn đạt “Chủ đề cần ôn tập” và “Chưa đủ dữ liệu”; quyền xem dữ liệu cá nhân phải theo vai trò và phạm vi lớp.
-
-### Tác động và giới hạn triển khai
-Các thay đổi A1/A5/A7/A8 và onboarding học sinh **chưa được triển khai trong Core**. Các endpoint tự rời lớp, tự đăng ký, tự tạo lớp hiện có trong API Contract được đánh dấu cần điều chỉnh trước khi phát hành cho đối tượng mới. Không được coi việc sửa tài liệu là đã cập nhật schema, migration, backend hoặc UI. Giữ nguyên Rule ID hiện có để traceability; cập nhật acceptance criteria/test tương ứng trước khi nghiệm thu.
+## Điều kiện triển khai còn mở
+- **Identity:** Email/password và self-registration STUDENT đang tồn tại về mặt kỹ thuật, nhưng chưa được duyệt làm luồng onboarding mặc định cho học sinh phổ thông. Cần chốt phương thức cấp/kích hoạt tài khoản, thông báo quyền riêng tư và quy trình đồng ý/đại diện khi cần; không thêm role Phụ huynh trong MVP.
+- **Classroom:** Cần chốt cách xác minh phân công giáo viên và schema metadata môn/khối/năm học/lớp hành chính; luồng ghi danh trực tiếp chưa được triển khai. Không được mở API tự rời lớp cho Student.
+- **Bảo vệ dữ liệu:** Xác định thời hạn lưu giữ và quyền xử lý dữ liệu học sinh theo yêu cầu áp dụng trước khi phát hành; không tự suy đoán thời hạn hoặc ngưỡng tuổi pháp lý.
+- **Triển khai:** Tài liệu mô tả nghiệp vụ mục tiêu, không xác nhận schema, migration, API, test hay UI đã hoàn thành. Các thay đổi phải được phản ánh trong Core Design, API Contract và acceptance criteria trước nghiệm thu.
