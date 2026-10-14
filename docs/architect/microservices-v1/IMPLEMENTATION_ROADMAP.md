@@ -27,7 +27,7 @@
 
 ## Checklist nghiệm thu Core
 - [ ] Register/verify/login/refresh/logout/revoke, Admin account/roles/lock.
-- [ ] Class, join/approve/reject/leave/remove, co-lecturer, transfer, archive/restore.
+- [ ] Class theo môn/khối/năm học, ghi danh theo phân công, tùy chọn join/approve/reject, remove/chuyển lớp (không cho Student tự leave), co-lecturer, transfer, archive/restore.
 - [ ] Feed/comments/calendar/notifications và Core admin/audit end-to-end.
 - [ ] OpenAPI, migration, Compose, health, CI, test quyền/tích hợp có bằng chứng.
 
