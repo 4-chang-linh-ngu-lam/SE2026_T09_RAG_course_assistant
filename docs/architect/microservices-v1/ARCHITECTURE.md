@@ -24,7 +24,7 @@ flowchart LR
 ## 2. Ownership
 | Service | Sở hữu dữ liệu |
 |---|---|
-| Core | User, Role, Session, Course, Class, Membership, JoinRequest, Feed, Comment, Calendar, Notification, Core audit/admin |
+| Core | User, Role, Session, Course, Class, Membership, Feed, Comment, Calendar, Notification, Core audit/admin |
 | Document | Library, File, DocumentVersion, ClassDocumentGrant, notes/bookmarks gắn nguồn |
 | Learning | Practice, Assessment, Assignment, Attempt, Submission, Grade, deadline chính thức |
 | AI | Conversation, Message, RAG index/retrieval metadata dẫn xuất |
@@ -55,7 +55,7 @@ flowchart LR
 ## Điều chỉnh miền sản phẩm Lumi
 Phạm vi MVP: lớp chính khóa THCS/THPT (khối 6–12). `Student`/`Lecturer` trong sơ đồ là tên role kỹ thuật; UI dùng “Học sinh”/“Giáo viên”. Nhà trường nhận báo cáo thông qua Admin, không có tài khoản riêng. Kiến trúc năm service và ownership không thay đổi.
 
-- **Core:** lớp môn học gắn môn, khối, năm học, lớp hành chính (nếu có); ghi danh theo phân công và tùy chọn yêu cầu bằng mã; học sinh không tự rời lớp chính khóa. Các trường/luồng mới là thay đổi thiết kế chưa triển khai.
+- **Core:** lớp môn học gắn môn, khối, năm học, lớp hành chính (nếu có); ghi danh AUTO/MANUAL do Admin quản lý, không dùng mã tham gia lớp; học sinh không tự rời lớp chính khóa. Các trường/luồng mới là thay đổi thiết kế chưa triển khai.
 - **Document:** tài liệu và quyền chia sẻ tiếp tục theo lớp môn học; có thể lọc theo khối/môn qua metadata Core, không suy diễn quyền truy cập từ metadata.
 - **AI:** hướng dẫn theo khối lớp, có giới hạn hỗ trợ trong kiểm tra chính thức; truy hồi và trích dẫn vẫn theo quyền hiện hành.
 - **Learning:** Practice/Assessment/Assignment giữ phân biệt điểm; giáo viên phụ trách lớp là người có thẩm quyền.
