@@ -98,3 +98,12 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 - Email chuẩn hóa lowercase; mật khẩu 12..128 ký tự; body post/comment 1..10000, title/name 1..200; starts_at < ends_at. Không expose password_hash, refresh_hash, join_code_hash.
 - Test: unauthorized/cross-class, PENDING/LEFT/REMOVED/LOCKED/archived, concurrent approve, ownership, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.
 - FastAPI sinh OpenAPI cho Identity auth/profile/data requests, với request/response/error schemas và snapshot trong test. Các bảng endpoint ngoài Identity vẫn là hợp đồng hành vi, chưa phải bằng chứng triển khai; CI chạy contract test cùng pytest.
+
+## Ghi chú tương thích — phạm vi Lumi THCS/THPT chính khóa
+Đối tượng: học sinh khối 6–12 trong lớp chính khóa. Giữ các enum/API role kỹ thuật `ADMIN`, `LECTURER`, `STUDENT` để tương thích code; UI hiển thị Quản trị viên/Giáo viên/Học sinh. Những route hiện được mô tả ở trên là **contract hiện hành hoặc dự kiến**, không phải toàn bộ đã triển khai.
+
+- `POST /auth/register` đang tự đăng ký Student bằng email; **chưa phê duyệt làm luồng onboarding mặc định cho học sinh chưa thành niên**. Cần chốt cách cấp/kích hoạt tài khoản và xử lý quyền đại diện trước khi phát hành thực tế.
+- `POST /classes` hiện cho Lecturer tạo lớp; cần bổ sung kiểm tra phạm vi phân công giáo viên và metadata lớp môn học (môn, khối 6–12, năm học, lớp hành chính nếu có). Schema/request cụ thể chưa chốt.
+- `POST /classes/join-requests` vẫn có thể là luồng tùy chọn khi giáo viên bật mã lớp. Cần bổ sung luồng ghi danh do giáo viên/Admin thực hiện theo phân công; chưa chốt endpoint mới.
+- `DELETE /classes/{class_id}/members/me` là route thiết kế cũ **không phù hợp với học sinh trong lớp chính khóa**, không được mở cho Student; cần loại bỏ/điều chỉnh contract và test khi triển khai Classroom. Việc thay đổi route không làm mất lịch sử học tập.
+- Các API quản trị, dữ liệu cá nhân, điểm, quyền và audit tiếp tục phải tuân thủ Business Rules; không tự thêm role Phụ huynh/Admin theo trường.
