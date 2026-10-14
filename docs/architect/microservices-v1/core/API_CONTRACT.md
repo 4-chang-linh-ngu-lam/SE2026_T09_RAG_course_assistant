@@ -108,3 +108,14 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 - `POST /classes/join-requests` vẫn có thể là luồng tùy chọn khi giáo viên bật mã lớp. Cần bổ sung luồng ghi danh do giáo viên/Admin thực hiện theo phân công; chưa chốt endpoint mới.
 - `DELETE /classes/{class_id}/members/me` là route thiết kế cũ **không phù hợp với học sinh trong lớp chính khóa**, không được mở cho Student; cần loại bỏ/điều chỉnh contract và test khi triển khai Classroom. Việc thay đổi route không làm mất lịch sử học tập.
 - Các API quản trị, dữ liệu cá nhân, điểm, quyền và audit tiếp tục phải tuân thủ Business Rules; không tự thêm role Phụ huynh/Admin theo trường.
+
+
+### API mục tiêu (đề xuất contract, **chưa triển khai**)
+- `POST /admin/students/imports/preview` và `POST /admin/students/imports/confirm`: CSV/Excel, phát hiện trùng/lỗi, idempotency và audit; không trả mã kích hoạt trong log.
+- `POST /admin/students`, `POST /admin/students/{id}/activation-codes`: Admin cấp username, mã một lần có hạn; phân phối an toàn. `POST /auth/activate`: username + activation_code + new_password; `POST /auth/login`: username/password cho Student, tương thích email cho Lecturer/Admin (chi tiết phiên bản API cần chốt).
+- `POST /admin/homeroom-classes`, `POST /admin/homeroom-classes/{id}/roster`, `POST /admin/classes`, `PUT /admin/classes/{id}/teaching-assignments`: chỉ Admin; ràng buộc school scope.
+- `POST /admin/classes/{id}/enrollment/preview`, `POST /admin/classes/{id}/enrollment/sync`, `PATCH /admin/classes/{id}/enrollment-mode`, `POST /admin/classes/{id}/members`, `DELETE /admin/classes/{id}/members/{student_id}`: chỉ Admin, đồng bộ AUTO/MANUAL, audit, giữ lịch sử; MANUAL→AUTO phải preview/confirm.
+- `POST /admin/classes/{id}/archive`, `POST /admin/classes/{id}/restore`: chỉ Admin.
+- Các route `/classes/join-requests*`, `/classes/{id}/co-lecturers/invitations*`, `/classes/{id}/ownership-transfer`, Lecturer `POST /classes`, Lecturer membership mutation, Owner archive/restore, public Student `/auth/register` là **legacy/ngoài phạm vi MVP**; không coi chúng là API được phép phát hành. Không xóa source/migration chỉ vì đổi contract.
+- Learning phải có quyền nháp → duyệt/công bố assessment, chấm được phân công → đề xuất/phê duyệt sửa điểm, attempt transfer cutoff; các service dùng access check theo hành động, không dựa độc nhất membership ACTIVE.
+- Kiểm thử: cross-school/cross-class, role Admin-only, Student no self-register/join, AUTO/MANUAL, idempotent bulk import, activation token expiry/replay, historical read vs source revoke, transfer attempt, grade approval/audit.
