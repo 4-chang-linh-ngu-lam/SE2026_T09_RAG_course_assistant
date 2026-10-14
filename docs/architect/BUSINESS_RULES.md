@@ -2,15 +2,15 @@
 
 **Status:** Baseline hiện hành | **Ngày hệ thống hóa ban đầu:** 2026-10-10
 
-Tài liệu này ghi lại các quyết định nghiệp vụ đã được nhóm sản phẩm thống nhất qua trao đổi. **Không tự ý sửa rule để thuận tiện triển khai.** Khi có thay đổi, lập đề xuất, xác định Rule ID bị tác động, review, ghi phiên bản và cập nhật Architecture/Tasks. Những chi tiết triển khai chưa được chốt phải được ghi là đề xuất, không được ngầm coi là business rule.
+Tài liệu này ghi lại các quyết định nghiệp vụ đã được nhóm sản phẩm thống nhất qua trao đổi. **Không tự ý sửa rule để thuận tiện triển khai.** Khi có thay đổi, xác định Rule ID bị tác động, review và cập nhật trực tiếp các tài liệu hiện hành gồm Architecture/Tasks. Những chi tiết triển khai chưa được chốt phải được ghi là đề xuất, không được ngầm coi là business rule.
 
 ## Phạm vi và vai trò
 
-Sản phẩm hỗ trợ nhiều môn, mỗi môn có nhiều lớp độc lập. **Admin**, **Lecturer**, **Student** là ba vai trò đăng nhập. Nhà trường là stakeholder nhận báo cáo thông qua Admin, không có tài khoản riêng. Giáo viên tạo lớp trong phạm vi phân công được xác minh; cơ chế xác minh còn cần chốt.
+Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); không bao gồm tiểu học, đại học hoặc lớp học thêm trong MVP. **Admin**, **Lecturer**, **Student** là ba vai trò kỹ thuật đăng nhập; giao diện hiển thị Quản trị viên, Giáo viên, Học sinh. Nhà trường là stakeholder nhận báo cáo thông qua Admin, không có tài khoản riêng. Giáo viên tạo lớp trong phạm vi phân công được xác minh; cơ chế xác minh còn cần chốt.
 
 ## A. Lớp học và thành viên
 - **A1** Học sinh được ghi danh bởi giáo viên/Admin có thẩm quyền; mã lớp là tùy chọn và cần giáo viên duyệt; khi chờ duyệt chưa được truy cập nội dung.
-- **A2** Một sinh viên được tham gia nhiều lớp, kể cả nhiều lớp của cùng một môn.
+- **A2** Một học sinh được tham gia nhiều lớp, kể cả nhiều lớp của cùng một môn.
 - **A3** Giảng viên chính mời giảng viên đồng phụ trách.
 - **A4** Giảng viên được loại sinh viên khỏi lớp; Admin có quyền can thiệp.
 - **A5** Học sinh không tự rời lớp chính khóa; giáo viên/Admin xử lý chuyển lớp hoặc kết thúc ghi danh. Kết quả học tập không tự động bị xóa.
@@ -138,7 +138,7 @@ Sản phẩm hỗ trợ nhiều môn, mỗi môn có nhiều lớp độc lập.
 - Nếu rule mơ hồ, ghi Open Question; không tự biến giả định kỹ thuật thành rule.
 - Baseline này là tài liệu tham chiếu nghiệp vụ, không phải tuyên bố đã được chuyên gia pháp lý xác minh.
 
-## Phạm vi áp dụng đã thống nhất — Lumi phổ thông chính khóa
+## Ràng buộc triển khai và phạm vi áp dụng — Lumi phổ thông chính khóa
 - Đối tượng: học sinh THCS/THPT (lớp 6–12), giáo viên và Admin; không bao gồm tiểu học, đại học, lớp học thêm trong MVP.
 - Giữ đúng ba vai trò kỹ thuật `ADMIN`, `LECTURER`, `STUDENT`; trên UI gọi lần lượt là **Quản trị viên**, **Giáo viên**, **Học sinh**. Nhà trường tiếp tục là stakeholder nhận báo cáo qua Admin, không có tài khoản đăng nhập riêng. Không bổ sung Parent hay School Admin.
 - Các quy tắc hiện có về bảo mật, trích dẫn RAG, chấm điểm chính thức, audit, retention, lưu vết phiên bản và xử lý ngoại lệ vẫn có hiệu lực trừ các điều chỉnh được ghi rõ dưới đây.
