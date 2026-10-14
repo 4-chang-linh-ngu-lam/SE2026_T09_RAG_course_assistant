@@ -9,12 +9,12 @@ Tài liệu này ghi lại các quyết định nghiệp vụ đã được nhó
 Sản phẩm hỗ trợ nhiều môn, mỗi môn có nhiều lớp độc lập. **Admin**, **Lecturer**, **Student** là ba vai trò đăng nhập. Nhà trường là stakeholder nhận báo cáo thông qua Admin, không có tài khoản riêng. Giảng viên có thể tạo lớp mà không cần Admin duyệt.
 
 ## A. Lớp học và thành viên
-- **A1** Sinh viên tham gia qua mã lớp và cần giảng viên duyệt; khi đang chờ duyệt chưa được truy cập nội dung.
+- **A1** Học sinh được ghi danh bởi giáo viên/Admin có thẩm quyền; mã lớp là tùy chọn và cần giáo viên duyệt; khi chờ duyệt chưa được truy cập nội dung.
 - **A2** Một sinh viên được tham gia nhiều lớp, kể cả nhiều lớp của cùng một môn.
 - **A3** Giảng viên chính mời giảng viên đồng phụ trách.
 - **A4** Giảng viên được loại sinh viên khỏi lớp; Admin có quyền can thiệp.
-- **A5** Sinh viên được tự rời lớp; kết quả học tập không tự động bị xóa.
-- **A6** Giảng viên bật/tắt tiếp nhận yêu cầu tham gia.
+- **A5** Học sinh không tự rời lớp chính khóa; giáo viên/Admin xử lý chuyển lớp hoặc kết thúc ghi danh. Kết quả học tập không tự động bị xóa.
+- **A6** Giáo viên bật/tắt tiếp nhận yêu cầu bằng mã; không ảnh hưởng ghi danh theo phân công.
 
 ## B. Tài liệu
 - **B1** Giảng viên có thư viện tài liệu cá nhân, có thể chia sẻ một tài liệu cho nhiều lớp.
@@ -98,14 +98,14 @@ Sản phẩm hỗ trợ nhiều môn, mỗi môn có nhiều lớp độc lập.
 
 ## L. Ngoại lệ Classroom
 - **L1** Bài đăng/bình luận đã xóa không còn hiển thị; giữ audit cần thiết.
-- **L2** Rời/bị xóa khỏi lớp mất quyền xem nội dung lớp; kết quả xử lý theo retention.
+- **L2** Chuyển lớp/kết thúc ghi danh/bị xóa khỏi lớp làm mất quyền xem nội dung lớp; kết quả xử lý theo retention.
 - **L3** Đổi deadline phải thông báo và giữ trạng thái đã nộp.
 - **L4** Giảng viên quyết định bài đã giao có áp dụng cho sinh viên vào muộn không.
 - **L5** Giảng viên ẩn/xóa bình luận vi phạm; Admin can thiệp và ghi log.
 - **L6** Giữ ghi chú tự viết nhưng che trích đoạn nguyên văn từ tài liệu bị thu hồi.
 
 ## M. Ngoại lệ cuối
-- **M1** Giảng viên vẫn chấm bài đã nộp sau khi sinh viên rời lớp; sinh viên xem kết quả cá nhân theo quyền được cấp.
+- **M1** Giáo viên vẫn chấm bài đã nộp sau khi học sinh chuyển lớp/kết thúc ghi danh; học sinh xem kết quả cá nhân theo quyền được cấp.
 - **M2** Đồng giảng viên quản lý tài liệu/thành viên/hoạt động nhưng không chuyển chủ lớp hoặc xóa lớp.
 - **M3** Giảng viên thiết lập số lượt và hạn nộp lại Assignment; xác định rõ bản được chấm.
 - **M4** Câu hỏi Assessment sai: giảng viên có thể vô hiệu hóa, chấm lại hoặc ra câu thay thế; thông báo và audit.
@@ -115,7 +115,7 @@ Sản phẩm hỗ trợ nhiều môn, mỗi môn có nhiều lớp độc lập.
 - **O1** Đồng giảng viên được thêm/gỡ chia sẻ tài liệu trong lớp, không sửa/xóa tài liệu gốc hay phiên bản của người khác.
 - **O2** Lớp lưu trữ cho sinh viên sửa ghi chú/bookmark của chính mình đối với nguồn còn quyền, không tạo hoạt động chung hoặc hỏi AI mới.
 - **O3** Mỗi attempt gắn một phiên bản đề bất biến; phiên bản mới chỉ áp dụng cho lượt giao tiếp theo; xử lý công bằng theo M4.
-- **O4** Sinh viên đã rời lớp vẫn được yêu cầu xem xét điểm bài đã nộp trong thời hạn phúc khảo, bằng quyền truy cập giới hạn.
+- **O4** Học sinh đã chuyển lớp/kết thúc ghi danh vẫn được yêu cầu xem xét điểm bài đã nộp trong thời hạn phúc khảo, bằng quyền truy cập giới hạn.
 - **O5** Gia hạn deadline chỉ áp dụng cho lần nộp tương lai; không tự thay đổi số lượt/chính sách nộp lại; phải cấu hình và thông báo.
 - **O6** Không kết luận mastery nếu thiếu bằng chứng độc lập/độ bao phủ chủ đề. Ẩn thống kê AI Tutor với nhóm dưới **5 sinh viên tham gia phân biệt**, áp dụng ẩn ô bổ sung để tránh suy luận ngược. Mốc 5 là chính sách sản phẩm đề xuất, không bảo đảm ẩn danh tuyệt đối.
 - **O7** Retention chia theo tài khoản, chat, notes, docs, bài nộp/điểm, logs; thời hạn cụ thể phải được người vận hành duyệt, không tự bịa thời hạn pháp lý.
