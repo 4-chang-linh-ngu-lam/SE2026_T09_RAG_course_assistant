@@ -42,16 +42,17 @@ Identity idempotency hiện dùng RAM một process, TTL 24 giờ; không bền 
 | Method | Endpoint | Quyền / tác dụng |
 |---|---|---|
 | POST/GET | /courses | Lecturer/Admin tạo {code,name}; authenticated list |
-| POST/GET | /classes | Lecturer tạo {course_id,name}; authenticated list lớp có quyền |
+| POST/GET | /classes | Lecturer được phân công tạo lớp môn học; body dự kiến {course_id,name,grade_level,school_year,homeroom_class_id?}, authenticated list lớp có quyền. Metadata và xác minh phân công chưa triển khai/chưa chốt schema |
 | GET/PATCH | /classes/{class_id} | ACTIVE member xem; Owner/Admin cập nhật {name?,join_enabled?} |
-| POST | /classes/join-requests | Student {join_code} → 201 {request_id,class_id,status:PENDING} |
+| POST | /classes/join-requests | Student {join_code} → 201 {request_id,class_id,status:PENDING}; chỉ khi lớp bật nhận yêu cầu bằng mã |
 | GET | /classes/{class_id}/join-requests | Owner/Co-lecturer/Admin |
 | POST | /classes/{class_id}/join-requests/{id}/approve | Owner/Co-lecturer/Admin → 200 ACTIVE membership |
 | POST | /classes/{class_id}/join-requests/{id}/reject | Owner/Co-lecturer/Admin → 200 REJECTED |
 | POST | /classes/{class_id}/join-requests/{id}/cancel | Request owner → 200 CANCELLED |
 | GET | /classes/{class_id}/members | ACTIVE member / Admin intervention |
-| DELETE | /classes/{class_id}/members/me | Không áp dụng cho Student lớp chính khóa; route thiết kế cũ cần loại bỏ/giới hạn trước khi triển khai |
-| DELETE | /classes/{class_id}/members/{user_id} | Owner/Co-lecturer/Admin → 204 |
+| DELETE | /classes/{class_id}/members/me | Không cung cấp cho Student lớp chính khóa; route cũ không được triển khai cho học sinh |
+| POST | /classes/{class_id}/members | Owner/Co-lecturer/Admin ghi danh học sinh theo phân công → 201; request/response chi tiết chưa chốt, chưa triển khai |
+| DELETE | /classes/{class_id}/members/{user_id} | Owner/Co-lecturer/Admin → 204; chuyển lớp/kết thúc ghi danh, giữ lịch sử học tập |
 | POST | /classes/{class_id}/co-lecturers/invitations | Owner/Admin {lecturer_id} → 201 |
 | POST | /classes/{class_id}/co-lecturers/invitations/{id}/accept | Invitee → 200 |
 | POST | /classes/{class_id}/co-lecturers/invitations/{id}/reject | Invitee → 200 |
@@ -96,7 +97,7 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 
 ## Validation / Contract tests
 - Email chuẩn hóa lowercase; mật khẩu 12..128 ký tự; body post/comment 1..10000, title/name 1..200; starts_at < ends_at. Không expose password_hash, refresh_hash, join_code_hash.
-- Test: unauthorized/cross-class, PENDING/LEFT/REMOVED/LOCKED/archived, concurrent approve, ownership, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.
+- Test: unauthorized/cross-class, PENDING/REMOVED/LOCKED/archived, concurrent approve, ownership, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.
 - FastAPI sinh OpenAPI cho Identity auth/profile/data requests, với request/response/error schemas và snapshot trong test. Các bảng endpoint ngoài Identity vẫn là hợp đồng hành vi, chưa phải bằng chứng triển khai; CI chạy contract test cùng pytest.
 
 ## Ghi chú tương thích — phạm vi Lumi THCS/THPT chính khóa
