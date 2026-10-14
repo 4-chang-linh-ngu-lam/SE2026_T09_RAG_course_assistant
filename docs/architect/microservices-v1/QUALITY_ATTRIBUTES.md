@@ -29,7 +29,7 @@ Mỗi kịch bản gồm: **Nguồn tác động, Sự kiện, Môi trường, T
 - **Đo:** không có bản ghi nghiệp vụ trùng hoặc mất trong ít nhất 1.000 tình huống thử lại/cạnh tranh có kiểm soát; đối soát đúng.
 
 ### QAS-04 — Bảo mật và quyền riêng tư (Security & Privacy)
-- **Nguồn/sự kiện:** học sinh thay mã lớp, tài liệu, bài làm, người dùng; quyền tài liệu bị thu hồi.
+- **Nguồn/sự kiện:** học sinh thay class_id, document_id, submission_id, user_id trong yêu cầu; quyền tài liệu bị thu hồi.
 - **Môi trường/thành phần:** API, truy hồi, mở nguồn.
 - **Phản ứng:** từ chối truy cập trái phép, không đưa nguồn không có quyền vào lời nhắc mô hình; từ chối khi không xác minh được quyền.
 - **Đo:** 100% trường hợp trái phép trong bộ kiểm thử bị chặn; không rò rỉ dữ liệu xuyên lớp; quyền thu hồi được thực thi tại lần kiểm tra mới.
