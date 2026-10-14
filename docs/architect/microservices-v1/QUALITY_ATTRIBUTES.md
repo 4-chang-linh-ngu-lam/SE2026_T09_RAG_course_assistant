@@ -100,3 +100,12 @@ Tối thiểu 50 tình huống học tập do giảng viên kiểm tra. Gợi ý
 - **QAS-04 (dữ liệu học sinh):** trước triển khai thực tế phải có kiểm thử onboarding/ủy quyền hợp lệ khi cần, giới hạn quyền truy cập dữ liệu học sinh, quy trình yêu cầu dữ liệu và retention đã phê duyệt; không tự khẳng định đáp ứng pháp luật khi chưa đánh giá.
 - **QAS-06 (AI):** đánh giá câu trả lời có phù hợp khối 6–12, bám sát nguồn, gợi mở thay vì làm hộ; giữ các mục tiêu đo citation/grounding/refusal hiện có.
 - **QAS-11 (analytics):** kiểm tra cách diễn đạt “Chủ đề cần ôn tập” và “Chưa đủ dữ liệu”, không kết luận năng lực hoặc gắn nhãn rủi ro khi thiếu bằng chứng.
+
+
+### Kịch bản nghiệm thu bổ sung theo baseline
+- Admin-only: Student/Lecturer không thể tạo lớp, ghi danh chính thức, thay phân công hay archive/restore; thử truy cập chéo lớp/trường phải fail closed.
+- AUTO/MANUAL: sync lặp không nhân đôi membership; lớp MANUAL không bị ghi đè; đổi mode yêu cầu preview/confirm; transfer giữ submissions/grades và audit.
+- Identity Student: không cần email; mã kích hoạt một lần có hạn, không tái sử dụng, không lộ trong logs; import CSV/Excel phát hiện lỗi/trùng, retry an toàn.
+- Assessment: co-lecturer chỉ tạo nháp/chấm được phân công; sửa điểm đã công bố có phê duyệt giáo viên chính và audit.
+- Historical access: học sinh đã chuyển lớp xem kết quả/chat/notes của mình nhưng không hỏi AI lớp cũ, không xem hoạt động mới, không mở nguồn bị thu hồi.
+- Dữ liệu trẻ em: policy retention/căn cứ xử lý/đại diện phải được xác minh trước dữ liệu thật; hoãn automation không được hiểu là hoãn tuân thủ.
