@@ -26,15 +26,15 @@
 5. Chạy Compose từ môi trường sạch, CI, security/contract tests, lưu kết quả rồi mới sang G3.
 
 ## Checklist nghiệm thu Core
-- [ ] Register/verify/login/refresh/logout/revoke, Admin account/roles/lock.
-- [ ] Class theo môn/khối/năm học, ghi danh theo phân công, tùy chọn join/approve/reject, remove/chuyển lớp (không cho Student tự leave), co-lecturer, transfer, archive/restore.
+- [ ] Admin provision/Student activate/login/refresh/logout/revoke, Admin account/roles/lock.
+- [ ] Class theo môn/khối/năm học, ghi danh theo phân công, AUTO/MANUAL, Admin import CSV/Excel, remove/chuyển lớp (không cho Student tự leave), co-lecturer, transfer, archive/restore.
 - [ ] Feed/comments/calendar/notifications và Core admin/audit end-to-end.
 - [ ] OpenAPI, migration, Compose, health, CI, test quyền/tích hợp có bằng chứng.
 
 [Core Design](core/DESIGN.md) · [Core API](core/API_CONTRACT.md) · [Quality Attributes](QUALITY_ATTRIBUTES.md).
 
 ## Điều chỉnh phạm vi sản phẩm và thứ tự ưu tiên
-MVP Lumi hướng tới lớp chính khóa THCS/THPT (khối 6–12), không phải đại học hoặc lớp học thêm. Giữ 5 service và các mốc G1–G5. Trước khi hoàn thành Classroom/Core G1, cần chốt và kiểm thử metadata môn/khối/năm học/lớp hành chính, phân công giáo viên, ghi danh do giáo viên/Admin thực hiện, tùy chọn mã lớp và **cấm học sinh tự rời lớp chính khóa**. Trước khi phát hành Identity cho học sinh thực, cần quyết định cơ chế onboarding và bảo vệ dữ liệu người chưa thành niên. Không viết lại các task Identity đã hoàn thành chỉ vì đổi tên hiển thị; thay đổi hành vi/schema phải có task, migration, contract test riêng.
+MVP Lumi hướng tới lớp chính khóa THCS/THPT (khối 6–12), không phải đại học hoặc lớp học thêm. Giữ 5 service và các mốc G1–G5. Trước khi hoàn thành Classroom/Core G1, cần chốt và kiểm thử metadata môn/khối/năm học/lớp hành chính, phân công giáo viên, ghi danh do Admin quản lý, không dùng mã lớp và **cấm học sinh tự rời lớp chính khóa**. Trước khi phát hành Identity cho học sinh thực, cần quyết định cơ chế onboarding và bảo vệ dữ liệu người chưa thành niên. Không viết lại các task Identity đã hoàn thành chỉ vì đổi tên hiển thị; thay đổi hành vi/schema phải có task, migration, contract test riêng.
 
 
 ### Điều chỉnh nghiệm thu theo baseline 20 quyết định
