@@ -24,7 +24,7 @@ flowchart LR
 ## 2. Ownership
 | Service | Sở hữu dữ liệu |
 |---|---|
-| Core | User, Role, Session, Course, Class, Membership, Feed, Comment, Calendar, Notification, Core audit/admin |
+| Core | User, Role, Session, School, AcademicYear, HomeroomClass/Roster, SubjectClass, TeachingAssignment, Membership, Feed, Comment, Calendar, Notification, Core audit/admin |
 | Document | Library, File, DocumentVersion, ClassDocumentGrant, notes/bookmarks gắn nguồn |
 | Learning | Practice, Assessment, Assignment, Attempt, Submission, Grade, deadline chính thức |
 | AI | Conversation, Message, RAG index/retrieval metadata dẫn xuất |
@@ -41,7 +41,7 @@ flowchart LR
 - Docker Compose là môi trường triển khai ban đầu, không mặc nhiên bảo đảm HA/zero downtime. CI GitHub Actions, health check và test unit/integration/contract cho từng service.
 
 ## 4. Luồng chính
-1. Student nhập mã lớp → Core lưu PENDING → giảng viên duyệt → ACTIVE → thông báo.
+1. Admin cấp Student và tạo roster lớp hành chính → Core đồng bộ ghi danh AUTO hoặc quản lý MANUAL → thông báo; không có join code trong MVP.
 2. Lecturer chia sẻ tài liệu ở Document → xử lý phiên bản → AI chỉ truy hồi nguồn có grant hiện hành và lớp có quyền.
 3. AI Tutor gắn lớp, trích dẫn nguồn tin cậy hoặc nói rõ thiếu căn cứ; archived không hỏi AI mới.
 4. Learning lưu đề/attempt/grade/deadline, AI không quyết định điểm chính thức; phát event sửa điểm cho Learner Intelligence.
@@ -58,13 +58,13 @@ Phạm vi MVP: lớp chính khóa THCS/THPT (khối 6–12). `Student`/`Lecturer
 - **Core:** lớp môn học gắn môn, khối, năm học, lớp hành chính (nếu có); ghi danh AUTO/MANUAL do Admin quản lý, không dùng mã tham gia lớp; học sinh không tự rời lớp chính khóa. Các trường/luồng mới là thay đổi thiết kế chưa triển khai.
 - **Document:** tài liệu và quyền chia sẻ tiếp tục theo lớp môn học; có thể lọc theo khối/môn qua metadata Core, không suy diễn quyền truy cập từ metadata.
 - **AI:** hướng dẫn theo khối lớp, có giới hạn hỗ trợ trong kiểm tra chính thức; truy hồi và trích dẫn vẫn theo quyền hiện hành.
-- **Learning:** Practice/Assessment/Assignment giữ phân biệt điểm; giáo viên phụ trách lớp là người có thẩm quyền.
+- **Learning:** Practice/Assessment/Assignment giữ phân biệt điểm; giáo viên chính phê duyệt công bố Assessment và sửa/hủy kết quả nhạy cảm; giáo viên phối hợp được chấm bài theo phân công.
 - **Learner Intelligence:** phân tích theo bằng chứng, diễn đạt hỗ trợ học tập, tránh nhãn bất lợi đối với học sinh.
 
 Việc triển khai yêu cầu cập nhật Core Design/API, migration và contract test; không xem ghi chú này là bằng chứng chức năng đã chạy.
 
 
-### Tác động liên service
+## Tác động liên service (DECIDED nghiệp vụ; chi tiết event/API PROPOSED)
 - Core sở hữu school/homeroom/subject class/roster, teaching assignment, enrollment mode, identity, transfer/archive; phát sự kiện versioned/idempotent khi membership/teacher assignment thay đổi.
 - Document kiểm tra quyền nguồn hiện hành, kể cả khi Student có quyền đọc ghi chú hoặc hội thoại lịch sử; nguồn bị thu hồi không mở lại qua citation/bookmark.
 - AI tách quyền đọc chat riêng tư của chủ chat, chia sẻ chủ động, và quyền hỏi RAG mới theo lớp ACTIVE + document grant; Admin/Lecturer không đọc chat mặc định.
