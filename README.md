@@ -19,8 +19,8 @@ Lumi phục vụ **học sinh THCS và THPT (khối 6–12)** trong **lớp họ
 
 **Stakeholder/role không mở rộng:** Admin, Lecturer (hiển thị là **Giáo viên**) và Student (hiển thị là **Học sinh**); nhà trường nhận báo cáo thông qua Admin, không có tài khoản riêng. Các enum `LECTURER`/`STUDENT` hiện hành tiếp tục được giữ để tương thích với code và API. Không mặc định có vai trò Phụ huynh hay Admin theo trường.
 
-**Lưu ý đồng bộ:** Baseline nghiệp vụ được chỉnh trực tiếp tại `docs/architect/BUSINESS_RULES.md`; các thay đổi về cơ chế quản lý lớp chính khóa, khối học và tài khoản người chưa thành niên cần được phản ánh trong thiết kế, API, task và test trước khi coi là đã triển khai.
+**Nguồn quyết định:** 20 quyết định đã được hợp nhất vào `docs/architect/BUSINESS_RULES.md`; API/schema mới phải được phân biệt rõ với Identity legacy đã triển khai. Không suy ra tính năng đã hoàn thành chỉ từ tài liệu.
 
 
-### Phạm vi nghiệp vụ Lumi (baseline 2026-10-14)
+## Phạm vi nghiệp vụ Lumi (baseline 2026-10-14)
 MVP dành cho lớp chính khóa THCS/THPT khối 6–12 tại một trường, chuẩn bị school_id cho mở rộng; giữ 5 service và ba role ADMIN/LECTURER/STUDENT. Admin tạo lớp môn học liên kết lớp hành chính, phân công giáo viên và quản lý ghi danh AUTO/MANUAL; không có join code hoặc tự đăng ký Student trong MVP. Student nhận username và mã kích hoạt một lần từ Admin. Dữ liệu học tập cá nhân và chat lịch sử được bảo vệ khi chuyển lớp; nguồn tài liệu vẫn kiểm tra quyền hiện hành. Quản trị MVP có nhập CSV/Excel, yêu cầu dữ liệu xử lý có kiểm soát. **Đây là baseline mục tiêu, không phải tuyên bố mọi chức năng đã triển khai.** Xem `docs/architect/BUSINESS_RULES.md`.
