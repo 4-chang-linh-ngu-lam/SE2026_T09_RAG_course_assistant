@@ -92,3 +92,11 @@ Cross-class, PENDING/REMOVED/LOCKED, archived, owner transfer, concurrent approv
 - Giáo viên chỉ tạo và quản lý lớp trong phạm vi phân công được xác minh; cách xác minh phân công còn cần quyết định cụ thể, không giả định tự do tạo mọi lớp.
 - Luồng self-registration/email verification hiện đã triển khai cho role `STUDENT`; chưa được xác nhận phù hợp onboarding người chưa thành niên. Cần chốt cơ chế cấp tài khoản, quyền đại diện/đồng ý khi cần, bảo vệ dữ liệu học sinh và test trước khi cho người dùng thực tế đăng ký.
 - Các bảng Identity/migration đã áp dụng không được sửa lịch sử. Thay đổi schema phải qua Alembic revision mới, API version/contract và test quyền tương ứng.
+
+
+### Thiết kế Core đích và chênh lệch triển khai
+- Entity/quan hệ mục tiêu: School, AcademicYear, Semester, HomeroomClass, HomeroomRoster, Course/SubjectClass (school_id, grade_level, school_year_id, homeroom_class_id?, enrollment_mode AUTO|MANUAL), TeachingAssignment (PRIMARY|ASSISTING), ClassMembership (nguồn ghi danh, trạng thái, thời gian hiệu lực, lịch sử), StudentActivationToken; username unique cho Student, email nullable theo loại tài khoản.
+- Phân công giáo viên và roster chỉ Admin mutation. Co-lecturer/owner invitation, ownership transfer, join request và Lecturer-created class ở thiết kế cũ **không còn là luồng MVP**. Archive/restore chỉ Admin. Đồng bộ AUTO không ghi đè lớp MANUAL; chuyển MANUAL→AUTO có preview/confirm.
+- Access check tách `participate_current_class`, `read_own_history`, `read_document_source`, `use_ai_tutor`, `grade_submitted_work`. Transfer/archive fail closed cho hoạt động mới nhưng không chặn xem lịch sử hợp lệ.
+- Hệ thống đang có Identity email/self-registration; cần migration mới, compatibility plan và test. Không sửa migration cũ, không tuyên bố schema đích đã triển khai.
+- State machine cần bao phủ kích hoạt một lần, chuyển lớp có pending submission/attempt, archive chỉ Admin và approval assessment bởi giáo viên chính.
