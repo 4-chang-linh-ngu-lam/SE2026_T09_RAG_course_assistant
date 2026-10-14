@@ -2,11 +2,11 @@
 
 **Trạng thái:** BASELINE THIẾT KẾ · **Ngày:** 2026-10-11. Identity có triển khai và bằng chứng test tại TASK-001–004; các phần còn lại vẫn là thiết kế, chưa xác nhận toàn Core hoàn thành.
 
-## 1. Công nghệ và xác thực
+## 1. Công nghệ và xác thực (Identity legacy và mục tiêu được phân biệt)
 - Một Core FastAPI service, Next.js Web, PostgreSQL schema `core`, SQLAlchemy, Alembic, Docker Compose.
-- Email/password; self-registration tạo Student, bắt buộc xác minh email. Admin tạo tài khoản bằng lời mời đặt mật khẩu, cấp Lecturer/Admin; không cho tự nâng quyền.
+- **DECIDED target:** Student do Admin cấp username + mã kích hoạt một lần có hạn, không cần email; Student tự đặt mật khẩu khi kích hoạt, khôi phục qua Admin xác minh. Lecturer/Admin có thể tiếp tục email/password. **IMPLEMENTED — LEGACY:** email self-registration Student và email verification hiện có; không phát hành làm onboarding MVP. Không tự nâng quyền.
 - JWT access **15 phút**, refresh **7 ngày**; refresh rotation, server lưu hash/phiên/revocation. Refresh cookie `HttpOnly; Secure; SameSite=Lax` trong mô hình cùng-site, access token giữ trong bộ nhớ client, không dùng localStorage. Hash password Argon2id.
-- Khóa tài khoản, đổi mật khẩu, logout-all thu hồi phiên; backend kiểm tra trạng thái hiện hành. CSRF/Origin protection cho cookie mutations; rate limit login/register/reset/join code. Email verification/reset token một lần, hết hạn, lưu hash.
+- Khóa tài khoản, đổi mật khẩu, logout-all thu hồi phiên; backend kiểm tra trạng thái hiện hành. CSRF/Origin protection cho cookie mutations; rate limit login/activation/reset. Email verification/reset token một lần, hết hạn, lưu hash.
 - Service-to-service access-check dùng service credential/scope riêng, không tin user_id từ browser.
 - Access JWT có `sub` UUID, `roles`, `session_version`, `iat`, `exp`. Backend dùng role/status/session version hiện hành từ Identity public interface; role trong JWT không tự cấp quyền. Bootstrap đã nối Common lookup với Identity DB ở TASK-002; ứng dụng chưa nối vẫn từ chối an toàn.
 - Token xác minh/reset lưu SHA-256, mặc định hết hạn sau 24 giờ/60 phút và cấu hình được. Refresh rotation giữ hạn gốc 7 ngày; dùng lại token revoked thu hồi family, không kéo dài hạn phiên. Logout thu hồi refresh hiện tại; logout-all/đổi mật khẩu/khóa tài khoản tăng session version và thu hồi toàn bộ refresh session.
@@ -15,7 +15,7 @@
 | Module | Trách nhiệm |
 |---|---|
 | identity | User, RoleAssignment, AuthSession, one-time token, DataRequest |
-| classroom | Course, Class, Membership, JoinRequest, co-lecturer invitation, ownership |
+| classroom | School, AcademicYear, Semester, HomeroomClass, HomeroomRoster, Course, SubjectClass, TeachingAssignment, Membership, enrollment AUTO/MANUAL |
 | social/feed | ClassPost |
 | social/comments | PostComment |
 | social/calendar | CalendarEvent và bản chiếu deadline Learning |
@@ -28,6 +28,8 @@ Các module giao tiếp qua `public.py`; không import repository module khác. 
 Public Identity trả DTO an toàn, batch summary một query; Admin helpers kiểm tra actor/role/status hiện hành, ghi audit cùng transaction và hỗ trợ session caller sở hữu. Chữ ký/cách dùng tại [Core README](../../../../services/core/README.md#identity-public-interface-và-data-requests-task-004).
 
 ## 3. Schema logic (UUID PK, UTC timestamptz)
+
+**Bảng bên dưới là thiết kế lịch sử/chưa chắc đã triển khai, không phải schema MVP đã chốt.** Các bảng join_requests, co_lecturer_invitations, join_code_hash, owner_user_id là **LEGACY/OUT OF MVP**; không tạo mới theo mô hình này. Entity mục tiêu và migration được mô tả sau bảng.
 | Bảng | Trường chính | Constraint |
 |---|---|---|
 | users | id,email,display_name,password_hash,status,email_verified_at,session_version | email lowercase unique; status PENDING_VERIFICATION/ACTIVE/LOCKED; session_version mặc định 1 |
@@ -49,50 +51,41 @@ Public Identity trả DTO an toàn, batch summary một query; Admin helpers ki�
 
 FK chỉ trong Core; index theo class_id/user_id/created_at. Alembic migration là hiện thực schema, không phải bảng đã tồn tại.
 
-## 4. State machine
-- User: PENDING_VERIFICATION → ACTIVE ↔ LOCKED; LOCKED vô hiệu hóa phiên.
-- Class: ACTIVE ↔ ARCHIVED; archived chỉ đọc, không thêm thành viên/bài đăng/bài nộp hoặc hỏi AI mới; ngoại lệ notes/bookmarks thuộc Document theo O2.
-- JoinRequest: PENDING → APPROVED/REJECTED/CANCELLED; terminal. Bị từ chối có thể tạo request mới nếu lớp cho phép; học sinh không tự rời lớp chính khóa. Bị REMOVED chỉ tham gia lại khi giáo viên cho phép.
-- Membership: ACTIVE → LEFT/REMOVED; tái tham gia tạo record mới, giữ lịch sử. Một ACTIVE/class/user.
-- Transfer owner: chỉ OWNER hoặc Admin can thiệp chuyển cho CO_LECTURER ACTIVE; một transaction đổi owner và membership roles, audit; không bao giờ có hai OWNER. OWNER phải transfer trước khi rời.
-- Approve/reject/remove cạnh tranh dùng transaction, row locking/unique constraints; approve lặp APPROVED trả 200 không tạo trùng, trạng thái terminal khác trả 409.
+## 4. State machine (DECIDED nghiệp vụ, PENDING DESIGN kỹ thuật)
+- Student: PROVISIONED → ACTIVATION_PENDING → ACTIVE ↔ LOCKED; mã kích hoạt một lần, hết hạn, không dùng lại; tên enum/TTL là **PROPOSED**.
+- SubjectClass: ACTIVE ↔ ARCHIVED, chỉ Admin chuyển; archived chỉ đọc hoạt động chung, học sinh vẫn đọc/sửa notes cá nhân hợp lệ.
+- Enrollment: AUTO đồng bộ từ homeroom roster, MANUAL do Admin cập nhật; đổi MANUAL→AUTO phải preview/confirm; mọi thay đổi idempotent, audit, không xóa lịch sử.
+- Membership: ACTIVE → ENDED khi chuyển lớp/kết thúc; tái ghi danh phải giữ lịch sử từng đợt, một ACTIVE/class/student; thời điểm hiệu lực **PENDING DESIGN**.
+- Transfer: chấm dứt tham gia lớp cũ; submitted-ungraded tiếp tục chấm, unsubmitted đóng, timed attempt xử lý theo assessment policy, không mặc định hoàn thành.
+- TeacherAssignment: PRIMARY/ASSISTING do Admin quản lý, không có teacher-to-teacher invitation hay ownership transfer.
+- Các state machine JoinRequest/approve và owner transfer cũ **OUT OF MVP**.
 
-## 5. Quyền
-| Hành động | Admin | Owner | Co-lecturer | Student ACTIVE |
+## 5. Quyền (DECIDED)
+| Hành động | Admin | Giáo viên chính | Giáo viên phối hợp | Student |
 |---|---|---|---|---|
-| Tạo lớp | Theo thẩm quyền quản trị và audit | Có nếu được phân công | Có nếu được phân công | Không |
-| Duyệt/loại Student | Can thiệp + audit | Có | Có | Không |
-| Mời co-lecturer/transfer | Can thiệp + audit | Có | Không | Không |
-| Archive/restore | Can thiệp + audit | Có | Không | Không |
-| Post/comment | Chỉ khi là thành viên phù hợp | Có | Có | Có |
-| Ẩn/xóa nội dung vi phạm | Can thiệp + audit | Có | Có | Chỉ nội dung mình |
-| Xem lớp | Không mặc định; can thiệp có lý do/audit | Có | Có | Có |
-| Xem chat riêng tư | Không mặc định | Không mặc định | Không mặc định | Chủ chat |
+| Tạo lớp, roster, ghi danh, chuyển lớp, phân công giáo viên | Có + audit | Không | Không | Không |
+| Archive/restore | Có + audit | Không | Không | Không |
+| Quản lý tài liệu/hoạt động lớp được phân công | Can thiệp theo thẩm quyền | Có | Có, theo grant | Không |
+| Tạo nháp Assessment / bài luyện tập / bài tập | Theo quy trình | Có | Có | Không |
+| Công bố Assessment chính thức | Can thiệp ngoại lệ có lý do | Phê duyệt | Đề xuất | Không |
+| Chấm bài được phân công | Theo quy trình | Có | Có | Không |
+| Sửa điểm đã công bố / hủy kết quả | Can thiệp ngoại lệ có lý do | Phê duyệt + audit | Đề xuất | Không |
+| Xem lịch sử cá nhân | Theo chính sách, không mặc định | Theo lớp được giao | Theo lớp được giao | Chỉ dữ liệu của mình |
+| Đọc chat AI riêng tư | Không mặc định | Chỉ khi học sinh chia sẻ cụ thể | Chỉ khi học sinh chia sẻ cụ thể | Chủ chat |
 
-Mọi request kiểm tra role + membership ACTIVE + class status + action; quyền lịch sử không tự cấp quyền hiện hành. Người đã chuyển lớp hoặc kết thúc ghi danh vẫn có quyền giới hạn xem/appeal điểm theo M1/O4 qua Learning.
+Quyền kiểm tra theo hành động + trạng thái + phạm vi trường/lớp + grant; không đồng nhất `read_own_history` với `membership ACTIVE`. Từ chối an toàn khi không xác minh được quyền.
 
-## 6. Luồng
-1. Register → verify email → ACTIVE; Admin create → set-password invitation.
-   Lời mời ADMIN_INVITATION một lần (mặc định 24 giờ, cấu hình được) được chấp nhận qua password/reset; đặt mật khẩu và xác minh email cho PENDING, không mở tài khoản LOCKED.
-2. Login → access JWT + refresh cookie; refresh rotation; logout/revoke và khóa tài khoản chặn phiên.
-3. Giáo viên/Admin ghi danh theo phân công → membership ACTIVE; hoặc join code (nếu bật) → PENDING → giáo viên approve → membership ACTIVE → outbox notification. Luồng ghi danh trực tiếp chưa triển khai.
-4. Feed/comments: kiểm tra membership/status, soft delete và audit.
-5. Calendar: CORE event được chỉnh bởi lecturer; LEARNING deadline chỉ phản chiếu event versioned, thay deadline phải thông báo.
-6. Admin lock/role/class intervention và xử lý yêu cầu dữ liệu cá nhân; báo cáo tổng hợp nhiều service tích hợp ở G5.
-7. Notification dùng outbox/dedup, lỗi gửi không rollback nghiệp vụ gốc.
-8. User tạo/xem data requests của chính mình; chỉ ghi PENDING, không tự xóa/xuất dữ liệu. Administration xử lý thủ công theo K1/K4/O8; retention cụ thể cần người vận hành duyệt.
+## 6. Luồng (DECIDED, API chi tiết PROPOSED)
+1. Admin tạo Student/nhập CSV/Excel → kiểm tra trùng/lỗi → cấp username + mã kích hoạt → Student kích hoạt và đặt mật khẩu; không dùng public Student register.
+2. Admin tạo lớp hành chính, roster, lớp môn học và phân công PRIMARY/ASSISTING → AUTO sync hoặc MANUAL roster → audit/outbox. Không dùng join code.
+3. Student chuyển lớp → kết thúc participation lớp cũ, giữ dữ liệu lịch sử cá nhân → Learning xử lý submissions/attempts theo chính sách.
+4. Feed/comments/calendar: chỉ thành viên ACTIVE thao tác chung, soft delete/audit; deadline Learning là nguồn chính thức.
+5. Admin archive/restore → chặn hoạt động chung và AI Tutor mới; notes/bookmarks/hội thoại cũ theo quyền cá nhân và grant nguồn.
+6. Data request: chủ thể gửi yêu cầu, Admin xác minh/xử lý có audit; không tự động xóa toàn bộ.
+7. Notifications/outbox idempotent; không rollback nghiệp vụ gốc nếu gửi notification lỗi.
 
 ## 7. Test bắt buộc
-Cross-class, PENDING/REMOVED/LOCKED, archived, owner transfer, concurrent approve, JWT refresh replay/revoke, CSRF/rate limit, feed delete, notification dedup, calendar LEARNING read-only, Admin audit. Mọi endpoint có permission/contract test; integration test dùng PostgreSQL thực.
-
-## Phạm vi chính khóa THCS/THPT và thay đổi cần triển khai
-- Role kỹ thuật hiện tại `ADMIN`, `LECTURER`, `STUDENT` **giữ nguyên** để không phá vỡ Identity đã triển khai; tên UI lần lượt là Quản trị viên, Giáo viên, Học sinh. Không thêm Parent hoặc School Admin trong MVP.
-- Lớp học là **lớp môn học chính khóa** của khối 6–12, cần có môn học, khối, năm học và tham chiếu lớp hành chính nếu có. Trường và phân công giáo viên cần được mô hình hóa/kiểm tra ở bước Classroom; **schema `courses/classes` hiện liệt kê chưa có đủ metadata này**.
-- Ghi danh có thể do giáo viên/Admin thực hiện theo phân công hoặc qua mã lớp và phê duyệt nếu bật. Học sinh **không được tự rời** lớp chính khóa. Các state machine, permission checks, audit và API phải được cập nhật cùng migration/test trước khi phát hành.
-- Giáo viên chỉ tạo và quản lý lớp trong phạm vi phân công được xác minh; cách xác minh phân công còn cần quyết định cụ thể, không giả định tự do tạo mọi lớp.
-- Luồng self-registration/email verification hiện đã triển khai cho role `STUDENT`; chưa được xác nhận phù hợp onboarding người chưa thành niên. Cần chốt cơ chế cấp tài khoản, quyền đại diện/đồng ý khi cần, bảo vệ dữ liệu học sinh và test trước khi cho người dùng thực tế đăng ký.
-- Các bảng Identity/migration đã áp dụng không được sửa lịch sử. Thay đổi schema phải qua Alembic revision mới, API version/contract và test quyền tương ứng.
-
+Admin-only create/enroll/teacher assignment/archive, cross-school/cross-class, AUTO/MANUAL sync/retry, bulk import duplicate/invalid, activation expiry/replay, JWT rotation/lock, transfer with pending assessment/submission, archive, historical read vs document grant, chat privacy, grade approval/audit, notification dedup, calendar LEARNING read-only. Integration test PostgreSQL thực.
 
 ### Thiết kế Core đích và chênh lệch triển khai
 - Entity/quan hệ mục tiêu: School, AcademicYear, Semester, HomeroomClass, HomeroomRoster, Course/SubjectClass (school_id, grade_level, school_year_id, homeroom_class_id?, enrollment_mode AUTO|MANUAL), TeachingAssignment (PRIMARY|ASSISTING), ClassMembership (nguồn ghi danh, trạng thái, thời gian hiệu lực, lịch sử), StudentActivationToken; username unique cho Student, email nullable theo loại tài khoản.
