@@ -8,17 +8,17 @@ Tài liệu này ghi lại các quyết định nghiệp vụ đã được nhó
 
 ## Phạm vi và vai trò
 
-Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); không bao gồm tiểu học, đại học hoặc lớp học thêm trong MVP. **Admin**, **Lecturer**, **Student** là ba vai trò kỹ thuật đăng nhập; giao diện hiển thị Quản trị viên, Giáo viên, Học sinh. Nhà trường là stakeholder nhận báo cáo thông qua Admin, không có tài khoản riêng. Giáo viên tạo lớp trong phạm vi phân công được xác minh; cơ chế xác minh còn cần chốt.
+Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); không bao gồm tiểu học, đại học hoặc lớp học thêm trong MVP. **Admin**, **Lecturer**, **Student** là ba vai trò kỹ thuật đăng nhập; giao diện hiển thị Quản trị viên, Giáo viên, Học sinh. Nhà trường là stakeholder nhận báo cáo thông qua Admin, không có tài khoản riêng. Chỉ Admin tạo lớp và phân công giáo viên; giáo viên chỉ quản lý hoạt động giảng dạy được giao.
 
 ## A. Lớp học và thành viên
-- **A1** Học sinh được ghi danh bởi giáo viên/Admin có thẩm quyền; mã lớp là tùy chọn và cần giáo viên duyệt; khi chờ duyệt chưa được truy cập nội dung.
+- **A1** Học sinh được ghi danh tự động theo lớp hành chính (AUTO) hoặc do Admin quản lý (MANUAL); không dùng mã lớp trong MVP.
 - **A2** Một học sinh được tham gia nhiều lớp, kể cả nhiều lớp của cùng một môn.
-- **A3** Giáo viên chính mời giáo viên đồng phụ trách.
-- **A4** Giáo viên được loại học sinh khỏi lớp; Admin có quyền can thiệp.
-- **A5** Học sinh không tự rời lớp chính khóa; giáo viên/Admin xử lý chuyển lớp hoặc kết thúc ghi danh. Kết quả học tập không tự động bị xóa.
-- **A6** Giáo viên bật/tắt tiếp nhận yêu cầu bằng mã; không ảnh hưởng ghi danh theo phân công.
+- **A3** Chỉ Admin phân công giáo viên chính và giáo viên phối hợp; giáo viên không tự mời đồng giáo viên.
+- **A4** Chỉ Admin điều chỉnh thành viên chính thức, chuyển lớp hoặc kết thúc ghi danh; giữ lịch sử học tập.
+- **A5** Học sinh không tự rời lớp chính khóa; Admin xử lý chuyển lớp/kết thúc ghi danh, bảo toàn kết quả cá nhân.
+- **A6** Không sử dụng join code/join request trong MVP chính khóa.
 - **A7** Lớp môn học gắn môn học, khối 6–12, năm học và tham chiếu lớp hành chính nếu có. Metadata tổ chức không tự tạo thêm role Admin theo trường.
-- **A8** Giáo viên chỉ tạo/quản lý lớp theo phân công hoặc phạm vi Admin xác nhận. Cách xác minh phân công là quyết định triển khai còn mở.
+- **A8** Chỉ Admin tạo lớp môn học chính khóa và phân công giáo viên; giáo viên quản lý hoạt động giảng dạy trong lớp được giao.
 
 ## B. Tài liệu
 - **B1** Giáo viên có thư viện tài liệu cá nhân, có thể chia sẻ một tài liệu cho nhiều lớp.
@@ -61,7 +61,7 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - **F2** Admin quản lý lớp/thành viên, xử lý vi phạm, ghi log can thiệp.
 - **F3** Admin và giáo viên không mặc định được đọc hội thoại AI riêng tư.
 - **F4** Xác minh và xử lý yêu cầu xóa dữ liệu, thông báo kết quả theo retention policy.
-- **F5** Giáo viên lưu trữ lớp ở chế độ chỉ đọc, không thêm bài nộp/thành viên mới.
+- **F5** Chỉ Admin lưu trữ/khôi phục lớp; lớp lưu trữ chỉ đọc và không nhận hoạt động mới.
 - **F6** Admin xuất báo cáo tổng hợp PDF/Excel cho nhà trường.
 - **F7** Audit các thao tác Admin, quyền, điểm, tài liệu và lỗi RAG quan trọng.
 
@@ -69,8 +69,8 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - **G1** Bảng tin lớp; **G2** bình luận bài đăng; **G3** lịch và deadline; **G4** thông báo trong ứng dụng; **G5** ghi chú/bookmark cá nhân. Diễn đàn thảo luận độc lập thuộc Future.
 
 ## H. Vòng đời và quyền
-- **H1** Giáo viên chính chuyển quyền chủ lớp cho đồng giáo viên; Admin có thể can thiệp; ghi log.
-- **H2** Giáo viên chính phải chuyển quyền trước khi rời lớp.
+- **H1** Chỉ Admin thay đổi giáo viên chính hoặc giáo viên phối hợp, có audit; không có chuyển quyền chủ lớp do giáo viên thực hiện.
+- **H2** Khi giáo viên chính rời lớp, Admin phân công người thay thế trước khi thay đổi có hiệu lực.
 - **H3** Nếu phiên bản tài liệu mới xử lý lỗi, tiếp tục dùng phiên bản xử lý thành công gần nhất, thông báo và cho retry; trừ khi quyền truy cập đã bị thu hồi.
 - **H4** Người còn quyền xem được lịch sử chat cũ, nhưng không truy hồi mới hoặc mở nguồn đã mất quyền.
 - **H5** Lớp lưu trữ chỉ được xem chat cũ, không đặt câu hỏi AI mới.
@@ -102,7 +102,7 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 
 ## L. Ngoại lệ Classroom
 - **L1** Bài đăng/bình luận đã xóa không còn hiển thị; giữ audit cần thiết.
-- **L2** Chuyển lớp/kết thúc ghi danh/bị xóa khỏi lớp làm mất quyền xem nội dung lớp; kết quả xử lý theo retention.
+- **L2** Chuyển lớp/kết thúc ghi danh làm mất quyền tham gia lớp cũ và xem nội dung mới, nhưng vẫn giữ quyền xem lịch sử cá nhân hợp lệ; nguồn tài liệu kiểm tra grant hiện hành.
 - **L3** Đổi deadline phải thông báo và giữ trạng thái đã nộp.
 - **L4** Giáo viên quyết định bài đã giao có áp dụng cho học sinh vào muộn không.
 - **L5** Giáo viên ẩn/xóa bình luận vi phạm; Admin can thiệp và ghi log.
@@ -110,10 +110,10 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 
 ## M. Ngoại lệ cuối
 - **M1** Giáo viên vẫn chấm bài đã nộp sau khi học sinh chuyển lớp/kết thúc ghi danh; học sinh xem kết quả cá nhân theo quyền được cấp.
-- **M2** Đồng giáo viên quản lý tài liệu/thành viên/hoạt động nhưng không chuyển chủ lớp hoặc xóa lớp.
+- **M2** Giáo viên phối hợp quản lý tài liệu và hoạt động giảng dạy trong phạm vi lớp, chấm bài được phân công; không sửa roster, phân công giáo viên hay tự phê duyệt đánh giá nhạy cảm.
 - **M3** Giáo viên thiết lập số lượt và hạn nộp lại Assignment; xác định rõ bản được chấm.
 - **M4** Câu hỏi Assessment sai: giáo viên có thể vô hiệu hóa, chấm lại hoặc ra câu thay thế; thông báo và audit.
-- **M5** Giáo viên chính/Admin khôi phục lớp lưu trữ; ghi log và áp dụng lại quyền hiện tại.
+- **M5** Chỉ Admin khôi phục lớp lưu trữ; ghi log và áp dụng lại quyền hiện hành.
 
 ## O. Các quyết định bổ sung đã chốt
 - **O1** Đồng giáo viên được thêm/gỡ chia sẻ tài liệu trong lớp, không sửa/xóa tài liệu gốc hay phiên bản của người khác.
@@ -135,7 +135,7 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 ## MVP và Future
 **MVP:** quản lý lớp/thành viên/đồng giáo viên, feed/comments/calendar/in-app notifications; thư viện và chia sẻ tài liệu 5 định dạng, xử lý, version, access control; grounded RAG với citations, 2 chế độ Tutor; Practice Quiz và quy trình duyệt câu hỏi AI; Assessment có timer/resume/version/correction; Assignment có nộp lại/nộp muộn/chấm điểm; dashboard cơ bản có bằng chứng và bảo vệ quyền riêng tư; notes/bookmarks; Admin quản lý tài khoản/quyền, audit, yêu cầu dữ liệu cá nhân, báo cáo tổng hợp PDF/Excel.
 
-**Future/conditional:** diễn đàn độc lập, learning path nâng cao, cảnh báo at-risk tự động, thống kê chủ đề AI nâng cao, ngân hàng câu hỏi/rubric nâng cao, bulk admin; ứng dụng Mobile **sau khi Web ổn định và còn thời gian**. Các ràng buộc an toàn của E4–E6 vẫn phải tuân thủ nếu triển khai các chức năng tương ứng.
+**Future/conditional:** diễn đàn độc lập, learning path nâng cao, cảnh báo at-risk tự động, thống kê chủ đề AI nâng cao, ngân hàng câu hỏi/rubric nâng cao, quản trị đa trường; ứng dụng Mobile **sau khi Web ổn định và còn thời gian**. Các ràng buộc an toàn của E4–E6 vẫn phải tuân thủ nếu triển khai các chức năng tương ứng.
 
 ## Traceability và quản lý thay đổi
 - Mỗi Task tham chiếu Rule ID; test/acceptance criteria kiểm tra các rule có liên quan.
