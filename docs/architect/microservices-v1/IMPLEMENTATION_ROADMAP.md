@@ -35,3 +35,13 @@
 
 ## Điều chỉnh phạm vi sản phẩm và thứ tự ưu tiên
 MVP Lumi hướng tới lớp chính khóa THCS/THPT (khối 6–12), không phải đại học hoặc lớp học thêm. Giữ 5 service và các mốc G1–G5. Trước khi hoàn thành Classroom/Core G1, cần chốt và kiểm thử metadata môn/khối/năm học/lớp hành chính, phân công giáo viên, ghi danh do giáo viên/Admin thực hiện, tùy chọn mã lớp và **cấm học sinh tự rời lớp chính khóa**. Trước khi phát hành Identity cho học sinh thực, cần quyết định cơ chế onboarding và bảo vệ dữ liệu người chưa thành niên. Không viết lại các task Identity đã hoàn thành chỉ vì đổi tên hiển thị; thay đổi hành vi/schema phải có task, migration, contract test riêng.
+
+
+### Điều chỉnh nghiệm thu theo baseline 20 quyết định
+- **G0:** chốt ERD school/year/semester/homeroom/subject class, AUTO/MANUAL, teaching assignment, Student activation, action-based access, API legacy-vs-target.
+- **G1:** Admin cấp tài khoản và nhập CSV/Excel có preview/confirm; username activation; Admin tạo lớp/phân công/ghi danh/sync/archive; Student không self-register/join/leave; không Lecturer tạo lớp. Tích hợp feed/calendar/notification như kế hoạch.
+- **G2:** migration mới và contract/security/integration tests cho cross-school, cross-class, AUTO/MANUAL, bulk idempotency, activation expiry/replay, transfer/archive; CI/Compose.
+- **G3:** tài liệu có grant và thu hồi, notes/bookmarks và chat lịch sử riêng tư, AI Tutor chỉ ở lớp hiện hành.
+- **G4:** assessment draft/approval, grade proposal/approval, chuyển lớp với pending submission/attempt, lịch sử/phúc khảo.
+- **G5:** analytics lịch sử và sửa điểm, yêu cầu dữ liệu Admin xử lý có audit, báo cáo PDF/Excel.
+- Các dòng checklist cũ về join/approve/reject, Lecturer enrollment, owner transfer/archive và public Student registration được **thay thế** bởi baseline này; các phần code hiện có chưa được coi là hoàn tất nghiệp vụ mục tiêu.
