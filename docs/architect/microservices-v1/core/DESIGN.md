@@ -84,3 +84,11 @@ Mọi request kiểm tra role + membership ACTIVE + class status + action; quy�
 
 ## 7. Test bắt buộc
 Cross-class, PENDING/LEFT/REMOVED/LOCKED, archived, owner transfer, concurrent approve, JWT refresh replay/revoke, CSRF/rate limit, feed delete, notification dedup, calendar LEARNING read-only, Admin audit. Mọi endpoint có permission/contract test; integration test dùng PostgreSQL thực.
+
+## Phạm vi chính khóa THCS/THPT và thay đổi cần triển khai
+- Role kỹ thuật hiện tại `ADMIN`, `LECTURER`, `STUDENT` **giữ nguyên** để không phá vỡ Identity đã triển khai; tên UI lần lượt là Quản trị viên, Giáo viên, Học sinh. Không thêm Parent hoặc School Admin trong MVP.
+- Lớp học là **lớp môn học chính khóa** của khối 6–12, cần có môn học, khối, năm học và tham chiếu lớp hành chính nếu có. Trường và phân công giáo viên cần được mô hình hóa/kiểm tra ở bước Classroom; **schema `courses/classes` hiện liệt kê chưa có đủ metadata này**.
+- Ghi danh có thể do giáo viên/Admin thực hiện theo phân công hoặc qua mã lớp và phê duyệt nếu bật. Học sinh **không được tự rời** lớp chính khóa. Các state machine, permission checks, audit và API phải được cập nhật cùng migration/test trước khi phát hành.
+- Giáo viên chỉ tạo và quản lý lớp trong phạm vi phân công được xác minh; cách xác minh phân công còn cần quyết định cụ thể, không giả định tự do tạo mọi lớp.
+- Luồng self-registration/email verification hiện đã triển khai cho role `STUDENT`; chưa được xác nhận phù hợp onboarding người chưa thành niên. Cần chốt cơ chế cấp tài khoản, quyền đại diện/đồng ý khi cần, bảo vệ dữ liệu học sinh và test trước khi cho người dùng thực tế đăng ký.
+- Các bảng Identity/migration đã áp dụng không được sửa lịch sử. Thay đổi schema phải qua Alembic revision mới, API version/contract và test quyền tương ứng.
