@@ -15,6 +15,8 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - **A4** Giáo viên được loại học sinh khỏi lớp; Admin có quyền can thiệp.
 - **A5** Học sinh không tự rời lớp chính khóa; giáo viên/Admin xử lý chuyển lớp hoặc kết thúc ghi danh. Kết quả học tập không tự động bị xóa.
 - **A6** Giáo viên bật/tắt tiếp nhận yêu cầu bằng mã; không ảnh hưởng ghi danh theo phân công.
+- **A7** Lớp môn học gắn môn học, khối 6–12, năm học và tham chiếu lớp hành chính nếu có. Metadata tổ chức không tự tạo thêm role Admin theo trường.
+- **A8** Giáo viên chỉ tạo/quản lý lớp theo phân công hoặc phạm vi Admin xác nhận. Cách xác minh phân công là quyết định triển khai còn mở.
 
 ## B. Tài liệu
 - **B1** Giáo viên có thư viện tài liệu cá nhân, có thể chia sẻ một tài liệu cho nhiều lớp.
@@ -29,7 +31,7 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - **C1** RAG ưu tiên căn cứ từ tài liệu lớp; kiến thức chung bổ sung phải được phân biệt rõ.
 - **C2** Trích dẫn tên tài liệu và vị trí trang/slide/mục khi có thể xác định đáng tin cậy.
 - **C3** Khi thiếu căn cứ phải nói rõ, không bịa trích dẫn.
-- **C4** Có hai chế độ: hỏi đáp nhanh và hướng dẫn từng bước.
+- **C4** Có hai chế độ: hỏi đáp nhanh và hướng dẫn từng bước; lời giải, ví dụ, từ vựng phải phù hợp khối 6–12, ưu tiên gợi mở thay vì làm hộ.
 - **C5** Hội thoại gắn với một lớp; đổi lớp đồng nghĩa đổi phạm vi truy hồi.
 - **C6** Giáo viên cấu hình hướng dẫn AI trong giới hạn chính sách hệ thống.
 
@@ -50,10 +52,10 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - **E3** Phát hiện điểm yếu dựa trên kết quả gắn chủ đề, hoạt động luyện tập, mức hoàn thành và bằng chứng.
 - **E4** AI có thể đề xuất chủ đề, tài liệu, bài luyện tập; học sinh tự quyết định.
 - **E5** Giáo viên chỉ xem tổng hợp chủ đề AI Tutor, không mặc định xem nguyên văn chat riêng tư.
-- **E6** Cảnh báo nguy cơ học tập chỉ khi đủ bằng chứng; mang tính hỗ trợ, không trừng phạt.
+- **E6** Cảnh báo nguy cơ học tập chỉ khi đủ bằng chứng; mang tính hỗ trợ, không trừng phạt hoặc gắn nhãn năng lực cố định.
 
 ## F. Quản trị
-- **F1** Admin tạo, khóa/mở tài khoản và quản lý vai trò.
+- **F1** Admin tạo, khóa/mở tài khoản và quản lý vai trò. Với học sinh chưa thành niên, cơ chế cấp/kích hoạt tài khoản và điều kiện đồng ý/đại diện hợp lệ phải được xác định trước khi phát hành thực tế.
 - **F2** Admin quản lý lớp/thành viên, xử lý vi phạm, ghi log can thiệp.
 - **F3** Admin và giáo viên không mặc định được đọc hội thoại AI riêng tư.
 - **F4** Xác minh và xử lý yêu cầu xóa dữ liệu, thông báo kết quả theo retention policy.
