@@ -81,8 +81,8 @@ Credential nội bộ hiện dùng header `X-Service-Key` so với `INTERNAL_SER
 Python public interface Identity cho consumer Core được đặc tả tại [Core README](../../../../services/core/README.md#identity-public-interface-và-data-requests-task-004). Admin mutation bắt buộc actor/correlation ID, trả DTO thay ORM và ghi audit cùng transaction; consumer không import model/repository Identity hoặc ghi audit trùng.
 
 ## Validation / Contract tests
-- Email chuẩn hóa lowercase; mật khẩu 12..128 ký tự; body post/comment 1..10000, title/name 1..200; starts_at < ends_at. Không expose password_hash, refresh_hash, join_code_hash.
-- Test: unauthorized/cross-class, PENDING/REMOVED/LOCKED/archived, concurrent approve, ownership, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.
+- **IMPLEMENTED Identity:** email được chuẩn hóa lowercase; mật khẩu 12..128 ký tự. **TARGET Student:** username duy nhất, email không bắt buộc. Post/comment 1..10000, title/name 1..200, starts_at < ends_at. Không expose hash/token.
+- Test: unauthorized/cross-school/cross-class, LOCKED/ENDED/ARCHIVED, Admin-only mutations, AUTO/MANUAL concurrency, activation replay, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.
 - FastAPI sinh OpenAPI cho Identity auth/profile/data requests, với request/response/error schemas và snapshot trong test. Các bảng endpoint ngoài Identity vẫn là hợp đồng hành vi, chưa phải bằng chứng triển khai; CI chạy contract test cùng pytest.
 
 ## Ghi chú tương thích — phạm vi Lumi THCS/THPT chính khóa
