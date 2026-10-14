@@ -50,7 +50,7 @@ Identity idempotency hiện dùng RAM một process, TTL 24 giờ; không bền 
 | POST | /classes/{class_id}/join-requests/{id}/reject | Owner/Co-lecturer/Admin → 200 REJECTED |
 | POST | /classes/{class_id}/join-requests/{id}/cancel | Request owner → 200 CANCELLED |
 | GET | /classes/{class_id}/members | ACTIVE member / Admin intervention |
-| DELETE | /classes/{class_id}/members/me | Student; Owner chỉ sau transfer → 204 |
+| DELETE | /classes/{class_id}/members/me | Không áp dụng cho Student lớp chính khóa; route thiết kế cũ cần loại bỏ/giới hạn trước khi triển khai |
 | DELETE | /classes/{class_id}/members/{user_id} | Owner/Co-lecturer/Admin → 204 |
 | POST | /classes/{class_id}/co-lecturers/invitations | Owner/Admin {lecturer_id} → 201 |
 | POST | /classes/{class_id}/co-lecturers/invitations/{id}/accept | Invitee → 200 |
