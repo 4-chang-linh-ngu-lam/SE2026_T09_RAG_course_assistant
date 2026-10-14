@@ -62,3 +62,12 @@ Phạm vi MVP: lớp chính khóa THCS/THPT (khối 6–12). `Student`/`Lecturer
 - **Learner Intelligence:** phân tích theo bằng chứng, diễn đạt hỗ trợ học tập, tránh nhãn bất lợi đối với học sinh.
 
 Việc triển khai yêu cầu cập nhật Core Design/API, migration và contract test; không xem ghi chú này là bằng chứng chức năng đã chạy.
+
+
+### Tác động liên service
+- Core sở hữu school/homeroom/subject class/roster, teaching assignment, enrollment mode, identity, transfer/archive; phát sự kiện versioned/idempotent khi membership/teacher assignment thay đổi.
+- Document kiểm tra quyền nguồn hiện hành, kể cả khi Student có quyền đọc ghi chú hoặc hội thoại lịch sử; nguồn bị thu hồi không mở lại qua citation/bookmark.
+- AI tách quyền đọc chat riêng tư của chủ chat, chia sẻ chủ động, và quyền hỏi RAG mới theo lớp ACTIVE + document grant; Admin/Lecturer không đọc chat mặc định.
+- Learning giữ submissions/grades/appeals và trạng thái attempt khi chuyển lớp; giáo viên chính phê duyệt thao tác nhạy cảm, đồng giáo viên chỉ chấm theo phân công.
+- Learner Intelligence tiêu thụ bằng chứng đã sửa/được xác nhận, không xóa lịch sử khi chuyển lớp; analytics nhóm nhỏ bảo vệ riêng tư.
+- school_id là chuẩn bị multi-school, **không** có UI/role quản trị đa trường MVP; tenant boundary phải được kiểm tra backend.
