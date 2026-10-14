@@ -1,6 +1,6 @@
 # Core API Contract v1
 
-**Trạng thái:** BASELINE HỢP ĐỒNG · **Ngày:** 2026-10-11. Identity auth/profile/data requests đã triển khai và có HTTP/contract tests tại TASK-003–004; các API khác vẫn là baseline. Business Rules ưu tiên khi có xung đột.
+**Trạng thái:** Identity HTTP API hiện có là **IMPLEMENTED — LEGACY** nếu trái baseline; API Classroom trước đây là **SUPERSEDED DRAFT**; API mục tiêu phía dưới là **PROPOSED**, chưa triển khai. Business Rules là nguồn quyết định nghiệp vụ.
 
 ## Quy ước
 Health không dùng prefix `/api/v1`: `GET /health/live` → 200 `{status:"live"}`; `GET /health/ready` → 200 `{status:"ready",db:"connected"}` khi DB/schema Core dùng được, hoặc 503 `SERVICE_UNAVAILABLE`. Giá trị live thay `ok` của skeleton theo TASK-016. Health schemas được sinh trong OpenAPI.
@@ -10,9 +10,11 @@ Health không dùng prefix `/api/v1`: `GET /health/live` → 200 `{status:"live"
 - `200` đọc/cập nhật, `201` tạo, `204` xóa; lỗi `400 BAD_REQUEST`, `401 UNAUTHENTICATED`, `403 FORBIDDEN`, `404 NOT_FOUND`, `409 CONFLICT`, `422 VALIDATION_ERROR`, `429 RATE_LIMITED`.
 - Error: `{"error":{"code":"FORBIDDEN","message":"Không có quyền","correlation_id":"uuid"}}`. Che tài nguyên ngoài quyền bằng 404.
 - Mọi response có `X-Correlation-ID`; giữ UUID hợp lệ từ request hoặc sinh UUID mới. Lỗi không dự kiến trả `500 INTERNAL_ERROR`, dependency xác thực/DB không khả dụng có thể trả `503 SERVICE_UNAVAILABLE`; không phản chiếu nội dung nhạy cảm trong lỗi.
-- Mutations hỗ trợ `Idempotency-Key` UUID (scope user+endpoint, giữ 24h); cùng key khác payload trả 409. Mọi API nội dung lớp kiểm tra membership hiện hành và status.
+- Mutations hỗ trợ `Idempotency-Key` UUID (scope user+endpoint, giữ 24h); cùng key khác payload trả 409. Hoạt động mới trong lớp cần membership hiện hành; đọc lịch sử cá nhân kiểm tra quyền riêng theo action và quyền nguồn hiện hành.
 
-## Auth / User
+## Auth / User — IMPLEMENTED (legacy nơi mâu thuẫn)
+
+> **Không dùng** public `/auth/register` cho Student trong MVP. Bảng dưới ghi nhận contract Identity đang triển khai, **không phải danh sách API được phép phát hành cho Student**. Luồng Student mục tiêu xem mục `API mục tiêu`.
 | Method | Endpoint | Quyền / Body → Kết quả |
 |---|---|---|
 | POST | /auth/register | Public; {email,password} → 201 {user_id,email,status:PENDING_VERIFICATION} |
@@ -38,29 +40,12 @@ Rate limit mặc định: login 5 lần sai/60 giây theo IP và email; register
 
 Identity idempotency hiện dùng RAM một process, TTL 24 giờ; không bền vững qua restart/nhiều worker. Scope anonymous dùng email chuẩn hóa/token hash, refresh/Bearer dùng user. Token cookie được tính vào payload; cookie đã đổi với cùng key có thể trả 409. Cache credential responses phải kiểm tra quyền/phiên hiện hành, trả 401 khi stale; dùng key mới cho lần xác thực mới. Chi tiết cấu hình và giới hạn tại [Core README](../../../../services/core/README.md#identity-http-api-task-003).
 
-## Course / Class / Membership
-| Method | Endpoint | Quyền / tác dụng |
-|---|---|---|
-| POST/GET | /courses | Lecturer/Admin tạo {code,name}; authenticated list |
-| POST/GET | /classes | Lecturer được phân công tạo lớp môn học; body dự kiến {course_id,name,grade_level,school_year,homeroom_class_id?}, authenticated list lớp có quyền. Metadata và xác minh phân công chưa triển khai/chưa chốt schema |
-| GET/PATCH | /classes/{class_id} | ACTIVE member xem; Owner/Admin cập nhật {name?,join_enabled?} |
-| POST | /classes/join-requests | Student {join_code} → 201 {request_id,class_id,status:PENDING}; chỉ khi lớp bật nhận yêu cầu bằng mã |
-| GET | /classes/{class_id}/join-requests | Owner/Co-lecturer/Admin |
-| POST | /classes/{class_id}/join-requests/{id}/approve | Owner/Co-lecturer/Admin → 200 ACTIVE membership |
-| POST | /classes/{class_id}/join-requests/{id}/reject | Owner/Co-lecturer/Admin → 200 REJECTED |
-| POST | /classes/{class_id}/join-requests/{id}/cancel | Request owner → 200 CANCELLED |
-| GET | /classes/{class_id}/members | ACTIVE member / Admin intervention |
-| DELETE | /classes/{class_id}/members/me | Không cung cấp cho Student lớp chính khóa; route cũ không được triển khai cho học sinh |
-| POST | /classes/{class_id}/members | Owner/Co-lecturer/Admin ghi danh học sinh theo phân công → 201; request/response chi tiết chưa chốt, chưa triển khai |
-| DELETE | /classes/{class_id}/members/{user_id} | Owner/Co-lecturer/Admin → 204; chuyển lớp/kết thúc ghi danh, giữ lịch sử học tập |
-| POST | /classes/{class_id}/co-lecturers/invitations | Owner/Admin {lecturer_id} → 201 |
-| POST | /classes/{class_id}/co-lecturers/invitations/{id}/accept | Invitee → 200 |
-| POST | /classes/{class_id}/co-lecturers/invitations/{id}/reject | Invitee → 200 |
-| POST | /classes/{class_id}/ownership-transfer | Owner/Admin {new_owner_user_id} → 200 |
-| POST | /classes/{class_id}/archive | Owner/Admin → 200 ARCHIVED |
-| POST | /classes/{class_id}/restore | Owner/Admin → 200 ACTIVE |
+## Course / Class / Membership — PROPOSED (chưa chốt payload)
+**DECIDED:** Chỉ Admin tạo lớp môn học, roster, phân công giáo viên, ghi danh AUTO/MANUAL, archive/restore. Không có join code, join-request, giáo viên tự tạo lớp, teacher invitation/ownership transfer, Student tự leave trong MVP.
 
-Approve lặp đã APPROVED trả 200 cùng membership, terminal khác trả 409; không tạo trùng. Bị REMOVED cần giảng viên cho phép trước khi vào lại.
+**PROPOSED routes:** `POST /admin/homeroom-classes`, `PUT /admin/homeroom-classes/{id}/roster`, `POST /admin/classes`, `PUT /admin/classes/{id}/teaching-assignments`, `POST /admin/classes/{id}/enrollment/preview`, `POST /admin/classes/{id}/enrollment/sync`, `PATCH /admin/classes/{id}/enrollment-mode`, `POST /admin/classes/{id}/members`, `DELETE /admin/classes/{id}/members/{student_id}`, `POST /admin/classes/{id}/archive`, `POST /admin/classes/{id}/restore`.
+
+**PENDING DESIGN:** request/response schema, idempotency bền vững, preview token, thời điểm chuyển lớp, API versioning, event contract. Không xem các route đề xuất là đã triển khai. Endpoint join-request/owner transfer cũ **SUPERSEDED/OUT OF MVP**; không xóa code hoặc migration lịch sử chỉ do thay đổi tài liệu.
 
 ## Feed / Comments / Calendar / Notifications
 | Method | Endpoint | Quyền / Body |
@@ -78,7 +63,7 @@ Approve lặp đã APPROVED trả 200 cùng membership, terminal khác trả 409
 
 Soft delete bài đăng/bình luận ẩn khỏi danh sách; archived từ chối hoạt động ghi chung. Deadline LEARNING chỉ đồng bộ qua integration, không chỉnh tại Core.
 
-## Admin / Internal
+## Admin / Internal — Identity implemented, Classroom target proposed
 | Method | Endpoint | Quyền / Body |
 |---|---|---|
 | POST | /admin/users | Admin {email,roles} → 201, gửi link đặt mật khẩu |
@@ -103,14 +88,14 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 ## Ghi chú tương thích — phạm vi Lumi THCS/THPT chính khóa
 Đối tượng: học sinh khối 6–12 trong lớp chính khóa. Giữ các enum/API role kỹ thuật `ADMIN`, `LECTURER`, `STUDENT` để tương thích code; UI hiển thị Quản trị viên/Giáo viên/Học sinh. Những route hiện được mô tả ở trên là **contract hiện hành hoặc dự kiến**, không phải toàn bộ đã triển khai.
 
-- `POST /auth/register` đang tự đăng ký Student bằng email; **chưa phê duyệt làm luồng onboarding mặc định cho học sinh chưa thành niên**. Cần chốt cách cấp/kích hoạt tài khoản và xử lý quyền đại diện trước khi phát hành thực tế.
-- `POST /classes` hiện cho Lecturer tạo lớp; cần bổ sung kiểm tra phạm vi phân công giáo viên và metadata lớp môn học (môn, khối 6–12, năm học, lớp hành chính nếu có). Schema/request cụ thể chưa chốt.
-- `POST /classes/join-requests` vẫn có thể là luồng tùy chọn khi giáo viên bật mã lớp. Cần bổ sung luồng ghi danh do giáo viên/Admin thực hiện theo phân công; chưa chốt endpoint mới.
-- `DELETE /classes/{class_id}/members/me` là route thiết kế cũ **không phù hợp với học sinh trong lớp chính khóa**, không được mở cho Student; cần loại bỏ/điều chỉnh contract và test khi triển khai Classroom. Việc thay đổi route không làm mất lịch sử học tập.
+- `POST /auth/register` **IMPLEMENTED — LEGACY**: đang tự đăng ký Student bằng email, **không thuộc MVP** và cần chặn/đổi luồng khi triển khai.
+- Lecturer `POST /classes` là **SUPERSEDED DRAFT**, không được triển khai theo quyền Lecturer; chỉ Admin tạo lớp môn học.
+- `/classes/join-requests*` là **SUPERSEDED DRAFT/OUT OF MVP**; không dùng mã lớp hoặc teacher approval.
+- `DELETE /classes/{class_id}/members/me` là **SUPERSEDED DRAFT/OUT OF MVP**; Student không tự rời lớp.
 - Các API quản trị, dữ liệu cá nhân, điểm, quyền và audit tiếp tục phải tuân thủ Business Rules; không tự thêm role Phụ huynh/Admin theo trường.
 
 
-### API mục tiêu (đề xuất contract, **chưa triển khai**)
+## API mục tiêu (PROPOSED, chưa triển khai)
 - `POST /admin/students/imports/preview` và `POST /admin/students/imports/confirm`: CSV/Excel, phát hiện trùng/lỗi, idempotency và audit; không trả mã kích hoạt trong log.
 - `POST /admin/students`, `POST /admin/students/{id}/activation-codes`: Admin cấp username, mã một lần có hạn; phân phối an toàn. `POST /auth/activate`: username + activation_code + new_password; `POST /auth/login`: username/password cho Student, tương thích email cho Lecturer/Admin (chi tiết phiên bản API cần chốt).
 - `POST /admin/homeroom-classes`, `POST /admin/homeroom-classes/{id}/roster`, `POST /admin/classes`, `PUT /admin/classes/{id}/teaching-assignments`: chỉ Admin; ràng buộc school scope.
