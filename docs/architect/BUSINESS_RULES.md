@@ -10,7 +10,7 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 
 ## A. Lớp học và thành viên
 - **A1** Học sinh được ghi danh tự động theo lớp hành chính (AUTO) hoặc do Admin quản lý (MANUAL); không dùng mã lớp trong MVP.
-- **A2** Một học sinh được tham gia nhiều lớp, kể cả nhiều lớp của cùng một môn.
+- **A2** Một học sinh có thể tham gia nhiều lớp môn học, kể cả nhiều lớp cùng môn khi Admin phân công; mỗi lớp phải tuân thủ chế độ ghi danh AUTO/MANUAL và không được tự ý tham gia.
 - **A3** Chỉ Admin phân công giáo viên chính và giáo viên phối hợp; giáo viên không tự mời đồng giáo viên.
 - **A4** Chỉ Admin điều chỉnh thành viên chính thức, chuyển lớp hoặc kết thúc ghi danh; giữ lịch sử học tập.
 - **A5** Học sinh không tự rời lớp chính khóa; Admin xử lý chuyển lớp/kết thúc ghi danh, bảo toàn kết quả cá nhân.
@@ -40,7 +40,7 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - **D1** Câu hỏi AI sinh phải được giáo viên duyệt trước khi dùng; công bố Assessment chính thức cần giáo viên chính phê duyệt.
 - **D2** Hỗ trợ một đáp án, nhiều đáp án, đúng/sai và trả lời ngắn.
 - **D3** Practice Quiz chấm/giải thích ngay, không tính là điểm chính thức.
-- **D4** Assessment tự chấm câu khách quan, giáo viên duyệt câu chủ quan.
+- **D4** Assessment tự chấm câu khách quan; giáo viên được phân công chấm/duyệt câu chủ quan; giáo viên chính chịu trách nhiệm phê duyệt công bố kết quả nhạy cảm.
 - **D5** Assignment do giáo viên quyết định điểm cuối; AI chỉ hỗ trợ phản hồi.
 - **D6** Tắt AI Tutor tích hợp khi học sinh làm Assessment chính thức; không tuyên bố ngăn được công cụ AI bên ngoài.
 - **D7** Giáo viên được phân công có thể cấu hình bản nháp hạn, thời lượng, số lượt, thời điểm công bố điểm; giáo viên chính phê duyệt công bố Assessment chính thức.
@@ -78,7 +78,7 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - **I1** Mất kết nối: giữ câu trả lời đã lưu thành công, cho tiếp tục nếu còn giờ.
 - **I2** Hết giờ: tự nộp các câu trả lời đã lưu.
 - **I3** Giáo viên chọn best/latest/average cho nhiều lượt ngay khi tạo bài.
-- **I4** Assessment đã công bố là bất biến; chỉnh sửa phải tạo phiên bản mới và xử lý người đã làm.
+- **I4** Assessment đã công bố là bất biến; chỉnh sửa phải tạo phiên bản mới, giáo viên chính phê duyệt và xử lý công bằng với người đã làm.
 - **I5** Giáo viên đặt chính sách nộp Assignment muộn.
 - **I6** Sửa điểm đã công bố hoặc hủy/điều chỉnh kết quả cần giáo viên chính phê duyệt, lý do, audit và cập nhật dữ liệu liên quan; Admin chỉ can thiệp ngoại lệ có audit.
 - **I7** Học sinh yêu cầu xem xét điểm; giáo viên được phân công xử lý, quyết định nhạy cảm do giáo viên chính phê duyệt.
@@ -114,7 +114,7 @@ Lumi phục vụ các lớp môn học chính khóa THCS/THPT (khối 6–12); k
 - **M5** Chỉ Admin khôi phục lớp lưu trữ; ghi log và áp dụng lại quyền hiện hành.
 
 ## O. Các quyết định bổ sung đã chốt
-- **O1** Đồng giáo viên được thêm/gỡ chia sẻ tài liệu trong lớp, không sửa/xóa tài liệu gốc hay phiên bản của người khác.
+- **O1** Giáo viên phối hợp được thêm/gỡ chia sẻ tài liệu trong lớp theo grant hợp lệ, không sửa/xóa tài liệu gốc hay phiên bản của người khác.
 - **O2** Lớp lưu trữ cho học sinh sửa ghi chú/bookmark của chính mình đối với nguồn còn quyền, không tạo hoạt động chung hoặc hỏi AI mới.
 - **O3** Mỗi attempt gắn một phiên bản đề bất biến; phiên bản mới chỉ áp dụng cho lượt giao tiếp theo; xử lý công bằng theo M4.
 - **O4** Học sinh đã chuyển lớp/kết thúc ghi danh vẫn được yêu cầu xem xét điểm bài đã nộp trong thời hạn phúc khảo, bằng quyền truy cập giới hạn.
