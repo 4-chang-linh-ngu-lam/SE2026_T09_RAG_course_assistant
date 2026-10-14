@@ -94,3 +94,9 @@ Tối thiểu 50 tình huống học tập do giảng viên kiểm tra. Gợi ý
 - Core-04: soft delete feed/comments, calendar LEARNING read-only, notification dedup, admin audit chạy end-to-end.
 - Core-05: Docker Compose từ môi trường sạch, migration, health, contract/unit/integration test chạy có bằng chứng.
 - Core-06: đo p95 danh sách lớp ≤500ms theo TP-01; lưu cấu hình, script, kết quả thực tế.
+
+## Bổ sung tiêu chí nghiệm thu cho Lumi THCS/THPT
+- **QAS-04 (quyền):** kiểm thử học sinh không thể tự rời lớp chính khóa, không thể truy cập lớp môn học khác, và giáo viên không thể ghi danh/quản lý lớp ngoài phạm vi phân công. Kiểm thử cả luồng ghi danh do giáo viên/Admin và yêu cầu bằng mã nếu bật.
+- **QAS-04 (dữ liệu học sinh):** trước triển khai thực tế phải có kiểm thử onboarding/ủy quyền hợp lệ khi cần, giới hạn quyền truy cập dữ liệu học sinh, quy trình yêu cầu dữ liệu và retention đã phê duyệt; không tự khẳng định đáp ứng pháp luật khi chưa đánh giá.
+- **QAS-06 (AI):** đánh giá câu trả lời có phù hợp khối 6–12, bám sát nguồn, gợi mở thay vì làm hộ; giữ các mục tiêu đo citation/grounding/refusal hiện có.
+- **QAS-11 (analytics):** kiểm tra cách diễn đạt “Chủ đề cần ôn tập” và “Chưa đủ dữ liệu”, không kết luận năng lực hoặc gắn nhãn rủi ro khi thiếu bằng chứng.
