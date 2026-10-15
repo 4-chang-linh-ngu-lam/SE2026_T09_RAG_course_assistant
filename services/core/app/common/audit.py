@@ -15,7 +15,9 @@ class AuditMetadata(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    changed_fields: list[Literal["status", "roles", "owner_user_id", "join_enabled"]] = []
+    changed_fields: list[
+        Literal["status", "roles", "owner_user_id", "join_enabled", "username", "credentials"]
+    ] = []
     previous_status: Literal["ACTIVE", "LOCKED", "ARCHIVED", "PENDING_VERIFICATION"] | None = None
     new_status: Literal["ACTIVE", "LOCKED", "ARCHIVED", "PENDING_VERIFICATION"] | None = None
     reason_code: Literal["ADMIN_INTERVENTION", "USER_REQUEST", "POLICY_VIOLATION"] | None = None

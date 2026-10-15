@@ -3,15 +3,16 @@ import logging
 from datetime import UTC, datetime
 from http.cookies import SimpleCookie
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, SecretStr
 from sqlalchemy.orm import Session
 
-from app.common.auth_dependencies import CurrentUser, get_current_user
+from app.common.auth_dependencies import CurrentUser, get_current_user, require_roles
 from app.common.config import settings
-from app.common.db import get_db
+from app.common.db import get_db, transaction
 from app.common.errors import AppError, ErrorEnvelope
 from app.common.pagination import Page, Pagination, get_pagination
 from app.common.security import hash_refresh_token
@@ -25,21 +26,24 @@ from app.modules.identity.http_security import (
 from app.modules.identity.idempotency import Mutation, get_mutation
 from app.modules.identity.rate_limit import RateLimiter, get_rate_limiter
 from app.modules.identity.schemas import (
+    ActivateStudentRequest,
+    AdminCreateStudentRequest,
     CreateDataRequest,
     DataRequestResponse,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
+    IssueStudentCodeRequest,
     LoginRequest,
     RegisterRequest,
-    RegisterResponse,
     ResetPasswordRequest,
+    StudentCodeResponse,
     TokenResponse,
     UpdateProfileRequest,
     UserProfile,
     VerifyEmailRequest,
     VerifyEmailResponse,
 )
-from app.modules.identity.service import AuthTokens, IdentityService
+from app.modules.identity.service import AuthTokens, IdentityService, StudentCode
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,7 @@ def get_identity_service(session: Annotated[Session, Depends(get_db)]) -> Identi
 
 Service = Annotated[IdentityService, Depends(get_identity_service)]
 User = Annotated[CurrentUser, Depends(get_current_user)]
+Admin = Annotated[CurrentUser, Depends(require_roles("ADMIN"))]
 Sender = Annotated[SMTPTokenSender, Depends(get_token_sender)]
 Limiter = Annotated[RateLimiter, Depends(get_rate_limiter)]
 Mutator = Annotated[Mutation, Depends(get_mutation)]
@@ -112,26 +117,10 @@ def _validate_cached_tokens(response: Response, service: IdentityService) -> Non
     response.raw_headers = _tokens(AuthTokens(model, SecretStr(refresh), expiry)).raw_headers
 
 
-@router.post("/auth/register", response_model=RegisterResponse, status_code=201)
-def register(
-    body: RegisterRequest,
-    request: Request,
-    service: Service,
-    sender: Sender,
-    limiter: Limiter,
-    mutation: Mutator,
-) -> Response:
-    def perform() -> Response:
-        limiter.consume(
-            "register",
-            client_identity(request),
-            settings.auth_register_limit,
-            settings.auth_request_window_seconds,
-        )
-        result = service.register(body, deliver=sender.send)
-        return _json(result.response, 201)
-
-    return mutation.run("email:" + body.email, body.model_dump(), perform)
+@router.post("/auth/register", deprecated=True, status_code=403, response_model=ErrorEnvelope)
+def register(body: RegisterRequest) -> Response:
+    # Resolve no DB/SMTP/cache dependency: legacy retries must not create another Student.
+    raise AppError(403, "Student accounts must be provisioned by an administrator")
 
 
 @router.post("/auth/verify-email", response_model=VerifyEmailResponse)
@@ -162,18 +151,88 @@ def login(
     body: LoginRequest, request: Request, service: Service, limiter: Limiter, mutation: Mutator
 ) -> Response:
     def perform() -> Response:
-        with limiter.login_attempt(client_identity(request), body.email):
+        with limiter.login_attempt(client_identity(request), body.login_key):
             return _tokens(service.login(body))
 
     def validate_cached(response: Response) -> None:
-        with limiter.login_attempt(client_identity(request), body.email):
+        with limiter.login_attempt(client_identity(request), body.login_key):
             service.validate_cached_login(body, json.loads(response.body)["access_token"])
             _validate_cached_tokens(response, service)
 
     # Origin is checked before a cached response can set a cookie as well.
     if "origin" in request.headers:
         verify_cookie_origin(request)
-    return mutation.run("email:" + body.email, body.model_dump(), perform, validate_cached)
+    return mutation.run(body.login_key, body.model_dump(), perform, validate_cached)
+
+
+@router.post("/auth/activate", status_code=204)
+def activate_student(
+    body: ActivateStudentRequest,
+    request: Request,
+    service: Service,
+    limiter: Limiter,
+) -> Response:
+    _reject_code_idempotency(request)
+    limiter.consume(
+        "activate",
+        client_identity(request),
+        settings.auth_reset_limit,
+        settings.auth_login_window_seconds,
+    )
+    service.activate_student(body, correlation_id=UUID(request.state.correlation_id))
+    return _clear_cookie(_empty())
+
+
+def _reject_code_idempotency(request: Request) -> None:
+    # One-time code disclosures/consumption are never stored in the response cache.
+    if "idempotency-key" in request.headers:
+        raise AppError(400, "Idempotency-Key is not supported for one-time code operations")
+
+
+def _student_code_response(result: StudentCode, status: int) -> Response:
+    return _json(
+        StudentCodeResponse(
+            student=result.student,
+            purpose=result.purpose,
+            code=result.code.get_secret_value(),
+            expires_at=result.expires_at,
+        ),
+        status,
+    )
+
+
+@router.post("/admin/students", response_model=StudentCodeResponse, status_code=201)
+def create_student(
+    body: AdminCreateStudentRequest,
+    request: Request,
+    actor: Admin,
+    service: Service,
+) -> Response:
+    _reject_code_idempotency(request)
+    with transaction(service.session):
+        result = service.admin_create_student(
+            body, actor_id=actor.id, correlation_id=UUID(request.state.correlation_id)
+        )
+    return _student_code_response(result, 201)
+
+
+@router.post("/admin/students/{user_id}/activation-codes", response_model=StudentCodeResponse)
+def issue_student_code(
+    user_id: UUID,
+    body: IssueStudentCodeRequest,
+    request: Request,
+    actor: Admin,
+    service: Service,
+) -> Response:
+    _reject_code_idempotency(request)
+    with transaction(service.session):
+        result = service.admin_issue_student_code(
+            user_id,
+            actor_id=actor.id,
+            correlation_id=UUID(request.state.correlation_id),
+            identity_verified=body.identity_verified,
+        )
+    return _student_code_response(result, 200)
 
 
 @router.post(
@@ -258,7 +317,7 @@ def reset_password(
             settings.auth_reset_limit,
             settings.auth_login_window_seconds,
         )
-        service.reset_password(body)
+        service.reset_password(body, correlation_id=UUID(request.state.correlation_id))
         return _clear_cookie(_empty())
 
     return mutation.run(

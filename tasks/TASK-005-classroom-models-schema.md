@@ -4,84 +4,46 @@
 - **Giai đoạn:** `G1 — Core chức năng đầy đủ`
 - **Owner chính:** `TV2`
 - **Module:** `services/core/app/modules/classroom/`
-- **Business Rules liên quan:** `A1`, `A2`, `A3`, `A4`, `A5`, `A6`, `H1`, `H2`
-- **Tài liệu căn cứ:** [DESIGN.md](../docs/architect/microservices-v1/core/DESIGN.md#3-schema-logic), [API_CONTRACT.md](../docs/architect/microservices-v1/core/API_CONTRACT.md#course--class--membership)
+- **Business Rules liên quan:** `A1–A8`, `F2`, `H1–H2`, `L2`, `M5`
+- **Tài liệu căn cứ:** [DESIGN.md](../docs/architect/microservices-v1/core/DESIGN.md), [API_CONTRACT.md](../docs/architect/microservices-v1/core/API_CONTRACT.md)
+
+
+## Rà soát đồng bộ — 2026-10-16
+
+**Hiện trạng:** Classroom mới có skeleton, chưa có ORM/router nghiệp vụ. Đặc tả JoinRequest/CoLecturerInvitation/owner_user_id trước đây đã bị baseline thay thế; không dùng làm kế hoạch tạo bảng mới.
+
+**Cần sửa:** thiết kế School, năm học/học kỳ, lớp hành chính/roster, lớp môn học, phân công PRIMARY/ASSISTING và enrollment AUTO/MANUAL theo [Core Design](../docs/architect/microservices-v1/core/DESIGN.md). Đây là entity logic; tên bảng, enum kỹ thuật, FK và payload phải được TV2/TV1/TV4 review trước triển khai.
+
+**Phụ thuộc:** TASK-004 cung cấp Identity DTO; task này chốt schema cho TASK-006–008 và TASK-014. Mapping trường cho user legacy và thời điểm hiệu lực chuyển lớp còn PENDING DESIGN; không tự backfill.
 
 ---
 
 ## 1. Mục tiêu
-Thiết kế và triển khai cấu trúc dữ liệu ORM (SQLAlchemy) và Pydantic schemas cho phân hệ Classroom, bao gồm Khóa học (Course), Lớp học (Class), Thành viên (ClassMembership), Yêu cầu tham gia (JoinRequest) và Lời mời đồng giảng viên (CoLecturerInvitation).
 
----
+Thiết kế và triển khai dữ liệu Classroom cho một trường THCS/THPT, khối 6–12. Chỉ Admin tạo lớp, roster và phân công; mỗi năm tạo lớp môn học mới, lớp cũ archive. Không có join code/join request, giáo viên tự tạo lớp hoặc lời mời/chuyển chủ giữa giáo viên.
 
-## 2. Chi tiết kỹ thuật & File cần tạo/cập nhật
+## 2. Chi tiết cần triển khai
 
-### 2.1. `models.py`
-Xây dựng các bảng trong schema `core`:
-- `Course`:
-  - `id: UUID` (PK)
-  - `code: str` (Unique, index, ví dụ: "CS101")
-  - `name: str` (Tên môn học)
-  - `description: Optional[str]`
-  - `created_at`, `updated_at: datetime` (UTC)
-- `Class`:
-  - `id: UUID` (PK)
-  - `course_id: UUID` (FK `courses.id`, ondelete RESTRICT)
-  - `owner_user_id: UUID` (FK `users.id`, ondelete RESTRICT)
-  - `name: str` (Tên lớp, ví dụ: "CS101-K21")
-  - `join_code_hash: str` (Unique, index, hash chuỗi mã tham gia lớp học)
-  - `join_enabled: bool` (Default: True, Rule A6: bật/tắt nhận yêu cầu tham gia)
-  - `status: Enum` (`ACTIVE`, `ARCHIVED`, Default: `ACTIVE`)
-  - `created_at`, `updated_at: datetime` (UTC)
-- `ClassMembership`:
-  - `id: UUID` (PK)
-  - `class_id: UUID` (FK `classes.id`, ondelete CASCADE)
-  - `user_id: UUID` (FK `users.id`, ondelete CASCADE)
-  - `class_role: Enum` (`OWNER`, `CO_LECTURER`, `STUDENT`)
-  - `status: Enum` (`ACTIVE`, `LEFT`, `REMOVED`)
-  - `joined_at: datetime` (UTC)
-  - `ended_at: Optional[datetime]`
-  - Ràng buộc: `Index('idx_unique_active_member', class_id, user_id, unique=True, postgresql_where=(status == 'ACTIVE'))` (Đảm bảo chỉ có duy nhất 1 bản ghi ACTIVE cho mỗi cặp user-class).
-- `JoinRequest`:
-  - `id: UUID` (PK)
-  - `class_id: UUID` (FK `classes.id`, ondelete CASCADE)
-  - `student_id: UUID` (FK `users.id`, ondelete CASCADE)
-  - `status: Enum` (`PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`)
-  - `decided_by: Optional[UUID]` (FK `users.id`)
-  - `decided_at: Optional[datetime]`
-  - `created_at: datetime` (UTC)
-  - Ràng buộc: `Index('idx_unique_pending_join_request', class_id, student_id, unique=True, postgresql_where=(status == 'PENDING'))`
-- `CoLecturerInvitation`:
-  - `id: UUID` (PK)
-  - `class_id: UUID` (FK `classes.id`, ondelete CASCADE)
-  - `lecturer_id: UUID` (FK `users.id`, ondelete CASCADE)
-  - `status: Enum` (`PENDING`, `ACCEPTED`, `REJECTED`, `CANCELLED`)
-  - `expires_at: datetime`
-  - `created_at: datetime`
+### 2.1. Models và schema
 
-### 2.2. `schemas.py`
-- Pydantic DTOs cho Course & Class:
-  - `CourseCreateRequest`: `code`, `name`, `description`
-  - `CourseResponse`: `id`, `code`, `name`, `description`, `created_at`
-  - `ClassCreateRequest`: `course_id`, `name`
-  - `ClassResponse`: `id`, `course_id`, `name`, `owner_user_id`, `join_enabled`, `status`, `created_at`
-  - `ClassUpdateRequest`: `name: Optional[str]`, `join_enabled: Optional[bool]`
-  - `JoinRequestCreate`: `join_code: str`
-  - `JoinRequestResponse`: `id`, `class_id`, `student_id`, `status`, `created_at`
-  - `MembershipResponse`: `id`, `class_id`, `user_id`, `class_role`, `status`, `joined_at`
+- Classroom sở hữu School, AcademicYear, Semester, HomeroomClass, HomeroomRoster, Course/SubjectClass, TeachingAssignment và ClassMembership theo Core Design.
+- Lớp môn học có phạm vi trường, môn, khối 6–12, năm học/học kỳ, liên kết lớp hành chính tương ứng và mode AUTO/MANUAL; lớp ghép/tự chọn dùng MANUAL theo A7. Chốt cardinality/liên kết cụ thể trong ERD, không suy đoán từ schema legacy.
+- TeachingAssignment biểu diễn PRIMARY/ASSISTING, thời gian hiệu lực và lịch sử. Đây là quan hệ theo lớp, không thêm global role hoặc coi OWNER legacy là quyền Admin.
+- Membership lưu nguồn ghi danh, khoảng hiệu lực, trạng thái và từng đợt tham gia; ràng buộc chỉ một membership hiện hành cho cặp học sinh–lớp, bảo toàn lịch sử khi chuyển/tái ghi danh.
+- School scope phải nhất quán giữa user, roster, lớp và phân công; user/status/role kiểm tra qua Identity public. FK nội Core được review trong ERD/migration, không import model/repository Identity để xử lý nghiệp vụ.
+- Bổ sung index/constraint phục vụ danh sách, đồng bộ và cạnh tranh dựa trên query thực tế. Không cascade xóa lịch sử học tập chỉ vì kết thúc membership.
 
-### 2.3. `repository.py`
-- Các truy vấn chuyên biệt với tối ưu hóa chỉ mục:
-  - `get_course_by_code`, `list_courses`
-  - `get_class_by_id`, `list_user_classes(user_id: UUID)`
-  - `find_class_by_join_code_hash(code_hash: str)`
-  - `get_active_membership(class_id: UUID, user_id: UUID) -> Optional[ClassMembership]`
-  - `get_pending_join_request(class_id: UUID, student_id: UUID) -> Optional[JoinRequest]`
+### 2.2. DTO và repository
 
----
+- DTO tạo/cập nhật lớp, roster, phân công, membership và preview phải phản ánh metadata mới, không nhận school/actor do browser tự cấp.
+- Loại join_code/join_enabled/JoinRequest/CoLecturerInvitation khỏi hợp đồng mục tiêu. Nếu sau này phát hiện dữ liệu lịch sử có các trường này, chuyển đổi bằng migration mới, không sửa revision đã áp dụng.
+- Query theo school/class, membership có hiệu lực và lịch sử; batch lookup user qua TASK-004. Không dùng email làm định danh bắt buộc cho học sinh.
+- Chốt transaction/locking và khóa chống lặp với TASK-006/007 trước migration; không chỉ dựa vào kiểm tra tồn tại trong Python.
 
-## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
-- [ ] Partial unique index hoạt động: một sinh viên chỉ có thể có tối đa một bản ghi `ACTIVE` trong cùng một lớp; khi rời lớp (`LEFT`) có thể tham gia lại tạo bản ghi mới mà không bị lỗi unique.
-- [ ] Partial unique index cho `JoinRequest`: sinh viên chỉ có tối đa một yêu cầu `PENDING` cho một lớp.
-- [ ] Schema Pydantic không bao giờ lộ `join_code_hash` (chỉ trả `join_code` nguyên bản cho Giảng viên sở hữu khi cần).
-- [ ] Unit test cho models và repository đạt 100% pass với DB SQLite / PostgreSQL test runner.
+## 3. Tiêu chí nghiệm thu
+
+- [ ] ERD, state machine và DTO thống nhất với Core Design/API Contract; payload chưa chốt được đánh dấu PENDING DESIGN, không phát hành như API đã duyệt.
+- [ ] PostgreSQL thực kiểm tra constraint khối 6–12, quan hệ cùng trường và một membership hiện hành; tái ghi danh không mất đợt cũ.
+- [ ] Phân công giáo viên giữ bất biến giáo viên chính theo H2; không tạo quan hệ chéo trường hoặc cho Student thành giáo viên bằng dữ liệu request.
+- [ ] TASK-014 có revision mới và phương án mapping School được duyệt, giữ nguyên user ID/dữ liệu cũ; không dùng SQLite thay bằng chứng constraint PostgreSQL.
+- [ ] Schema không phát sinh join code, self-join, teacher invitation hoặc ownership transfer trong MVP.

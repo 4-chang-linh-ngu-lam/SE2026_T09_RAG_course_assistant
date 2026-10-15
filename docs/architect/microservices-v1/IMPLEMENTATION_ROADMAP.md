@@ -5,7 +5,7 @@
 | Giai đoạn | Phạm vi | Điều kiện chuyển |
 |---|---|---|
 | **G0 — Contract Core** | ERD, state machines, RBAC, API, folder ownership, mock | Nhóm review hợp đồng và phân công |
-| **G1 — Core chức năng đầy đủ** | Identity/JWT, user/role, classroom/membership, co-lecturer/transfer/archive, feed/comments/calendar, notification, Core admin/audit | Web → Core → DB thực hiện được các luồng, có test quyền |
+| **G1 — Core chức năng đầy đủ** | Identity/JWT, user/role, School/roster/lớp môn học, enrollment AUTO/MANUAL, Admin teaching assignment/transfer/archive, feed/comments/calendar, notification, Core admin/audit | Web → Core → DB thực hiện được các luồng, có test quyền |
 | **G2 — Core tích hợp** | Compose, migration, CI, health, security, concurrency, API/contract/integration test | Demo toàn bộ Core trên môi trường sạch, có bằng chứng kiểm thử |
 | **G3 — Document + AI** | File/version/grant/processing, source-bound notes/bookmarks, RAG Tutor | Quyền nguồn, thu hồi, citation/abstention được kiểm thử |
 | **G4 — Learning** | Practice, Assessment, Assignment, grading, deadlines, appeal | Test deadline, attempt/version, audit, sửa điểm |
@@ -45,3 +45,7 @@ MVP Lumi hướng tới lớp chính khóa THCS/THPT (khối 6–12), không ph�
 - **G4:** assessment draft/approval, grade proposal/approval, chuyển lớp với pending submission/attempt, lịch sử/phúc khảo.
 - **G5:** analytics lịch sử và sửa điểm, yêu cầu dữ liệu Admin xử lý có audit, báo cáo PDF/Excel.
 - Các dòng checklist cũ về join/approve/reject, Lecturer enrollment, owner transfer/archive và public Student registration được **thay thế** bởi baseline này; các phần code hiện có chưa được coi là hoàn tất nghiệp vụ mục tiêu.
+
+## Backlog đồng bộ
+
+[Danh mục task](../../../tasks/README.md) ghi hiện trạng, phần cần sửa và phụ thuộc của TASK-001–020 sau rà soát 2026-10-16. Các checklist trên tiếp tục là gate nghiệm thu; hạ tầng TASK-016 hoặc Identity đã chạy test không thay thế toàn bộ G1/G2.

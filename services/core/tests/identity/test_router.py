@@ -1,17 +1,19 @@
 import os
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from httpx import Response
 from pydantic import SecretStr
-from sqlalchemy import create_engine, delete, select
+from sqlalchemy import create_engine, delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.bootstrap import register_routers
+from app.common.audit import AuditEvent
 from app.common.config import settings
 from app.common.db import get_db
 from app.common.errors import AppError, register_error_handlers
@@ -20,6 +22,7 @@ from app.modules.identity.http_security import REFRESH_COOKIE
 from app.modules.identity.idempotency import IdempotencyStore, get_idempotency_store
 from app.modules.identity.models import DataRequest, Role, RoleAssignment, User, UserStatus
 from app.modules.identity.rate_limit import RateLimiter, get_rate_limiter
+from app.modules.identity.schemas import RegisterRequest
 from app.modules.identity.service import IdentityService
 
 PASSWORD = "test-only password long enough"
@@ -73,6 +76,7 @@ def http(engine, monkeypatch):
     limiter = RateLimiter()
     cache = IdempotencyStore()
     emails = []
+    app.state.student_ids = []
 
     def test_db():
         with Session(engine, autoflush=False, expire_on_commit=False) as session:
@@ -85,13 +89,19 @@ def http(engine, monkeypatch):
     with TestClient(app, base_url="https://core.example.com") as client:
 
         def register(*, verify=True, email=None, headers=None):
+            # Seed a pre-existing legacy account; the public registration route is blocked.
             email = email or f"student-{uuid4().hex}@example.com"
             emails.append(email.lower())
-            response = client.post(
-                "/api/v1/auth/register",
-                json={"email": email, "password": PASSWORD},
-                headers=headers,
-            )
+            with Session(engine, autoflush=False, expire_on_commit=False) as session:
+                result = IdentityService(session).register(
+                    RegisterRequest(email=email, password=PASSWORD), deliver=sender.send
+                )
+                assignment = session.scalar(
+                    select(RoleAssignment).where(RoleAssignment.user_id == result.response.user_id)
+                )
+                assignment.role = Role.LECTURER
+                session.commit()
+            response = Response(201, json=result.response.model_dump(mode="json"))
             if response.status_code == 201 and verify:
                 verification = client.post(
                     "/api/v1/auth/verify-email",
@@ -102,12 +112,15 @@ def http(engine, monkeypatch):
 
         yield client, sender, register, app
     with engine.begin() as connection:
+        owned_ids = list(connection.scalars(select(User.id).where(User.email.in_(emails))))
+        owned_ids.extend(app.state.student_ids)
+        connection.execute(delete(DataRequest).where(DataRequest.user_id.in_(owned_ids)))
         connection.execute(
-            delete(DataRequest).where(
-                DataRequest.user_id.in_(select(User.id).where(User.email.in_(emails)))
+            delete(AuditEvent).where(
+                or_(AuditEvent.actor_id.in_(owned_ids), AuditEvent.target_id.in_(owned_ids))
             )
         )
-        connection.execute(delete(User).where(User.email.in_(emails)))
+        connection.execute(delete(User).where(User.id.in_(owned_ids)))
 
 
 def login(client, email, password=PASSWORD, headers=None):
@@ -120,7 +133,7 @@ def bearer(response):
     return {"Authorization": "Bearer " + response.json()["access_token"]}
 
 
-def test_register_verify_login_and_cookie_rotation(http):
+def test_legacy_verify_login_and_cookie_rotation(http):
     client, sender, register, _ = http
     email, registered = register(verify=False)
     assert registered.status_code == 201
@@ -185,11 +198,21 @@ def test_login_rate_limit(http):
     assert int(denied.headers["retry-after"]) > 0
 
 
-def test_register_rate_limit(http):
-    _, _, register, _ = http
-    for _ in range(3):
-        assert register(verify=False)[1].status_code == 201
-    assert register(verify=False)[1].status_code == 429
+def test_public_registration_always_blocked_without_db_smtp_or_cache(http, engine, monkeypatch):
+    client, sender, _, app = http
+    app.dependency_overrides.pop(get_token_sender)
+    monkeypatch.setattr(settings, "smtp_host", None)
+    email = f"blocked-{uuid4().hex}@example.com"
+    headers = {"Idempotency-Key": str(uuid4())}
+    for _ in range(5):
+        response = client.post(
+            "/api/v1/auth/register", headers=headers, json={"email": email, "password": PASSWORD}
+        )
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "FORBIDDEN"
+    assert sender.deliveries == []
+    with Session(engine) as session:
+        assert session.scalar(select(User).where(User.email == email)) is None
 
 
 def test_forgot_is_generic_and_rate_limited(http):
@@ -228,7 +251,15 @@ def test_profile_and_logout_all(http):
     assert client.get("/api/v1/users/me").status_code == 401
     profile = client.get("/api/v1/users/me", headers=headers)
     assert profile.status_code == 200
-    assert set(profile.json()) == {"id", "email", "display_name", "roles", "status"}
+    assert set(profile.json()) == {
+        "id",
+        "email",
+        "username",
+        "school_id",
+        "display_name",
+        "roles",
+        "status",
+    }
     assert profile.json()["id"] == registered.json()["user_id"]
     assert "hash" not in profile.text
     updated = client.patch("/api/v1/users/me", headers=headers, json={"display_name": "Student"})
@@ -264,11 +295,12 @@ def test_locked_user_cannot_read_profile_or_login(http, engine):
     assert login(client, email).status_code == 401
 
 
-def test_email_failure_rolls_back_registration_and_reset(http, engine, caplog):
+def test_email_failure_rolls_back_legacy_fixture_and_reset(http, engine, caplog):
     client, sender, register, _ = http
     sender.fail = True
-    email, response = register(verify=False)
-    assert response.status_code == 503
+    email = f"delivery-{uuid4().hex}@example.com"
+    with pytest.raises(AppError, match="Email delivery unavailable"):
+        register(verify=False, email=email)
     with Session(engine) as session:
         assert session.scalar(select(User).where(User.email == email)) is None
     sender.fail = False
@@ -281,28 +313,27 @@ def test_email_failure_rolls_back_registration_and_reset(http, engine, caplog):
 
 
 def test_missing_smtp_configuration_rejects_before_registration(http, engine, monkeypatch):
-    _, _, register, app = http
+    client, _, _, app = http
     app.dependency_overrides.pop(get_token_sender)
     monkeypatch.setattr(settings, "smtp_host", None)
-    email, response = register(verify=False)
-    assert response.status_code == 503
+    email = f"blocked-{uuid4().hex}@example.com"
+    response = client.post("/api/v1/auth/register", json={"email": email, "password": PASSWORD})
+    assert response.status_code == 403
     with Session(engine) as session:
         assert session.scalar(select(User).where(User.email == email)) is None
 
 
-def test_idempotent_register_verify_login_refresh(http):
+def test_idempotent_legacy_verify_login_refresh_and_blocked_register(http):
     client, sender, register, _ = http
     headers = {"Idempotency-Key": str(uuid4())}
     email, first = register(verify=False, headers=headers)
-    _, repeated = register(email=email, verify=False, headers=headers)
-    assert first.status_code == repeated.status_code == 201
-    assert first.json() == repeated.json() and len(sender.deliveries) == 1
+    assert first.status_code == 201 and len(sender.deliveries) == 1
     mismatch = client.post(
         "/api/v1/auth/register",
         headers=headers,
         json={"email": email, "password": "different test-only password"},
     )
-    assert mismatch.status_code == 409
+    assert mismatch.status_code == 403
     verify_headers = {"Idempotency-Key": str(uuid4())}
     body = {"token": sender.deliveries[-1].token.get_secret_value()}
     assert (
@@ -370,7 +401,7 @@ def test_login_without_signing_key_fails_closed(http, monkeypatch):
     assert "set-cookie" not in response.headers
 
 
-@pytest.mark.parametrize("request_type", ["ACCESS", "EXPORT", "DELETE"])
+@pytest.mark.parametrize("request_type", ["ACCESS", "EXPORT", "CORRECTION", "DELETE"])
 def test_personal_data_requests_create_and_list(http, request_type):
     client, _, register, _ = http
     email, registered = register()
@@ -495,8 +526,14 @@ def test_lecturer_can_submit_data_request(http, engine):
     client, _, register, _ = http
     email, registered = register()
     with Session(engine) as session:
-        session.add(RoleAssignment(user_id=registered.json()["user_id"], role=Role.LECTURER))
-        session.commit()
+        assert (
+            session.scalar(
+                select(RoleAssignment.role).where(
+                    RoleAssignment.user_id == registered.json()["user_id"]
+                )
+            )
+            == Role.LECTURER
+        )
     headers = bearer(login(client, email))
     assert (
         client.post(
@@ -504,3 +541,166 @@ def test_lecturer_can_submit_data_request(http, engine):
         ).status_code
         == 201
     )
+
+
+@pytest.fixture
+def student_http(http, engine):
+    client, _, register, app = http
+    email, account = register()
+    actor_id = UUID(account.json()["user_id"])
+    with Session(engine) as session:
+        session.get(User, actor_id).school_id = uuid4()
+        session.add(RoleAssignment(user_id=actor_id, role=Role.ADMIN))
+        session.commit()
+    headers = bearer(login(client, email))
+    username = "student." + uuid4().hex
+    created = client.post("/api/v1/admin/students", headers=headers, json={"username": username})
+    assert created.status_code == 201
+    data = created.json()
+    app.state.student_ids.append(UUID(data["student"]["id"]))
+    return client, headers, data, app
+
+
+def activate(client, data, *, code=None, username=None):
+    return client.post(
+        "/api/v1/auth/activate",
+        json={
+            "username": username or data["student"]["username"],
+            "activation_code": code or data["code"],
+            "new_password": PASSWORD,
+        },
+    )
+
+
+def student_login(client, data, *, headers=None, password=PASSWORD):
+    return client.post(
+        "/api/v1/auth/login",
+        headers=headers,
+        json={
+            "username": data["student"]["username"],
+            "password": password,
+        },
+    )
+
+
+def test_student_without_email_activates_and_uses_profile_refresh_requests(
+    student_http, monkeypatch
+):
+    client, admin, data, app = student_http
+    app.dependency_overrides.pop(get_token_sender)
+    monkeypatch.setattr(settings, "smtp_host", None)
+    assert data["student"]["email"] is None and data["purpose"] == "ACTIVATION"
+    extra = client.post(
+        "/api/v1/admin/students", headers=admin, json={"username": "student.extra." + uuid4().hex}
+    )
+    assert extra.status_code == 201
+    app.state.student_ids.append(UUID(extra.json()["student"]["id"]))
+    assert student_login(client, data).status_code == 401
+    assert activate(client, data, username="another.student").status_code == 400
+    activated = activate(client, data)
+    assert activated.status_code == 204 and "Max-Age=0" in activated.headers["set-cookie"]
+    assert activate(client, data).status_code == 400
+    authenticated = student_login(client, data)
+    assert authenticated.status_code == 200 and "HttpOnly" in authenticated.headers["set-cookie"]
+    headers = bearer(authenticated)
+    profile = client.get("/api/v1/users/me", headers=headers)
+    assert profile.status_code == 200 and profile.json()["email"] is None
+    assert profile.json()["username"] == data["student"]["username"]
+    assert client.post("/api/v1/auth/refresh", headers=ORIGIN).status_code == 200
+    assert (
+        client.post(
+            "/api/v1/users/me/data-requests", headers=headers, json={"type": "CORRECTION"}
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            "/api/v1/admin/students", headers=headers, json={"username": "forged.student"}
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            "/api/v1/admin/students", headers=admin, json={"username": data["student"]["username"]}
+        ).status_code
+        == 409
+    )
+
+
+def test_student_code_reissue_recovery_and_lock_are_separate(student_http, engine):
+    client, admin, data, _ = student_http
+    path = f"/api/v1/admin/students/{data['student']['id']}/activation-codes"
+    issued = client.post(path, headers=admin, json={})
+    assert issued.status_code == 200
+    assert activate(client, data).status_code == 400
+    code = issued.json()["code"]
+    assert activate(client, data, code=code).status_code == 204
+    authenticated = student_login(client, data)
+    headers = bearer(authenticated)
+    assert client.post(path, headers=admin, json={}).status_code == 409
+    recovery = client.post(path, headers=admin, json={"identity_verified": True})
+    assert recovery.status_code == 200 and recovery.json()["purpose"] == "PASSWORD_RESET"
+    assert client.get("/api/v1/users/me", headers=headers).status_code == 401
+    reset_code = recovery.json()["code"]
+    assert activate(client, data, code=reset_code).status_code == 400
+    reset = {"token": reset_code, "new_password": "new test-only password long enough"}
+    assert client.post("/api/v1/auth/password/reset", json=reset).status_code == 204
+    assert client.post("/api/v1/auth/password/reset", json=reset).status_code == 400
+    assert student_login(client, data).status_code == 401
+    assert student_login(client, data, password=reset["new_password"]).status_code == 200
+    with Session(engine) as session:
+        user = session.get(User, UUID(data["student"]["id"]))
+        IdentityService(session).set_user_status(user.id, UserStatus.LOCKED)
+    assert client.post(path, headers=admin, json={"identity_verified": True}).status_code == 409
+    assert student_login(client, data, password=reset["new_password"]).status_code == 401
+
+
+def test_student_code_mutations_do_not_cache_secrets_and_scope_is_checked(student_http, engine):
+    client, admin, data, app = student_http
+    headers = {**admin, "Idempotency-Key": str(uuid4())}
+    assert (
+        client.post(
+            "/api/v1/admin/students", headers=headers, json={"username": "unused.student"}
+        ).status_code
+        == 400
+    )
+    path = f"/api/v1/admin/students/{data['student']['id']}/activation-codes"
+    assert client.post(path, headers=headers, json={}).status_code == 400
+    assert (
+        client.post(
+            "/api/v1/auth/activate",
+            headers=headers,
+            json={
+                "username": data["student"]["username"],
+                "activation_code": data["code"],
+                "new_password": PASSWORD,
+            },
+        ).status_code
+        == 400
+    )
+    with Session(engine) as session:
+        session.get(User, UUID(data["student"]["id"])).school_id = uuid4()
+        session.commit()
+    assert client.post(path, headers=admin, json={}).status_code == 404
+    with Session(engine) as session:
+        audits = session.scalars(
+            select(AuditEvent).where(AuditEvent.target_id == UUID(data["student"]["id"]))
+        ).all()
+        assert len(audits) == 1 and data["code"] not in str([a.metadata_json for a in audits])
+    store = app.dependency_overrides[get_idempotency_store]()
+    assert data["code"] not in repr(store.entries)
+
+
+def test_student_login_cache_checks_recovery_and_activation_rate_limit(student_http):
+    client, admin, data, _ = student_http
+    assert activate(client, data).status_code == 204
+    headers = {"Idempotency-Key": str(uuid4())}
+    first = student_login(client, data, headers=headers)
+    second = student_login(client, data, headers=headers)
+    assert first.status_code == second.status_code == 200 and first.json() == second.json()
+    path = f"/api/v1/admin/students/{data['student']['id']}/activation-codes"
+    assert client.post(path, headers=admin, json={"identity_verified": True}).status_code == 200
+    assert student_login(client, data, headers=headers).status_code == 401
+    for _ in range(4):
+        assert activate(client, data).status_code == 400
+    assert activate(client, data).status_code == 429

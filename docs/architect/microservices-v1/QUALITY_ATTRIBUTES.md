@@ -96,7 +96,7 @@ Tối thiểu 50 tình huống học tập do giáo viên kiểm tra. Gợi ý p
 - Core-06: đo p95 danh sách lớp ≤500ms theo TP-01; lưu cấu hình, script, kết quả thực tế.
 
 ## Bổ sung tiêu chí nghiệm thu cho Lumi THCS/THPT
-- **QAS-04 (quyền):** kiểm thử học sinh không thể tự rời lớp chính khóa, không thể truy cập lớp môn học khác, và giáo viên không thể ghi danh/quản lý lớp ngoài phạm vi phân công. Kiểm thử cả luồng ghi danh do giáo viên/Admin và yêu cầu bằng mã nếu bật.
+- **QAS-04 (quyền):** kiểm thử học sinh không thể tự join/rời lớp chính khóa hoặc truy cập lớp môn học khác; giáo viên không thể tạo lớp, thay roster/ghi danh/phân công hoặc archive/restore. Kiểm thử Admin cùng trường quản lý AUTO/MANUAL, transfer và quyền lịch sử cá nhân; không có luồng yêu cầu bằng mã trong MVP.
 - **QAS-04 (dữ liệu học sinh):** trước triển khai thực tế phải có kiểm thử onboarding/ủy quyền hợp lệ khi cần, giới hạn quyền truy cập dữ liệu học sinh, quy trình yêu cầu dữ liệu và retention đã phê duyệt; không tự khẳng định đáp ứng pháp luật khi chưa đánh giá.
 - **QAS-06 (AI):** đánh giá câu trả lời có phù hợp khối 6–12, bám sát nguồn, gợi mở thay vì làm hộ; giữ các mục tiêu đo citation/grounding/refusal hiện có.
 - **QAS-11 (analytics):** kiểm tra cách diễn đạt “Chủ đề cần ôn tập” và “Chưa đủ dữ liệu”, không kết luận năng lực hoặc gắn nhãn rủi ro khi thiếu bằng chứng.

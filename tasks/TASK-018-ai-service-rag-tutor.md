@@ -6,6 +6,23 @@
 - **Business Rules liên quan:** `C1`, `C2`, `C3`, `C4`, `C5`, `C6`, `D6`, `E5`, `F3`, `H4`, `H5`, `QAS-06`
 - **Tài liệu căn cứ:** [BUSINESS_RULES.md](../docs/architect/BUSINESS_RULES.md#c-ai-tutor), [QUALITY_ATTRIBUTES.md](../docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md#qas-06--chất-lượng-rag-rag-quality), [ARCHITECTURE.md](../docs/architect/microservices-v1/ARCHITECTURE.md)
 
+## Rà soát đồng bộ — 2026-10-16
+
+**Hiện trạng:** chưa có AI Service/RAG. Model và schema bên dưới là draft cần thiết kế, chưa chốt provider/vector store/queue hoặc hợp đồng HTTP Document.
+
+**Cần sửa/bổ sung:**
+- Sau Core G2, chốt quyền action với TASK-008 và source/version/grant với TASK-017. Core allowed không thay Document grant; kiểm tra trước retrieval/prompt và khi mở citation, fail closed khi dependency lỗi.
+- Tách quyền hỏi mới (lớp hiện hành + grant + assessment policy) và đọc lịch sử chat owner được phép sau transfer/archive. Không dùng membership ACTIVE làm điều kiện duy nhất cho mọi lần đọc.
+- Chat riêng tư mặc định; chia sẻ một hội thoại cụ thể chỉ khi người dùng chủ động và theo contract được duyệt. Không thêm Admin read-all hoặc gửi nguyên văn chat qua audit/notification/analytics.
+- Khi source bị thu hồi, giữ lịch sử hợp lệ nhưng che quote/nguồn không còn quyền; không truy hồi mới từ index stale. Phân biệt kiến thức chung, citation đáng tin và thiếu căn cứ.
+- Triển khai đủ hỏi đáp nhanh/hướng dẫn từng bước phù hợp khối 6–12; hướng dẫn giáo viên không vượt policy hệ thống.
+- TASK-019 sở hữu trạng thái Assessment; chốt hợp đồng chặn AI Tutor tích hợp khi làm bài chính thức trước tích hợp G4. Khi chưa có Learning, ghi pending cho E2E D6, không suy ra từ flag browser hoặc tuyên bố ngăn AI ngoài hệ thống.
+
+**Phụ thuộc và nghiệm thu bổ sung:**
+- [ ] Core G2 + Document contracts được review, quyền lịch sử/owner/source revoke/LOCKED/cross-school được kiểm thử.
+- [ ] QAS-06 đo ít nhất 100 câu hỏi theo phương pháp đã duyệt; báo cấu hình/model và số liệu thật, không khẳng định KPI từ unit tests.
+- [ ] Test hai chế độ, archive/transfer, grant revoke giữa pipeline, private-chat/share, fail-closed và QAS-01/02 cô lập lỗi.
+
 ---
 
 ## 1. Mục tiêu
@@ -13,9 +30,9 @@ Thiết kế và triển khai AI Service (`services/ai/`) độc lập trong mon
 
 ---
 
-## 2. Chi tiết kỹ thuật
+## 2. Bản nháp kỹ thuật — cần thiết kế và review trước triển khai
 
-### 2.1. Sở hữu dữ liệu (Schema `ai`)
+### 2.1. Mô hình dữ liệu tham khảo — chưa chốt schema vật lý
 - `AIConversation`:
   - `id: UUID`, `user_id: UUID`, `class_id: UUID` (Hội thoại luôn gắn với 1 lớp cụ thể, Rule C5)
   - `mode: Enum` (`QUICK_QA`, `STEP_BY_STEP`, Rule C4)
@@ -34,8 +51,8 @@ Thiết kế và triển khai AI Service (`services/ai/`) độc lập trong mon
   - Khi tài liệu không chứa câu trả lời: **Nói rõ thiếu căn cứ, tuyệt đối không bịa đặt trích dẫn**.
 - **Kiểm tra quyền truy cập kép (Rule B7, C5, QAS-04):**
   - AI Service trước khi truy hồi phải:
-    1. Gọi Core Service `/internal/v1/classes/{class_id}/access` để xác minh sinh viên đang là thành viên `ACTIVE` của lớp đó.
-    2. Gọi Document Service `/internal/v1/classes/{class_id}/documents/active-grants` để lấy danh sách các tài liệu đang được cấp quyền hợp lệ cho lớp đó.
+    1. Gọi Core Service `/internal/v1/classes/{class_id}/access` để xác minh quyền hỏi AI mới theo action/lớp/trường hiện hành; đọc lịch sử dùng quyền riêng.
+    2. Theo contract Document cần duyệt (route tham khảo `/internal/v1/classes/{class_id}/documents/active-grants`) để lấy danh sách các tài liệu đang được cấp quyền hợp lệ cho lớp đó.
     3. Bộ lọc vector retrieval **chỉ tìm kiếm trong phạm vi các tài liệu đang có grant hợp lệ**. Không bao giờ đưa tài liệu chưa chia sẻ hoặc đã bị thu hồi vào prompt ngữ cảnh.
 - **Tắt AI khi làm bài đánh giá (Rule D6):**
   - Khi sinh viên đang trong thời gian làm Assessment chính thức của lớp, AI Tutor tích hợp phải bị vô hiệu hóa.

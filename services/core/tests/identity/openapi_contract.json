@@ -1,5 +1,353 @@
 {
   "paths": {
+    "/api/v1/admin/students": {
+      "post": {
+        "operationId": "create_student_api_v1_admin_students_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateStudentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentCodeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Student",
+        "tags": [
+          "Identity"
+        ]
+      }
+    },
+    "/api/v1/admin/students/{user_id}/activation-codes": {
+      "post": {
+        "operationId": "issue_student_code_api_v1_admin_students__user_id__activation_codes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueStudentCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentCodeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Issue Student Code",
+        "tags": [
+          "Identity"
+        ]
+      }
+    },
+    "/api/v1/auth/activate": {
+      "post": {
+        "operationId": "activate_student_api_v1_auth_activate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateStudentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          }
+        },
+        "summary": "Activate Student",
+        "tags": [
+          "Identity"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "login_api_v1_auth_login_post",
@@ -834,26 +1182,8 @@
     },
     "/api/v1/auth/register": {
       "post": {
+        "deprecated": true,
         "operationId": "register_api_v1_auth_register_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "idempotency-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Idempotency-Key"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -865,16 +1195,6 @@
           "required": true
         },
         "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegisterResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
           "400": {
             "content": {
               "application/json": {
@@ -1603,6 +1923,69 @@
     }
   },
   "schemas": {
+    "ActivateStudentRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "activation_code": {
+          "format": "password",
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Activation Code",
+          "type": "string",
+          "writeOnly": true
+        },
+        "new_password": {
+          "format": "password",
+          "maxLength": 128,
+          "minLength": 12,
+          "title": "New Password",
+          "type": "string",
+          "writeOnly": true
+        },
+        "username": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Username",
+          "type": "string"
+        }
+      },
+      "required": [
+        "username",
+        "activation_code",
+        "new_password"
+      ],
+      "title": "ActivateStudentRequest",
+      "type": "object"
+    },
+    "AdminCreateStudentRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Display Name"
+        },
+        "username": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Username",
+          "type": "string"
+        }
+      },
+      "required": [
+        "username"
+      ],
+      "title": "AdminCreateStudentRequest",
+      "type": "object"
+    },
     "CreateDataRequest": {
       "additionalProperties": false,
       "properties": {
@@ -1706,6 +2089,7 @@
       "enum": [
         "ACCESS",
         "EXPORT",
+        "CORRECTION",
         "DELETE"
       ],
       "title": "DataRequestType",
@@ -1773,13 +2157,60 @@
       "title": "ForgotPasswordResponse",
       "type": "object"
     },
-    "LoginRequest": {
+    "IssueStudentCodeRequest": {
       "additionalProperties": false,
       "properties": {
+        "identity_verified": {
+          "default": false,
+          "title": "Identity Verified",
+          "type": "boolean"
+        }
+      },
+      "title": "IssueStudentCodeRequest",
+      "type": "object"
+    },
+    "LoginRequest": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "email": {
+              "type": "string"
+            },
+            "username": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "email"
+          ]
+        },
+        {
+          "properties": {
+            "email": {
+              "type": "null"
+            },
+            "username": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "username"
+          ]
+        }
+      ],
+      "properties": {
         "email": {
-          "format": "email",
-          "title": "Email",
-          "type": "string"
+          "anyOf": [
+            {
+              "format": "email",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Email"
         },
         "password": {
           "format": "password",
@@ -1788,10 +2219,22 @@
           "title": "Password",
           "type": "string",
           "writeOnly": true
+        },
+        "username": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Username"
         }
       },
       "required": [
-        "email",
         "password"
       ],
       "title": "LoginRequest",
@@ -1848,30 +2291,6 @@
       "title": "RegisterRequest",
       "type": "object"
     },
-    "RegisterResponse": {
-      "properties": {
-        "email": {
-          "format": "email",
-          "title": "Email",
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/components/schemas/UserStatus"
-        },
-        "user_id": {
-          "format": "uuid",
-          "title": "User Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "user_id",
-        "email",
-        "status"
-      ],
-      "title": "RegisterResponse",
-      "type": "object"
-    },
     "ResetPasswordRequest": {
       "additionalProperties": false,
       "properties": {
@@ -1907,6 +2326,38 @@
       ],
       "title": "Role",
       "type": "string"
+    },
+    "StudentCodeResponse": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "purpose": {
+          "enum": [
+            "ACTIVATION",
+            "PASSWORD_RESET"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "student": {
+          "$ref": "#/components/schemas/UserSummaryDTO"
+        }
+      },
+      "required": [
+        "student",
+        "purpose",
+        "code",
+        "expires_at"
+      ],
+      "title": "StudentCodeResponse",
+      "type": "object"
     },
     "TokenResponse": {
       "properties": {
@@ -1966,9 +2417,16 @@
           "title": "Display Name"
         },
         "email": {
-          "format": "email",
-          "title": "Email",
-          "type": "string"
+          "anyOf": [
+            {
+              "format": "email",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Email"
         },
         "id": {
           "format": "uuid",
@@ -1982,8 +2440,31 @@
           "title": "Roles",
           "type": "array"
         },
+        "school_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "School Id"
+        },
         "status": {
           "$ref": "#/components/schemas/UserStatus"
+        },
+        "username": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Username"
         }
       },
       "required": [
@@ -2004,6 +2485,66 @@
       ],
       "title": "UserStatus",
       "type": "string"
+    },
+    "UserSummaryDTO": {
+      "properties": {
+        "email": {
+          "anyOf": [
+            {
+              "format": "email",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Email"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "school_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "School Id"
+        },
+        "status": {
+          "enum": [
+            "PENDING_VERIFICATION",
+            "ACTIVE",
+            "LOCKED"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "username": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Username"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "status"
+      ],
+      "title": "UserSummaryDTO",
+      "type": "object"
     },
     "VerifyEmailRequest": {
       "additionalProperties": false,

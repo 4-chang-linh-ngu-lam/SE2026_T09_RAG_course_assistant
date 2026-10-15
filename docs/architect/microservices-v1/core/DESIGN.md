@@ -4,7 +4,7 @@
 
 ## 1. Công nghệ và xác thực (Identity legacy và mục tiêu được phân biệt)
 - Một Core FastAPI service, Next.js Web, PostgreSQL schema `core`, SQLAlchemy, Alembic, Docker Compose.
-- **DECIDED target:** Student do Admin cấp username + mã kích hoạt một lần có hạn, không cần email; Student tự đặt mật khẩu khi kích hoạt, khôi phục qua Admin xác minh. Lecturer/Admin có thể tiếp tục email/password. **IMPLEMENTED — LEGACY:** email self-registration Student và email verification hiện có; không phát hành làm onboarding MVP. Không tự nâng quyền.
+- **IMPLEMENTED Identity:** Student do Admin cấp username + mã kích hoạt một lần, mặc định 24 giờ và cấu hình được; không cần email/SMTP, đặt mật khẩu khi kích hoạt, khôi phục qua Admin xác minh. Lecturer/Admin tiếp tục email/password; Student không login/reset bằng email. Public self-registration bị chặn 403. Không tự nâng quyền.
 - JWT access **15 phút**, refresh **7 ngày**; refresh rotation, server lưu hash/phiên/revocation. Refresh cookie `HttpOnly; Secure; SameSite=Lax` trong mô hình cùng-site, access token giữ trong bộ nhớ client, không dùng localStorage. Hash password Argon2id.
 - Khóa tài khoản, đổi mật khẩu, logout-all thu hồi phiên; backend kiểm tra trạng thái hiện hành. CSRF/Origin protection cho cookie mutations; rate limit login/activation/reset. Email verification/reset token một lần, hết hạn, lưu hash.
 - Service-to-service access-check dùng service credential/scope riêng, không tin user_id từ browser.
@@ -32,11 +32,11 @@ Public Identity trả DTO an toàn, batch summary một query; Admin helpers ki�
 **Bảng bên dưới là thiết kế lịch sử/chưa chắc đã triển khai, không phải schema MVP đã chốt.** Các bảng join_requests, co_lecturer_invitations, join_code_hash, owner_user_id là **LEGACY/OUT OF MVP**; không tạo mới theo mô hình này. Entity mục tiêu và migration được mô tả sau bảng.
 | Bảng | Trường chính | Constraint |
 |---|---|---|
-| users | id,email,display_name,password_hash,status,email_verified_at,session_version | email lowercase unique; status PENDING_VERIFICATION/ACTIVE/LOCKED; session_version mặc định 1 |
+| users | id,email?,username?,school_id?,activated_at?,display_name,password_hash,status,email_verified_at,session_version | email/username lowercase unique; status PENDING_VERIFICATION/ACTIVE/LOCKED; session_version mặc định 1 |
 | role_assignments | user_id,role | unique(user_id,role); STUDENT/LECTURER/ADMIN |
 | auth_sessions | id,user_id,refresh_hash,family_id,expires_at,revoked_at | refresh_hash unique; rotation atomically |
-| one_time_tokens | id,user_id,purpose,token_hash,expires_at,consumed_at | token_hash unique |
-| data_requests | id,user_id,request_type,reason,status,resolution_note,created_at,updated_at | ACCESS/EXPORT/DELETE; PENDING/IN_REVIEW/COMPLETED/REJECTED; FK user không cascade; index(user_id,id) |
+| one_time_tokens | id,user_id,purpose,token_hash,expires_at,consumed_at | token_hash unique; EMAIL_VERIFICATION/PASSWORD_RESET/ADMIN_INVITATION cho staff, STUDENT_ACTIVATION/STUDENT_PASSWORD_RESET cho Student |
+| data_requests | id,user_id,request_type,reason,status,resolution_note,created_at,updated_at | ACCESS/EXPORT/CORRECTION/DELETE; PENDING/IN_REVIEW/COMPLETED/REJECTED; FK user không cascade; index(user_id,id) |
 | courses | id,code,name | code unique |
 | classes | id,course_id,owner_user_id,name,join_code_hash,join_enabled,status | status ACTIVE/ARCHIVED; join_code_hash unique |
 | class_memberships | id,class_id,user_id,class_role,status,joined_at,ended_at | role OWNER/CO_LECTURER/STUDENT; status ACTIVE/LEFT/REMOVED; partial unique ACTIVE(class_id,user_id) |
@@ -52,7 +52,7 @@ Public Identity trả DTO an toàn, batch summary một query; Admin helpers ki�
 FK chỉ trong Core; index theo class_id/user_id/created_at. Alembic migration là hiện thực schema, không phải bảng đã tồn tại.
 
 ## 4. State machine (DECIDED nghiệp vụ, PENDING DESIGN kỹ thuật)
-- Student: PROVISIONED → ACTIVATION_PENDING → ACTIVE ↔ LOCKED; mã kích hoạt một lần, hết hạn, không dùng lại; tên enum/TTL là **PROPOSED**.
+- Student: Admin tạo PENDING_VERIFICATION (enum legacy dùng chung cho trạng thái chờ kích hoạt; email không bắt buộc) → ACTIVE với activated_at → LOCKED/ACTIVE do Admin. Mã STUDENT_ACTIVATION một lần, mặc định 24 giờ (`STUDENT_ACTIVATION_EXPIRE_HOURS`). Không tự mở LOCKED qua activate/reset. Chi tiết được người dùng duyệt 2026-10-14.
 - SubjectClass: ACTIVE ↔ ARCHIVED, chỉ Admin chuyển; archived chỉ đọc hoạt động chung, học sinh vẫn đọc/sửa notes cá nhân hợp lệ.
 - Enrollment: AUTO đồng bộ từ homeroom roster, MANUAL do Admin cập nhật; đổi MANUAL→AUTO phải preview/confirm; mọi thay đổi idempotent, audit, không xóa lịch sử.
 - Membership: ACTIVE → ENDED khi chuyển lớp/kết thúc; tái ghi danh phải giữ lịch sử từng đợt, một ACTIVE/class/student; thời điểm hiệu lực **PENDING DESIGN**.
@@ -79,7 +79,7 @@ Quyền kiểm tra theo hành động + trạng thái + phạm vi trường/lớ
 1. Admin tạo Student/nhập CSV/Excel → kiểm tra trùng/lỗi → cấp username + mã kích hoạt → Student kích hoạt và đặt mật khẩu; không dùng public Student register.
 2. Admin tạo lớp hành chính, roster, lớp môn học và phân công PRIMARY/ASSISTING → AUTO sync hoặc MANUAL roster → audit/outbox. Không dùng join code.
 3. Student chuyển lớp → kết thúc participation lớp cũ, giữ dữ liệu lịch sử cá nhân → Learning xử lý submissions/attempts theo chính sách.
-4. Feed/comments/calendar: chỉ thành viên ACTIVE thao tác chung, soft delete/audit; deadline Learning là nguồn chính thức.
+4. Feed/comments/calendar: kiểm tra membership hoặc teaching assignment hiện hành theo action, trường/lớp và trạng thái tài khoản; soft delete/audit, archived chặn ghi hoạt động chung. Deadline Learning là nguồn chính thức, không chặn ngoại lệ lịch sử cá nhân bằng điều kiện membership ACTIVE chung.
 5. Admin archive/restore → chặn hoạt động chung và AI Tutor mới; notes/bookmarks/hội thoại cũ theo quyền cá nhân và grant nguồn.
 6. Data request: chủ thể gửi yêu cầu, Admin xác minh/xử lý có audit; không tự động xóa toàn bộ.
 7. Notifications/outbox idempotent; không rollback nghiệp vụ gốc nếu gửi notification lỗi.
@@ -91,5 +91,7 @@ Admin-only create/enroll/teacher assignment/archive, cross-school/cross-class, A
 - Entity/quan hệ mục tiêu: School, AcademicYear, Semester, HomeroomClass, HomeroomRoster, Course/SubjectClass (school_id, grade_level, school_year_id, homeroom_class_id?, enrollment_mode AUTO|MANUAL), TeachingAssignment (PRIMARY|ASSISTING), ClassMembership (nguồn ghi danh, trạng thái, thời gian hiệu lực, lịch sử), StudentActivationToken; username unique cho Student, email nullable theo loại tài khoản.
 - Phân công giáo viên và roster chỉ Admin mutation. Co-lecturer/owner invitation, ownership transfer, join request và Lecturer-created class ở thiết kế cũ **không còn là luồng MVP**. Archive/restore chỉ Admin. Đồng bộ AUTO không ghi đè lớp MANUAL; chuyển MANUAL→AUTO có preview/confirm.
 - Access check tách `participate_current_class`, `read_own_history`, `read_document_source`, `use_ai_tutor`, `grade_submitted_work`. Transfer/archive fail closed cho hoạt động mới nhưng không chặn xem lịch sử hợp lệ.
-- Hệ thống đang có Identity email/self-registration; cần migration mới, compatibility plan và test. Không sửa migration cũ, không tuyên bố schema đích đã triển khai.
+- Identity chuyển đổi bằng migration mới 0005–0007: CORRECTION, username/email nullable/school_id/activated_at và Student token purposes. Không sửa migration cũ hoặc tự chuyển tài khoản/tạo trường; School thuộc Classroom chưa có FK. Backend kiểm tra school scope từ DB cho Admin helpers/API, fail closed khi thiếu/khác trường.
+- Student dùng username, staff dùng email; login nhận đúng một identifier. Tài khoản có staff role dùng credential staff, không đi qua Student activation. Admin email invitation không nhận role STUDENT. Tài khoản Student legacy giữ UUID/hash/dữ liệu; Admin cùng trường gán username qua public helper, thu hồi phiên/token cũ và audit. ACTIVE/LOCKED đã verify email giữ trạng thái, đặt activated_at; pending vẫn phải kích hoạt. Không tự mở LOCKED hoặc thay username đã gán.
+- Student recovery: Admin xác minh thủ công rồi yêu cầu cấp mã STUDENT_PASSWORD_RESET, hạn theo PASSWORD_RESET_EXPIRE_MINUTES (60 phút); backend yêu cầu identity_verified=true, thu hồi phiên và audit. Đây là xác nhận của Admin, không tự xác minh danh tính. Cấp lại mã vô hiệu hóa mã trước; create/issue-code/activate không cache response/mã. Chi tiết endpoint/public signatures theo API Contract/Core README. Bulk import và mapping School còn thuộc workflow Administration/Classroom tiếp theo.
 - State machine cần bao phủ kích hoạt một lần, chuyển lớp có pending submission/attempt, archive chỉ Admin và approval assessment bởi giáo viên chính.

@@ -3,7 +3,23 @@
 - **Mã Task:** `TASK-016`
 - **Giai đoạn:** `G2 — Core tích hợp`
 - **Owner chính:** `TV4`
+- **Business Rules liên quan:** `F1`, `F7`, `K5`; Core-05/QAS-04
 - **Tài liệu căn cứ:** [QUALITY_ATTRIBUTES.md](../docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md#6-kiểm-thử-core-g1g2), [CONTRIBUTING.md](../docs/CONTRIBUTING.md)
+
+## Rà soát đồng bộ — 2026-10-16
+
+**Hiện trạng:** Docker/Compose/health/CI đã triển khai; bằng chứng 2026-10-12 là 124 test PostgreSQL 16. Bản Identity Lumi mới có bằng chứng 153 test PostgreSQL 18; chưa được coi là lần chạy PostgreSQL 16/Docker mới nhất.
+
+**Cần sửa/bổ sung:**
+- Giữ một Uvicorn worker khi limiter/idempotency còn RAM; tăng worker/replica cần thiết kế backend dùng chung, không tự thêm gunicorn/multi-worker.
+- Dependencies chính thức nằm ở pyproject.toml, build wheel theo Dockerfile hiện có; không tạo requirements riêng lệch nguồn chuẩn. Health ready kiểm tra cả DB và quyền USAGE schema Core, không chỉ SELECT 1.
+- CI thực tế gồm core-tests, web-build, compose-smoke, push main/feature/fix/codex và PR. Giữ migration trước startup, không format/sửa revision đã áp dụng, không coi Web skeleton build thành công là Web nghiệp vụ đã xong.
+- Bổ sung module/test mới khi TASK-005–015 có triển khai; tách stack/volume/port test, không prune/xóa DB người dùng. Demo-ui giữ gitignore, không trở thành dependency build/CI.
+- Xác nhận run GitHub cho đúng commit/PR khi có quyền và ghi link bằng chứng; ảnh CI xanh trước đó không xác nhận mọi thay đổi workspace hiện tại. Không tự push/commit để tạo run.
+
+**Phụ thuộc và nghiệm thu bổ sung:**
+- [ ] Chạy lại migration 0005–0007, lint/format/OpenAPI/tests/coverage và Compose smoke trên PostgreSQL 16 cho revision mới nhất.
+- [ ] TASK-015 và toàn checklist G1/G2 có bằng chứng trước G3; Docker/CI sẵn sàng không thay thế nghiệm thu chức năng.
 
 ---
 
@@ -18,7 +34,7 @@ Hoàn thiện hạ tầng đóng gói Docker cho Core Service, chuẩn hóa file
 - Tối ưu hóa `services/core/Dockerfile`:
   - Multi-stage build với Python 3.12-slim.
   - Chạy bằng user không có quyền root (`non-root user`) để tăng cường bảo mật.
-  - Cài đặt đầy đủ dependencies, cấu hình gunicorn/uvicorn workers phù hợp.
+  - Cài đặt đầy đủ dependencies, giữ một Uvicorn worker phù hợp giới hạn limiter/idempotency hiện tại.
 - Chuẩn hóa `compose.yaml` ở root repo:
   - Service `db` (PostgreSQL 16), volume persistence, healthcheck kiểm tra `pg_isready`.
   - Service `core`: depends_on `db` với điều kiện `service_healthy`.
@@ -26,10 +42,10 @@ Hoàn thiện hạ tầng đóng gói Docker cho Core Service, chuẩn hóa file
 
 ### 2.2. Health Check Endpoints (`/health/live` & `/health/ready`)
 - `GET /health/live`: Trả về `200 OK` `{status: "live"}` nếu tiến trình FastAPI đang chạy bình thường (liveness probe).
-- `GET /health/ready`: Thực hiện truy vấn `SELECT 1` kiểm tra kết nối DB schema `core`. Trả về `200 OK` `{status: "ready", "db": "connected"}` nếu kết nối tốt, trả về `503 SERVICE_UNAVAILABLE` nếu mất kết nối DB (readiness probe).
+- `GET /health/ready`: Kiểm tra kết nối DB và quyền USAGE schema `core` theo health router hiện tại. Trả về `200 OK` `{status: "ready", "db": "connected"}` nếu kết nối tốt, trả về `503 SERVICE_UNAVAILABLE` nếu mất kết nối DB (readiness probe).
 
 ### 2.3. Pipeline GitHub Actions CI (`.github/workflows/core-ci.yml`)
-- Tự động kích hoạt khi có Pull Request hoặc Push vào các nhánh `feature/*`, `fix/*`, `main`.
+- Tự động kích hoạt khi có Pull Request hoặc Push vào các nhánh `feature/*`, `fix/*`, `codex/*`, `main`.
 - Các bước thực thi:
   1. **Linting & Code Quality:** Chạy `ruff check services/core` và `ruff format --check services/core`.
   2. **Static Analysis & Typing:** Chạy `mypy services/core` (nếu có cấu hình).
