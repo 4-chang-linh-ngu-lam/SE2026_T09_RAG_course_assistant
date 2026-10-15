@@ -4,6 +4,8 @@ from sqlalchemy import engine_from_config, pool, text
 from app.common.audit import AuditEvent  # noqa: F401 -- register audit metadata for Alembic
 from app.common.config import settings
 from app.common.db import Base
+from app.common.outbox import OutboxEvent  # noqa: F401 -- register outbox metadata for Alembic
+from app.modules.classroom import models as classroom_models  # noqa: F401 -- register Classroom tables
 from app.modules.identity import models as identity_models  # noqa: F401 -- register Identity tables
 
 config = context.config

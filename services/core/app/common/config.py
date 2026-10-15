@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     auth_reset_limit: int = Field(default=5, gt=0)
     auth_rate_limit_max_keys: int = Field(default=10000, gt=0)
     auth_idempotency_max_keys: int = Field(default=1000, gt=0)
+    classroom_join_limit: int = Field(default=5, gt=0)
+    classroom_join_window_seconds: int = Field(default=3600, gt=0)
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
