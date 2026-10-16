@@ -318,22 +318,16 @@ def downgrade() -> None:
         schema="core",
     )
     op.drop_table("co_lecturer_invitations", schema="core")
-    op.drop_index(
-        "ix_core_join_requests_pending", table_name="join_requests", schema="core"
-    )
+    op.drop_index("ix_core_join_requests_pending", table_name="join_requests", schema="core")
     op.drop_index(
         op.f("ix_core_join_requests_decided_by"), table_name="join_requests", schema="core"
     )
     op.drop_index(
         op.f("ix_core_join_requests_student_id"), table_name="join_requests", schema="core"
     )
-    op.drop_index(
-        op.f("ix_core_join_requests_class_id"), table_name="join_requests", schema="core"
-    )
+    op.drop_index(op.f("ix_core_join_requests_class_id"), table_name="join_requests", schema="core")
     op.drop_table("join_requests", schema="core")
-    op.drop_index(
-        "ix_core_class_memberships_active", table_name="class_memberships", schema="core"
-    )
+    op.drop_index("ix_core_class_memberships_active", table_name="class_memberships", schema="core")
     op.drop_index(
         op.f("ix_core_class_memberships_user_id"), table_name="class_memberships", schema="core"
     )
