@@ -3,8 +3,24 @@
 - **Mã Task:** `TASK-017`
 - **Giai đoạn:** `G3 — Document + AI`
 - **Owner chính:** Phụ trách Service Document
-- **Business Rules liên quan:** `B1`, `B2`, `B3`, `B4`, `B5`, `B6`, `B7`, `H3`, `H6`, `L6`, `O1`
+- **Business Rules liên quan:** `B1`, `B2`, `B3`, `B4`, `B5`, `B6`, `B7`, `H3`, `H6`, `L6`, `O1`, `O2`, `G5`
 - **Tài liệu căn cứ:** [BUSINESS_RULES.md](../docs/architect/BUSINESS_RULES.md#b-tài-liệu), [ARCHITECTURE.md](../docs/architect/microservices-v1/ARCHITECTURE.md#2-ownership), [ADR-001](../docs/architect/microservices-v1/ADR-001.md)
+
+## Rà soát đồng bộ — 2026-10-16
+
+**Hiện trạng:** chưa có service Document. Model/enum/route cụ thể bên dưới chỉ là bản nháp tham khảo, chưa phải thiết kế hoặc API được duyệt; không áp đặt stack/storage/queue từ task này.
+
+**Cần sửa/bổ sung:**
+- Chỉ triển khai sau nghiệm thu Core G1/G2; trước code chốt thiết kế/API/event contracts với TASK-008/012/018, service credential và scope. Không truy cập SQL Core hoặc coi metadata môn/khối là quyền.
+- Bổ sung bookmark bên cạnh SourceBoundNote; owner-only và lịch sử cá nhân tách khỏi participation. ARCHIVED cho sửa notes/bookmarks với nguồn còn quyền (O2); source revoke vẫn giữ chữ tự viết nhưng che quote/open-source.
+- Xác minh assignment PRIMARY/ASSISTING và grant hiện hành ở chia sẻ/xem/tải; ASSISTING không sửa/xóa file nguồn của người khác. Cảnh báo trước xóa nguồn đang dùng ở nhiều lớp.
+- Phiên bản chỉ được công bố sau xử lý thành công; retry/crash không mất file hoặc phát index dở; source revoke thắng fallback phiên bản cũ. AI index là dữ liệu dẫn xuất, Document sở hữu file/version/grant.
+- 10 MB là tải mẫu TP-01, không phải giới hạn upload đã được chốt. Chốt hạn mức/validation, version event và thu hồi quyền trong thiết kế, không tự chọn broker/schema.
+
+**Phụ thuộc và nghiệm thu bổ sung:**
+- [ ] Core G2, TASK-008 access contract và thiết kế Document được review; TV2/TV4 và owner AI thống nhất grant/retry/invalidation.
+- [ ] Test 5 định dạng, version fallback/crash, cross-school/class, revoke giữa truy hồi/mở nguồn, owner-only notes/bookmarks và O2.
+- [ ] Có contract tests và bằng chứng QAS-04/QAS-10; không coi bản nháp route/model dưới đây là phần đã triển khai.
 
 ---
 
@@ -13,9 +29,9 @@ Thiết kế và triển khai Document Service (`services/document/`) độc l�
 
 ---
 
-## 2. Chi tiết kỹ thuật
+## 2. Bản nháp kỹ thuật — cần thiết kế và review trước triển khai
 
-### 2.1. Sở hữu dữ liệu & Mô hình lưu trữ (Schema `document`)
+### 2.1. Mô hình dữ liệu tham khảo — chưa chốt schema vật lý
 - `Document`: Quản lý tài liệu nguồn thuộc sở hữu giảng viên (`owner_user_id`), tiêu đề, mô tả.
 - `DocumentVersion`:
   - `id: UUID`, `document_id: UUID`, `version_number: int`, `file_path: str`
@@ -33,13 +49,13 @@ Thiết kế và triển khai Document Service (`services/document/`) độc l�
   - Quy tắc: Giữ ghi chú tự viết nhưng che đoạn trích dẫn nguyên văn khi tài liệu bị thu hồi (Rule H6, L6).
 
 ### 2.2. Các quy tắc nghiệp vụ bắt buộc
-- **5 định dạng (Rule B3):** Hỗ trợ tệp PDF, PPTX, DOCX, TXT và Markdown dung lượng trung bình 10MB (theo cấu hình TP-01).
+- **5 định dạng (Rule B3):** Hỗ trợ tệp PDF, PPTX, DOCX, TXT và Markdown TP-01 dùng tệp trung bình 10 MB để đo tải; giới hạn upload còn phải thiết kế.
 - **Đa phiên bản (Rule B4, H3):** Lớp học luôn sử dụng phiên bản mới nhất đã xử lý thành công (`SUCCESS`). Nếu phiên bản mới bị lỗi (`FAILED`), hệ thống tiếp tục dùng phiên bản thành công gần nhất, hiển thị thông báo lỗi và cho phép giảng viên thử lại (`retry`).
 - **Phân quyền chia sẻ (Rule B2, O1):** Giảng viên chính và đồng giảng viên được thêm/gỡ chia sẻ tài liệu trong lớp, nhưng chỉ chủ sở hữu tài liệu nguồn mới có quyền sửa/xóa tệp gốc hoặc các phiên bản.
 - **Thu hồi quyền (Rule B6, B7):** Khi giảng viên thu hồi chia sẻ tài liệu khỏi lớp, quyền truy cập của sinh viên bị chấm dứt ngay lập tức; RAG không được phép truy hồi từ tài liệu này nữa.
-- **Xác thực quyền lớp:** Document Service gọi endpoint Core `/internal/v1/classes/{class_id}/access` để xác minh quyền giảng viên và sinh viên trước khi cho phép tải/xem tài liệu.
+- **Xác thực quyền lớp:** Document Service dự kiến gọi endpoint Core `/internal/v1/classes/{class_id}/access` để xác minh quyền giảng viên và sinh viên trước khi cho phép tải/xem tài liệu.
 
-### 2.3. Endpoint & Xử lý bất đồng bộ
+### 2.3. Endpoint tham khảo — chưa phải API Contract được duyệt
 - Quản lý tài liệu: `POST /documents`, `POST /documents/{id}/versions`, `POST /documents/{id}/retry-processing`.
 - Chia sẻ lớp: `POST /classes/{class_id}/documents/grant`, `DELETE /classes/{class_id}/documents/grant/{doc_id}`.
 - Ghi chú: `GET/POST /classes/{class_id}/notes`, `PATCH/DELETE /notes/{id}`.

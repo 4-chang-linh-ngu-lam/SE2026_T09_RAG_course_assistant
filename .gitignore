@@ -20,3 +20,6 @@ out/
 .vscode/
 .idea/
 .DS_Store
+
+# Local UI demo; never publish with the product source.
+/demo-ui/

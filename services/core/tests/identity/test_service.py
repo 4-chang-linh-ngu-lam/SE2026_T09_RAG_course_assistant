@@ -36,6 +36,7 @@ from app.modules.identity.models import (
 from app.modules.identity.public import get_current_user_snapshot
 from app.modules.identity.repository import IdentityRepository
 from app.modules.identity.schemas import (
+    ActivateStudentRequest,
     ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
@@ -78,11 +79,19 @@ def identity(engine, monkeypatch):
     session = Session(engine, autoflush=False, expire_on_commit=False)
     service = IdentityService(session)
     created_ids = []
+    school_id = uuid4()
 
     def register(*, active=True):
         request = RegisterRequest(email=f"student-{uuid4().hex}@example.com", password=PASSWORD)
         result = service.register(request)
         created_ids.append(result.response.user_id)
+        session.get(User, result.response.user_id).school_id = school_id
+        # Staff fixture: the production Student email login/verification path is now disabled.
+        assignment = session.scalar(
+            select(RoleAssignment).where(RoleAssignment.user_id == result.response.user_id)
+        )
+        assignment.role = Role.LECTURER
+        session.commit()
         if active:
             service.verify_email(VerifyEmailRequest(token=result.delivery.token))
         return request, result
@@ -107,14 +116,14 @@ def expect_error(status, operation):
     assert raised.value.status_code == status
 
 
-def test_registration_and_email_verification(identity):
+def test_legacy_staff_email_verification(identity):
     session, service, register = identity
     request, result = register(active=False)
     repository = IdentityRepository(session)
     user = repository.get_by_id(result.response.user_id)
     assert user.status == UserStatus.PENDING_VERIFICATION
     assert user.session_version == 1
-    assert repository.get_user_roles(user.id) == [Role.STUDENT]
+    assert repository.get_user_roles(user.id) == [Role.LECTURER]
     assert user.password_hash.startswith("$argon2id$")
     assert verify_password(PASSWORD, user.password_hash)
     token = repository.get_one_time_token(
@@ -276,7 +285,7 @@ def test_db_constraints_and_cascade(identity):
     session, service, register = identity
     request, result = register()
     login(service, request)
-    session.add(RoleAssignment(user_id=result.response.user_id, role=Role.STUDENT))
+    session.add(RoleAssignment(user_id=result.response.user_id, role=Role.LECTURER))
     with pytest.raises(IntegrityError):
         session.commit()
     session.rollback()
@@ -299,7 +308,7 @@ def test_public_lookup_does_not_select_hashes(identity, engine):
         snapshot = get_current_user_snapshot(session, result.response.user_id)
     finally:
         event.remove(engine, "before_cursor_execute", capture)
-    assert snapshot.roles == ["STUDENT"]
+    assert snapshot.roles == ["LECTURER"]
     assert len(statements) == 1
     assert "password_hash" not in statements[0] and "refresh_hash" not in statements[0]
     assert get_current_user_snapshot(session, uuid4()) is None
@@ -366,18 +375,18 @@ def test_auth_dependency_reads_db_and_revokes_old_access(identity, engine):
     def current(user: Annotated[CurrentUser, Depends(get_current_user)]):
         return user
 
-    @app.get("/lecturer")
-    def lecturer(user: Annotated[CurrentUser, Depends(require_roles("LECTURER"))]):
+    @app.get("/admin")
+    def administrator(user: Annotated[CurrentUser, Depends(require_roles("ADMIN"))]):
         return user
 
     client = TestClient(app)
     headers = {"Authorization": f"Bearer {tokens.response.access_token}"}
     assert client.get("/current", headers=headers).status_code == 200
-    assert client.get("/lecturer", headers=headers).status_code == 403
+    assert client.get("/admin", headers=headers).status_code == 403
     with Session(engine) as session:
-        session.add(RoleAssignment(user_id=result.response.user_id, role=Role.LECTURER))
+        session.add(RoleAssignment(user_id=result.response.user_id, role=Role.ADMIN))
         session.commit()
-    assert client.get("/lecturer", headers=headers).status_code == 200
+    assert client.get("/admin", headers=headers).status_code == 200
     service.logout_all(result.response.user_id)
     assert client.get("/current", headers=headers).status_code == 401
 
@@ -518,7 +527,7 @@ def test_public_admin_invitation_and_status_are_authorized_and_audited(
         expect_error(
             409,
             lambda: public.admin_create_user(
-                email, ["STUDENT"], actor_id=actor_id, correlation_id=uuid4()
+                email, ["LECTURER"], actor_id=actor_id, correlation_id=uuid4()
             ),
         )
     finally:
@@ -551,7 +560,7 @@ def test_public_admin_permission_rollback_and_invitation_expiry(identity, engine
     session.add(RoleAssignment(user_id=actor_id, role=Role.ADMIN))
     session.commit()
     summary, invitation = public.admin_create_user(
-        email, ["STUDENT"], actor_id=actor_id, correlation_id=correlation_id, session=session
+        email, ["LECTURER"], actor_id=actor_id, correlation_id=correlation_id, session=session
     )
     with Session(engine) as independent:
         assert independent.get(User, summary.id) is None
@@ -582,7 +591,7 @@ def test_public_admin_permission_rollback_and_invitation_expiry(identity, engine
     created_id = None
     try:
         summary, invitation = public.admin_create_user(
-            email, ["STUDENT"], actor_id=actor_id, correlation_id=uuid4(), session=session
+            email, ["LECTURER"], actor_id=actor_id, correlation_id=uuid4(), session=session
         )
         created_id = summary.id
         token = IdentityRepository(session).get_one_time_token(
@@ -620,3 +629,281 @@ def test_public_admin_permission_rollback_and_invitation_expiry(identity, engine
             connection.execute(delete(AuditEvent).where(AuditEvent.actor_id == actor_id))
             if created_id is not None:
                 connection.execute(delete(User).where(User.id == created_id))
+
+
+def test_admin_school_boundary_and_creation_context(identity):
+    session, _, register = identity
+    _, actor = register()
+    _, target = register()
+    actor_id, target_id = actor.response.user_id, target.response.user_id
+    school_id = uuid4()
+    session.get(User, actor_id).school_id = school_id
+    session.get(User, target_id).school_id = None
+    session.add(RoleAssignment(user_id=actor_id, role=Role.ADMIN))
+    session.commit()
+    # Missing context and another school are both concealed, even for a valid Admin.
+    expect_error(
+        404,
+        lambda: public.admin_set_user_status(
+            target_id, "LOCKED", actor_id=actor_id, correlation_id=uuid4(), session=session
+        ),
+    )
+    session.get(User, target_id).school_id = uuid4()
+    session.commit()
+    expect_error(
+        404,
+        lambda: public.admin_set_user_status(
+            target_id, "LOCKED", actor_id=actor_id, correlation_id=uuid4(), session=session
+        ),
+    )
+    assert session.get(User, target_id).status == UserStatus.ACTIVE
+
+    session.get(User, target_id).school_id = school_id
+    session.flush()
+    public.admin_set_user_status(
+        target_id, "LOCKED", actor_id=actor_id, correlation_id=uuid4(), session=session
+    )
+    assert session.get(User, target_id).status == UserStatus.LOCKED
+    summary, _ = public.admin_create_user(
+        f"school-{uuid4().hex}@example.com",
+        ["LECTURER"],
+        actor_id=actor_id,
+        correlation_id=uuid4(),
+        session=session,
+    )
+    assert summary.school_id == school_id
+    # The caller owns these mutations; rollback removes the account and audit together.
+    session.rollback()
+    assert session.get(User, summary.id) is None
+    assert session.get(User, target_id).status == UserStatus.ACTIVE
+
+
+@pytest.fixture
+def student(identity, engine):
+    session, service, register = identity
+    _, actor = register()
+    actor_id = actor.response.user_id
+    session.add(RoleAssignment(user_id=actor_id, role=Role.ADMIN))
+    session.commit()
+    result = public.admin_create_student(
+        "student." + uuid4().hex, actor_id=actor_id, correlation_id=uuid4(), session=session
+    )
+    session.commit()
+    yield session, service, actor_id, result
+    session.rollback()
+    with engine.begin() as connection:
+        connection.execute(delete(AuditEvent).where(AuditEvent.target_id == result.student.id))
+        connection.execute(delete(User).where(User.id == result.student.id))
+
+
+def activation(result):
+    return ActivateStudentRequest(
+        username=result.student.username, activation_code=result.code, new_password=PASSWORD
+    )
+
+
+def test_student_activation_expiry_purpose_reissue_and_config(student, monkeypatch):
+    session, service, actor_id, result = student
+    token = IdentityRepository(session).get_one_time_token(
+        hash_refresh_token(result.code.get_secret_value()), TokenPurpose.STUDENT_ACTIVATION
+    )
+    assert result.code.get_secret_value() != token.token_hash
+    assert 23 * 3600 < (result.expires_at - datetime.now(UTC)).total_seconds() <= 24 * 3600
+    expect_error(
+        400,
+        lambda: service.reset_password(
+            ResetPasswordRequest(token=result.code, new_password=PASSWORD)
+        ),
+    )
+    token.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    session.commit()
+    expect_error(400, lambda: service.activate_student(activation(result), correlation_id=uuid4()))
+    monkeypatch.setattr(settings, "student_activation_expire_hours", 2)
+    new = public.admin_issue_student_code(
+        result.student.id, actor_id=actor_id, correlation_id=uuid4(), session=session
+    )
+    session.commit()
+    assert 7100 < (new.expires_at - datetime.now(UTC)).total_seconds() <= 7200
+    expect_error(400, lambda: service.activate_student(activation(result), correlation_id=uuid4()))
+    service.activate_student(activation(new), correlation_id=uuid4())
+    assert service.login(LoginRequest(username=result.student.username, password=PASSWORD))
+    assert service.forgot_password(ForgotPasswordRequest(email="absent@example.com")) is None
+
+
+def test_student_activation_concurrency_consumes_once(student, engine):
+    session, _, _, result = student
+    barrier = Barrier(2)
+
+    def run():
+        with Session(engine, autoflush=False, expire_on_commit=False) as db:
+            barrier.wait(timeout=10)
+            try:
+                IdentityService(db).activate_student(activation(result), correlation_id=uuid4())
+                return 204
+            except AppError as error:
+                return error.status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(lambda _: run(), range(2))) == [204, 400]
+    session.expire_all()
+    user = session.get(User, result.student.id)
+    assert user.email_verified_at is None and user.activated_at is not None
+    assert user.session_version == 2
+
+
+def test_student_username_assignment_preserves_identity_and_invalidates_email_tokens(identity):
+    session, service, register = identity
+    request, legacy = register()
+    _, actor = register()
+    user = session.get(User, legacy.response.user_id)
+    before_hash = user.password_hash
+    tokens = login(service, request)
+    old_reset = service.forgot_password(ForgotPasswordRequest(email=request.email))
+    # Model an existing Student: only the privileged migration helper may assign username.
+    assignment = session.scalar(select(RoleAssignment).where(RoleAssignment.user_id == user.id))
+    assignment.role = Role.STUDENT
+    session.add(RoleAssignment(user_id=actor.response.user_id, role=Role.ADMIN))
+    session.commit()
+    expect_error(401, lambda: login(service, request))
+    expect_error(401, lambda: service.refresh(raw(tokens)))
+    assert service.forgot_password(ForgotPasswordRequest(email=request.email)) is None
+    expect_error(
+        400,
+        lambda: service.reset_password(
+            ResetPasswordRequest(token=old_reset.token, new_password=PASSWORD)
+        ),
+    )
+    username = "legacy." + uuid4().hex
+    converted = public.admin_assign_student_username(
+        user.id,
+        username.upper(),
+        actor_id=actor.response.user_id,
+        correlation_id=uuid4(),
+        session=session,
+    )
+    assert converted.id == user.id and converted.email == request.email
+    assert user.password_hash == before_hash and user.activated_at is not None
+    assert converted.username == username
+    session.commit()
+    assert service.login(LoginRequest(username=username, password=PASSWORD))
+    expect_error(401, lambda: login(service, request))
+    expect_error(
+        401, lambda: service.validate_cached_refresh(raw(tokens), tokens.response.access_token)
+    )
+    session.execute(delete(AuditEvent).where(AuditEvent.target_id == user.id))
+    session.commit()
+
+
+def test_student_public_creation_rolls_back_and_requires_admin_scope(identity):
+    session, _, register = identity
+    _, actor = register()
+    actor_id = actor.response.user_id
+    expect_error(
+        403,
+        lambda: public.admin_create_student(
+            "student." + uuid4().hex, actor_id=actor_id, correlation_id=uuid4(), session=session
+        ),
+    )
+    session.add(RoleAssignment(user_id=actor_id, role=Role.ADMIN))
+    session.get(User, actor_id).school_id = None
+    session.commit()
+    expect_error(
+        404,
+        lambda: public.admin_create_student(
+            "student." + uuid4().hex, actor_id=actor_id, correlation_id=uuid4(), session=session
+        ),
+    )
+    session.get(User, actor_id).school_id = uuid4()
+    session.flush()
+    result = public.admin_create_student(
+        "student." + uuid4().hex, actor_id=actor_id, correlation_id=uuid4(), session=session
+    )
+    assert session.get(User, result.student.id) is not None
+    session.rollback()
+    assert session.get(User, result.student.id) is None
+
+
+def test_student_provisioning_concurrency_does_not_duplicate_username(student, engine):
+    _, _, actor_id, _ = student
+    username = "concurrent.student." + uuid4().hex
+    barrier = Barrier(2)
+
+    def create():
+        with Session(engine, autoflush=False, expire_on_commit=False) as db:
+            barrier.wait(timeout=10)
+            try:
+                public.admin_create_student(
+                    username, actor_id=actor_id, correlation_id=uuid4(), session=db
+                )
+                db.commit()
+                return 201
+            except AppError as error:
+                db.rollback()
+                return error.status_code
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            assert sorted(pool.map(lambda _: create(), range(2))) == [201, 409]
+        with Session(engine) as db:
+            users = db.scalars(select(User).where(User.username == username)).all()
+            assert len(users) == 1 and users[0].email is None
+    finally:
+        with engine.begin() as connection:
+            ids = select(User.id).where(User.username == username)
+            connection.execute(delete(AuditEvent).where(AuditEvent.target_id.in_(ids)))
+            connection.execute(delete(User).where(User.username == username))
+
+
+def test_student_recovery_expiry_and_concurrency(student, engine):
+    session, service, actor_id, result = student
+    service.activate_student(activation(result), correlation_id=uuid4())
+    first = public.admin_issue_student_code(
+        result.student.id,
+        actor_id=actor_id,
+        correlation_id=uuid4(),
+        identity_verified=True,
+        session=session,
+    )
+    token = IdentityRepository(session).get_one_time_token(
+        hash_refresh_token(first.code.get_secret_value()), TokenPurpose.STUDENT_PASSWORD_RESET
+    )
+    token.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    session.commit()
+    expect_error(
+        400,
+        lambda: service.reset_password(
+            ResetPasswordRequest(token=first.code, new_password=PASSWORD)
+        ),
+    )
+    second = public.admin_issue_student_code(
+        result.student.id,
+        actor_id=actor_id,
+        correlation_id=uuid4(),
+        identity_verified=True,
+        session=session,
+    )
+    session.commit()
+    version_before = session.get(User, result.student.id).session_version
+    barrier = Barrier(2)
+
+    def reset():
+        with Session(engine, autoflush=False, expire_on_commit=False) as db:
+            barrier.wait(timeout=10)
+            try:
+                IdentityService(db).reset_password(
+                    ResetPasswordRequest(token=second.code, new_password=PASSWORD)
+                )
+                return 204
+            except AppError as error:
+                return error.status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(lambda _: reset(), range(2))) == [204, 400]
+    session.expire_all()
+    assert session.get(User, result.student.id).session_version == version_before + 1
+    audits = session.scalars(
+        select(AuditEvent).where(
+            AuditEvent.target_id == result.student.id, AuditEvent.action == "STUDENT_PASSWORD_RESET"
+        )
+    ).all()
+    assert len(audits) == 1

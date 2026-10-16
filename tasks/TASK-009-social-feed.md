@@ -5,7 +5,22 @@
 - **Owner chính:** `TV3`
 - **Module:** `services/core/app/modules/social/feed/`
 - **Business Rules liên quan:** `G1`, `L1`, `L5`
-- **Tài liệu căn cứ:** [DESIGN.md](../docs/architect/microservices-v1/core/DESIGN.md#2-module-và-ownership), [API_CONTRACT.md](../docs/architect/microservices-v1/core/API_CONTRACT.md#feed--comments--calendar--notifications)
+- **Tài liệu căn cứ:** [DESIGN.md](../docs/architect/microservices-v1/core/DESIGN.md), [API_CONTRACT.md](../docs/architect/microservices-v1/core/API_CONTRACT.md)
+
+## Rà soát đồng bộ — 2026-10-16
+
+**Hiện trạng:** Feed mới có skeleton; bảng/route bên dưới là thiết kế, chưa triển khai.
+
+**Cần sửa/bổ sung:**
+- Phụ thuộc action policy TASK-008 và phân công PRIMARY/ASSISTING TASK-007; không suy quyền từ OWNER/CO_LECTURER legacy hoặc global LECTURER.
+- Mọi list/get/update/delete đều kiểm tra trường/lớp và quan hệ post–class; tác giả đã kết thúc ghi danh không giữ quyền sửa chỉ nhờ author_id. ARCHIVED chặn sửa/xóa hoạt động chung theo contract đã duyệt.
+- PostAuthorSummary không bắt buộc email vì Student email nullable; chỉ trả thông tin hiển thị cần thiết. DTO Identity hiện chưa có display_name, cần TV1 bổ sung public contract nếu cần, không query Identity model.
+- Chốt pagination trước code: Common hiện dùng cursor UUID, chưa hỗ trợ thứ tự created_at mới nhất. Nếu giữ yêu cầu mới nhất, thiết kế cursor/sort nhất quán và test không trùng/bỏ sót, không dùng cursor UUID với query created_at khác thứ tự.
+- Không mở quyền đọc toàn feed cũ bằng read_own_history; ngoại lệ lịch sử cá nhân không phải quyền xem nội dung mới của lớp. Soft delete ẩn cả list/detail; notification qua outbox và moderation audit tối thiểu.
+
+**Phụ thuộc và nghiệm thu bổ sung:**
+- [ ] TASK-004/005/007/008/014 được tích hợp; cross-school/class, post thuộc lớp khác, LOCKED/ENDED/ARCHIVED và quyền tác giả cũ đều có test.
+- [ ] Test DTO không phụ thuộc email Student, phân trang ổn định và bài đã xóa không lộ qua detail/comments; TV1/TV2 review public contracts.
 
 ---
 
@@ -30,24 +45,24 @@ Xây dựng bảng trong schema `core`:
 ### 2.2. `schemas.py`
 - `PostCreateRequest`: `body: str`
 - `PostUpdateRequest`: `body: str`
-- `PostAuthorSummary`: `id: UUID`, `display_name: str`, `email: str`
+- `PostAuthorSummary`: `id: UUID`, `display_name: Optional[str]`, `email: Optional[str]` (chỉ trả khi contract cho phép)
 - `PostResponse`: `id: UUID`, `class_id: UUID`, `author: PostAuthorSummary`, `body: str`, `created_at: datetime`, `updated_at: datetime`
 - `PostListResponse`: `items: list[PostResponse]`, `next_cursor: Optional[str]`
 
 ### 2.3. `service.py` & Kiểm tra quyền
 - **Đăng bài (`create_post`):**
-  - Gọi `classroom.public.is_active_member(class_id, current_user.id)`. Nếu không $\to$ `403 FORBIDDEN`.
-  - Gọi `classroom.public.get_class_status(class_id)`. Nếu `ARCHIVED` $\to$ `400 BAD_REQUEST` (Lớp lưu trữ không cho đăng bài mới).
+  - Gọi Classroom public theo action contract TASK-008, kiểm tra membership hoặc teaching assignment hiện hành, school/class và user status; che tài nguyên ngoài quyền theo API Contract.
+  - Chặn ARCHIVED; không chỉ kiểm tra global role hoặc author_id.
   - Lưu bài viết mới.
 - **Xem bảng tin (`list_posts`):**
-  - Xác minh thành viên `ACTIVE`.
+  - Xác minh membership hoặc teaching assignment hiện hành và quyền đọc feed; không suy ra từ read_own_history.
   - Chỉ lọc các bài đăng có `deleted_at IS NULL` (Rule L1: Bài đã xóa không hiển thị trên giao diện).
   - Hỗ trợ phân trang bằng cursor.
 - **Sửa bài (`update_post`):**
-  - Chỉ chính tác giả bài viết (`author_id == current_user.id`) mới được chỉnh sửa.
+  - Chỉ tác giả (`author_id == current_user.id`) còn quyền hiện hành, lớp không ARCHIVED và post đúng class mới được sửa.
 - **Xóa bài (`delete_post`):**
   - Tác giả được tự xóa bài của mình.
-  - Giảng viên phụ trách (`OWNER`, `CO_LECTURER`) hoặc `ADMIN` can thiệp có quyền xóa bài vi phạm (Rule L5: Giảng viên ẩn/xóa nội dung vi phạm, có ghi audit).
+  - Giảng viên phụ trách (PRIMARY/ASSISTING hiện hành) hoặc `ADMIN` can thiệp có quyền xóa bài vi phạm (Rule L5: Giảng viên ẩn/xóa nội dung vi phạm, có ghi audit).
   - Thực hiện soft-delete: Đặt `deleted_at = UTC NOW`.
 
 ### 2.4. `router.py`
@@ -60,7 +75,7 @@ Xây dựng bảng trong schema `core`:
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
 - [ ] Thành viên `ACTIVE` có thể đăng bài và đọc danh sách bài đăng theo thứ tự mới nhất.
-- [ ] Sinh viên chưa duyệt (`PENDING`) hoặc đã rời lớp (`LEFT`) không thể đăng bài hay đọc bảng tin.
+- [ ] Học sinh chưa được Admin ghi danh hoặc đã kết thúc ghi danh không thể đăng bài hay đọc bảng tin.
 - [ ] Khi một bài viết bị xóa (soft delete), gọi `GET /posts` không còn nhìn thấy bài viết đó (Rule L1).
 - [ ] Giảng viên có thể xóa bài viết của sinh viên khác và hệ thống ghi lại sự kiện vào `audit_events` (Rule L5).
 - [ ] Khi lớp bị `ARCHIVED`, yêu cầu `POST /posts` bị từ chối với thông báo lỗi thích hợp.

@@ -1,6 +1,6 @@
 # Quy ước tổ chức mã nguồn Core Service
 
-**Trạng thái:** BASELINE QUY ƯỚC THƯ MỤC; chưa tạo skeleton. **Phạm vi:** `services/core/` trong **một monorepo**; Core là **một FastAPI microservice**, không tách module nội bộ thành các service riêng.
+**Trạng thái:** BASELINE QUY ƯỚC THƯ MỤC; skeleton/Common/Identity đã có triển khai, các module khác trong cây là mục tiêu. **Phạm vi:** `services/core/` trong **một monorepo**; Core là **một FastAPI microservice**, không tách module nội bộ thành các service riêng.
 
 ## 1. Mục tiêu và cách đọc
 - Người mới biết đặt file ở đâu, mỗi thư mục chịu trách nhiệm gì, ai thường sửa.
@@ -25,18 +25,18 @@ services/core/                         # Một service FastAPI; build/chạy/tes
 │   │   ├── pagination.py              # Quy ước phân trang dùng chung
 │   │   └── audit.py                   # Hạ tầng ghi audit; không lưu nội dung chat riêng tư
 │   ├── modules/                        # Mỗi thư mục là một miền chức năng, KHÔNG phải microservice
-│   │   ├── identity/                  # TV1: tài khoản, đăng ký, email verification, JWT, vai trò
+│   │   ├── identity/                  # TV1: username/activation Student, email staff, school context, JWT
 │   │   │   ├── router.py              # Endpoint HTTP của Identity
 │   │   │   ├── schemas.py             # Pydantic request/response; không trả password_hash
 │   │   │   ├── models.py              # SQLAlchemy ORM thuộc Identity
-│   │   │   ├── service.py             # Nghiệp vụ đăng ký/đăng nhập/thu hồi phiên
+│   │   │   ├── service.py             # Đăng nhập/thu hồi phiên; đăng ký email legacy nội bộ, HTTP bị chặn
 │   │   │   ├── repository.py          # Truy vấn và ghi dữ liệu Identity
 │   │   │   └── public.py              # Giao diện nội bộ được module khác phép gọi
-│   │   ├── classroom/                 # TV2: môn, lớp, join request, membership, co-lecturer
+│   │   ├── classroom/                 # TV2: School, roster, lớp môn học, AUTO/MANUAL, teaching assignment
 │   │   │   ├── router.py
 │   │   │   ├── schemas.py
 │   │   │   ├── models.py
-│   │   │   ├── service.py             # Duyệt/rời/loại, chuyển chủ, archive/restore; transaction
+│   │   │   ├── service.py             # Admin sync/chuyển lớp, phân công, archive/restore; transaction
 │   │   │   ├── repository.py
 │   │   │   ├── permissions.py         # Quyền theo lớp, không chỉ dựa trên role toàn hệ thống
 │   │   │   └── public.py              # Ví dụ: check_class_access(...) cho các module khác
@@ -61,8 +61,8 @@ services/core/                         # Một service FastAPI; build/chạy/tes
 │   ├── env.py                         # Cấu hình metadata và kết nối migration
 │   └── versions/                      # Một migration cho mỗi thay đổi schema hợp lý
 ├── tests/                             # Test nằm gần phạm vi người phụ trách
-│   ├── identity/                       # Auth, refresh/revoke, email verification, lock
-│   ├── classroom/                      # Join/approve/reject, quyền chéo lớp, ownership, archive
+│   ├── identity/                       # Student activation/staff email, refresh/revoke, school scope, lock
+│   ├── classroom/                      # Admin enrollment/transfer, cross-school/class, assignment, archive
 │   ├── social/                         # Feed, comments, calendar
 │   ├── notification/                   # Tạo/đọc thông báo và kiểm tra quyền
 │   ├── administration/                 # Admin action và audit
@@ -71,9 +71,10 @@ services/core/                         # Một service FastAPI; build/chạy/tes
 ├── pyproject.toml                      # Dependencies, formatter, linter, pytest config
 ├── alembic.ini                         # Cấu hình Alembic
 ├── Dockerfile                          # Đóng gói CHỈ Core
-├── .env.example                        # Tên biến môi trường mẫu, tuyệt đối không chứa secret thật
 └── README.md                           # Cách chạy Core, migration, test, cấu hình
 ```
+
+Biến môi trường mẫu dùng `.env.example` tại root monorepo, không phải một file Core riêng; không chứa secret thật.
 
 **Lưu ý:** các file bên trong `feed/`, `comments/`, `calendar/` có thể áp dụng cùng bộ `router.py`, `schemas.py`, `models.py`, `service.py`, `repository.py` khi thực sự cần. `administration/` có thể dùng model AuditEvent thuộc hạ tầng audit hoặc module admin tùy thiết kế DB được duyệt.
 
@@ -122,15 +123,15 @@ HTTP request → router → service → repository → PostgreSQL (Core)
 
 ## 6. Ví dụ một yêu cầu từ đầu đến cuối
 
-**Sinh viên xin tham gia lớp:**
-1. `classroom/router.py` nhận mã lớp và thông tin người dùng xác thực từ dependency.
-2. `classroom/service.py` kiểm tra lớp còn hoạt động, đang nhận đơn và người dùng đủ điều kiện.
-3. `classroom/repository.py` ghi `JoinRequest(PENDING)` theo constraint chống trùng.
-4. `notification/service.py` nhận yêu cầu tạo thông báo cho giảng viên qua giao diện đã thống nhất; xử lý sao cho lỗi thông báo không làm mất đơn đã lưu.
-5. Giảng viên duyệt: `classroom/service.py` kiểm tra quyền, transaction cập nhật trạng thái và membership; audit hành động.
-6. `tests/classroom/` kiểm tra chờ duyệt không xem được lớp, duyệt lặp, duyệt đồng thời, bị khóa tài khoản và truy cập chéo lớp.
+**Admin đồng bộ ghi danh AUTO (luồng mục tiêu, chưa triển khai):**
+1. `classroom/router.py` nhận yêu cầu Admin; actor và school scope lấy từ backend authentication.
+2. `classroom/service.py` kiểm tra quyền hiện hành, lớp/mode và roster theo hợp đồng preview/confirm được duyệt.
+3. `classroom/repository.py` cập nhật membership trong transaction, giữ lịch sử và constraint chống trùng; lớp MANUAL không bị ghi đè.
+4. Audit và outbox được ghi cùng transaction qua interface đã thống nhất; consumer Notification xử lý sau commit, retry/dedup an toàn.
+5. `classroom/public.py` cung cấp action-based access cho Social/Administration; service khác dùng internal API có service credential.
+6. `tests/classroom/` kiểm tra Admin-only, cross-school/class, sync cạnh tranh, rollback/outbox và kết thúc enrollment giữ lịch sử cá nhân hợp lệ.
 
-**Không** gọi Notification trực tiếp trước khi transaction của JoinRequest thành công; sử dụng transactional outbox và consumer idempotent theo Core Design.
+Schema/payload, preview và hiệu lực chuyển lớp còn PENDING DESIGN trong [Core Design](DESIGN.md)/[API Contract](API_CONTRACT.md); không dùng ví dụ này làm API đã phát hành. JoinRequest/teacher approval và ownership transfer không thuộc MVP.
 
 ## 7. Quy ước cho AI coding agent
 

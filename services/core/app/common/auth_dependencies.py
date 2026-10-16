@@ -22,6 +22,16 @@ class CurrentUser(BaseModel):
     status: str
     session_version: int
     roles: list[str]
+    school_id: UUID | None = None
+
+
+def require_school_scope(actor_school_id: UUID | None, resource_school_id: UUID | None) -> None:
+    if (
+        actor_school_id is None
+        or resource_school_id is None
+        or actor_school_id != resource_school_id
+    ):
+        raise AppError(404)
 
 
 class UserLookup(Protocol):

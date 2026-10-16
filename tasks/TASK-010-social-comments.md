@@ -5,7 +5,21 @@
 - **Owner chính:** `TV3`
 - **Module:** `services/core/app/modules/social/comments/`
 - **Business Rules liên quan:** `G2`, `L1`, `L5`
-- **Tài liệu căn cứ:** [DESIGN.md](../docs/architect/microservices-v1/core/DESIGN.md#2-module-và-ownership), [API_CONTRACT.md](../docs/architect/microservices-v1/core/API_CONTRACT.md#feed--comments--calendar--notifications)
+- **Tài liệu căn cứ:** [DESIGN.md](../docs/architect/microservices-v1/core/DESIGN.md), [API_CONTRACT.md](../docs/architect/microservices-v1/core/API_CONTRACT.md)
+
+## Rà soát đồng bộ — 2026-10-16
+
+**Hiện trạng:** Comments mới có skeleton; cần đồng bộ Feed và action access trước triển khai.
+
+**Cần sửa/bổ sung:**
+- Sửa giới hạn body từ 5.000 thành **1..10.000** theo Core API Contract; author DTO xử lý Student email null và dùng public interface đã chốt.
+- Xác minh chuỗi class → post → comment trong mọi route, kể cả sửa/xóa; tác giả vẫn cần quyền hiện hành. Bài đã xóa phải chặn cả đọc/tạo/sửa bình luận, không chỉ create.
+- Dùng phân công PRIMARY/ASSISTING cho moderation; Admin can thiệp có lý do/audit. ARCHIVED chặn ghi hoạt động chung, không dựa vào global role hoặc quyền tác giả đơn thuần.
+- Comments cần interface công khai tối thiểu của Feed để xác minh post; không import repository/model Feed để thực hiện nghiệp vụ. Comment tạo thành công ghi outbox cùng transaction; TASK-012 xử lý recipient/dedup và kiểm tra quyền khi mở link.
+
+**Phụ thuộc và nghiệm thu bổ sung:**
+- [ ] TASK-008/009/012/014 thống nhất DTO, transaction và notification contract; test parent ID giả, cross-school/class, post/comment đã xóa và tác giả mất quyền.
+- [ ] Test biên body 1/10.000/10.001, LOCKED/ENDED/ARCHIVED, moderation có audit và notification lỗi không rollback comment đã commit.
 
 ---
 
@@ -22,7 +36,7 @@ Xây dựng bảng trong schema `core`:
   - `id: UUID` (PK)
   - `post_id: UUID` (FK `class_posts.id`, ondelete CASCADE)
   - `author_id: UUID` (FK `users.id`, ondelete RESTRICT)
-  - `body: str` (1 đến 5,000 ký tự)
+  - `body: str` (1 đến 10,000 ký tự)
   - `deleted_at: Optional[datetime]` (UTC, soft-delete)
   - `created_at`, `updated_at: datetime` (UTC)
   - Index: `Index('idx_comments_post_created', post_id, created_at.asc())`
@@ -35,7 +49,7 @@ Xây dựng bảng trong schema `core`:
 
 ### 2.3. `service.py` & Kiểm tra quyền
 - **Tạo bình luận (`create_comment`):**
-  - Xác minh người dùng là thành viên `ACTIVE` của lớp chứa bài đăng (gọi qua `classroom.public`).
+  - Xác minh membership hoặc teaching assignment hiện hành theo action và scope lớp chứa bài đăng (gọi qua `classroom.public`).
   - Xác minh bài đăng tồn tại và chưa bị xóa (`deleted_at IS NULL`).
   - Kiểm tra trạng thái lớp: nếu `ARCHIVED` $\to$ từ chối (Rule H5).
   - Lưu bình luận mới.
@@ -47,7 +61,7 @@ Xây dựng bảng trong schema `core`:
   - Chỉ chính tác giả bình luận mới có quyền sửa.
 - **Xóa bình luận (`delete_comment`):**
   - Tác giả bình luận có quyền tự xóa.
-  - Giảng viên phụ trách lớp (`OWNER`, `CO_LECTURER`) hoặc `ADMIN` can thiệp có quyền xóa bình luận vi phạm và hệ thống ghi lại audit log (Rule L5).
+  - Giảng viên phụ trách lớp (PRIMARY/ASSISTING hiện hành) hoặc `ADMIN` can thiệp có quyền xóa bình luận vi phạm và hệ thống ghi lại audit log (Rule L5).
   - Thực hiện soft-delete: Đặt `deleted_at = UTC NOW`.
 
 ### 2.4. `router.py`
@@ -59,7 +73,7 @@ Xây dựng bảng trong schema `core`:
 ---
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
-- [ ] Thành viên `ACTIVE` có thể bình luận vào bài đăng hợp lệ; sinh viên khác lớp hoặc chưa duyệt bị chặn 403.
+- [ ] Thành viên `ACTIVE` có thể bình luận vào bài đăng hợp lệ; học sinh khác lớp hoặc chưa được ghi danh bị chặn 403.
 - [ ] Không thể bình luận vào bài viết đã bị xóa (trả về `404 NOT_FOUND`).
 - [ ] Bình luận đã bị soft-delete không còn xuất hiện trong danh sách `GET /comments`.
 - [ ] Giảng viên có thể xóa bình luận không phù hợp của sinh viên và có log kiểm toán trong `audit_events`.

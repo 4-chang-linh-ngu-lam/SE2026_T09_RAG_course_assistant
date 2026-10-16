@@ -14,16 +14,24 @@ from app.modules.identity.models import RoleAssignment as _RoleAssignment
 from app.modules.identity.models import User as _User
 from app.modules.identity.models import UserStatus as _UserStatus
 from app.modules.identity.repository import IdentityRepository as _IdentityRepository
+from app.modules.identity.schemas import AdminCreateStudentRequest as _AdminCreateStudentRequest
 from app.modules.identity.schemas import AdminCreateUserRequest as _AdminCreateUserRequest
 from app.modules.identity.schemas import AdminSetStatusRequest as _AdminSetStatusRequest
+from app.modules.identity.schemas import (
+    AssignStudentUsernameRequest as _AssignStudentUsernameRequest,
+)
 from app.modules.identity.schemas import UserSummaryDTO
 from app.modules.identity.service import IdentityService as _IdentityService
-from app.modules.identity.service import TokenDelivery
+from app.modules.identity.service import StudentCode, TokenDelivery
 
 __all__ = [
+    "StudentCode",
     "TokenDelivery",
     "UserSummaryDTO",
+    "admin_assign_student_username",
+    "admin_create_student",
     "admin_create_user",
+    "admin_issue_student_code",
     "admin_set_user_status",
     "check_user_is_lecturer",
     "get_current_user_snapshot",
@@ -103,10 +111,57 @@ def admin_set_user_status(
         )
 
 
+def admin_create_student(
+    username: str,
+    *,
+    actor_id: UUID,
+    correlation_id: UUID,
+    display_name: str | None = None,
+    session: Session | None = None,
+) -> StudentCode:
+    request = _AdminCreateStudentRequest(username=username, display_name=display_name)
+    with _session_scope(session, write=True) as db:
+        return _IdentityService(db).admin_create_student(
+            request, actor_id=actor_id, correlation_id=correlation_id
+        )
+
+
+def admin_assign_student_username(
+    user_id: UUID,
+    username: str,
+    *,
+    actor_id: UUID,
+    correlation_id: UUID,
+    session: Session | None = None,
+) -> UserSummaryDTO:
+    request = _AssignStudentUsernameRequest(username=username)
+    with _session_scope(session, write=True) as db:
+        return _IdentityService(db).admin_assign_student_username(
+            user_id, request, actor_id=actor_id, correlation_id=correlation_id
+        )
+
+
+def admin_issue_student_code(
+    user_id: UUID,
+    *,
+    actor_id: UUID,
+    correlation_id: UUID,
+    identity_verified: bool = False,
+    session: Session | None = None,
+) -> StudentCode:
+    with _session_scope(session, write=True) as db:
+        return _IdentityService(db).admin_issue_student_code(
+            user_id,
+            actor_id=actor_id,
+            correlation_id=correlation_id,
+            identity_verified=identity_verified,
+        )
+
+
 def get_current_user_snapshot(session: Session, user_id: UUID) -> CurrentUser | None:
     """Read only non-secret fields, in one statement with current role assignments."""
     rows = session.execute(
-        select(_User.id, _User.status, _User.session_version, _RoleAssignment.role)
+        select(_User.id, _User.status, _User.session_version, _User.school_id, _RoleAssignment.role)
         .outerjoin(_RoleAssignment, _RoleAssignment.user_id == _User.id)
         .where(_User.id == user_id)
     ).all()
@@ -117,6 +172,7 @@ def get_current_user_snapshot(session: Session, user_id: UUID) -> CurrentUser | 
         id=first.id,
         status=first.status,
         session_version=first.session_version,
+        school_id=first.school_id,
         roles=[row.role.value for row in rows if row.role is not None],
     )
 
