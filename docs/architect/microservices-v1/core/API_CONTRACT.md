@@ -83,6 +83,8 @@ Credential nội bộ hiện dùng header `X-Service-Key` so với `INTERNAL_SER
 
 Python public interface Identity cho consumer Core được đặc tả tại [Core README](../../../../services/core/README.md#identity-public-interface-và-data-requests-task-004). Admin mutation bắt buộc actor/correlation ID, trả DTO thay ORM và ghi audit cùng transaction; consumer không import model/repository Identity hoặc ghi audit trùng.
 
+`UserSummaryDTO` nội bộ có `display_name` nullable, được batch lookup cùng các trường an toàn khác. Khi dùng cho feed/bình luận, Social chỉ chiếu `id` và `display_name` sang author response; email/username đăng nhập không tự động công khai. Admin Student create/issue-code trả cùng DTO này trong response của Admin.
+
 ## Validation / Contract tests
 - **IMPLEMENTED Identity:** email lowercase; username trim/lowercase, 1..200 ký tự, không whitespace hoặc @, unique toàn hệ thống; mật khẩu mới 12..128 ký tự. Student không cần email. Không expose hash; chỉ Admin nhận mã một lần trong response Student create/issue-code có `Cache-Control: no-store`. Post/comment 1..10000, title/name 1..200, starts_at < ends_at là contract các module tương ứng.
 - Test: unauthorized/cross-school/cross-class, LOCKED/ENDED/ARCHIVED, Admin-only mutations, AUTO/MANUAL concurrency, activation replay, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.

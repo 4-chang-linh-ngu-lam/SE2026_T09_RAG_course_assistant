@@ -591,9 +591,12 @@ def test_student_without_email_activates_and_uses_profile_refresh_requests(
     monkeypatch.setattr(settings, "smtp_host", None)
     assert data["student"]["email"] is None and data["purpose"] == "ACTIVATION"
     extra = client.post(
-        "/api/v1/admin/students", headers=admin, json={"username": "student.extra." + uuid4().hex}
+        "/api/v1/admin/students",
+        headers=admin,
+        json={"username": "student.extra." + uuid4().hex, "display_name": "Học sinh mới"},
     )
     assert extra.status_code == 201
+    assert extra.json()["student"]["display_name"] == "Học sinh mới"
     app.state.student_ids.append(UUID(extra.json()["student"]["id"]))
     assert student_login(client, data).status_code == 401
     assert activate(client, data, username="another.student").status_code == 400

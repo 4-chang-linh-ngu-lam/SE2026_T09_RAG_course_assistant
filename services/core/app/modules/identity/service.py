@@ -407,13 +407,7 @@ class IdentityService:
                 )
                 if deliver is not None:
                     deliver(delivery)
-                return UserSummaryDTO(
-                    id=user.id,
-                    email=user.email,
-                    username=user.username,
-                    school_id=user.school_id,
-                    status=user.status,
-                ), delivery.token
+                return self._summary(user), delivery.token
         except IntegrityError as exc:
             if (
                 getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
@@ -617,6 +611,7 @@ class IdentityService:
             email=user.email,
             username=user.username,
             school_id=user.school_id,
+            display_name=user.display_name,
             status=user.status,
         )
 

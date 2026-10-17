@@ -54,6 +54,9 @@ def test_openapi_auth_contract_shapes():
         "$ref"
     ].endswith("/ErrorEnvelope")
     assert "CORRECTION" in contract["schemas"]["DataRequestType"]["enum"]
+    summary = contract["schemas"]["UserSummaryDTO"]
+    assert "display_name" in summary["properties"]
+    assert "display_name" not in summary["required"]
     assert [entry["required"] for entry in contract["schemas"]["LoginRequest"]["oneOf"]] == [
         ["email"],
         ["username"],
