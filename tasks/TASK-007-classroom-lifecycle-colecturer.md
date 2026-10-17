@@ -10,7 +10,7 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Hiện trạng:** lifecycle/phân công chưa triển khai. Teacher invitation, ownership transfer và Owner archive/restore trong task cũ không còn được phép trong MVP.
+**Hiện trạng cập nhật:** Admin đã có API thay PRIMARY/ASSISTING và archive/restore, ghi audit/outbox cùng transaction. Teacher invitation, ownership transfer và Owner archive/restore không có route. Learning còn phải dùng assignment hiện hành để giới hạn duyệt/chấm nhạy cảm; test PostgreSQL/CI cần chạy trước nghiệm thu G2.
 
 **Cần sửa:** thay bằng phân công PRIMARY/ASSISTING và archive/restore do Admin; tách quyền dạy học với quản lý roster và quyền phê duyệt đánh giá nhạy cảm.
 

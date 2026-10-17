@@ -87,7 +87,7 @@ def test_upgrade_preserves_legacy_identity_and_supports_no_email(migration_db):
             )
             == 1
         )
-        assert connection.scalar(text("SELECT version_num FROM core.alembic_version")) == "0007"
+        assert connection.scalar(text("SELECT version_num FROM core.alembic_version")) == "0009"
 
 
 def test_new_identity_migration_round_trip(migration_db):

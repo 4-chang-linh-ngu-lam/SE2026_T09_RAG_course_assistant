@@ -10,7 +10,7 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Hiện trạng:** Common đã có service-key dependency nhưng Classroom public/internal access API chưa triển khai. Danh sách hàm/response trong bản cũ là draft, chưa phải interface có thể gọi.
+**Hiện trạng cập nhật:** Classroom public/internal access API đã dùng action theo user/status/school/class/membership/teaching assignment hiện hành; internal API yêu cầu X-Service-Key. Đọc lịch sử cá nhân tách participation, nhưng consumer vẫn phải kiểm tra owner/Document grant/Learning assignment. Những hàm membership-only trong bản task cũ chỉ là draft, không phải public contract đã phát hành.
 
 **Cần sửa:** access theo action, quyền lịch sử và school scope; bỏ quy tắc kết thúc membership là mất mọi quyền. Header phải khớp code `X-Service-Key`, không phải `X-Internal-Service-Key` hoặc user JWT.
 

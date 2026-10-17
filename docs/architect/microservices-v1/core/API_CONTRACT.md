@@ -41,12 +41,31 @@ Rate limit mặc định: login 5 lần sai/60 giây theo IP và identifier chu�
 
 Identity idempotency hiện dùng RAM một process, TTL 24 giờ; không bền vững qua restart/nhiều worker. Scope anonymous dùng identifier chuẩn hóa/token hash, refresh/Bearer dùng user. Token cookie được tính vào payload; cookie đã đổi với cùng key có thể trả 409. Cache credential responses phải kiểm tra quyền/phiên hiện hành, trả 401 khi stale; dùng key mới cho lần xác thực mới. Chi tiết cấu hình và giới hạn tại [Core README](../../../../services/core/README.md#identity-http-api-task-003).
 
-## Course / Class / Membership — PROPOSED (chưa chốt payload)
-**DECIDED:** Chỉ Admin tạo lớp môn học, roster, phân công giáo viên, ghi danh AUTO/MANUAL, archive/restore. Không có join code, join-request, giáo viên tự tạo lớp, teacher invitation/ownership transfer, Student tự leave trong MVP.
+## Course / Class / Membership — IMPLEMENTED trong Core (PR #6 sau chỉnh sửa)
+Chỉ Admin cùng trường tạo môn/lớp hành chính/lớp môn học, phân công giáo viên, ghi danh AUTO/MANUAL, chuyển lớp và archive/restore. Trường của lớp lấy từ actor hiện hành trong Identity DB; thiếu trường hoặc khác trường bị che bằng 404. Không có join code, join request, Lecturer-created class, teacher invitation/ownership transfer hay Student self-leave.
 
-**PROPOSED routes:** `POST /admin/homeroom-classes`, `PUT /admin/homeroom-classes/{id}/roster`, `POST /admin/classes`, `PUT /admin/classes/{id}/teaching-assignments`, `POST /admin/classes/{id}/enrollment/preview`, `POST /admin/classes/{id}/enrollment/sync`, `PATCH /admin/classes/{id}/enrollment-mode`, `POST /admin/classes/{id}/members`, `DELETE /admin/classes/{id}/members/{student_id}`, `POST /admin/classes/{id}/archive`, `POST /admin/classes/{id}/restore`.
+| Method | Endpoint | Quyền / Body → Kết quả |
+|---|---|---|
+| POST | /admin/courses | Admin; {code,name} → 201 course trong trường hiện hành |
+| POST | /admin/homeroom-classes | Admin; {name,academic_year,grade_level:6..12} → 201 |
+| PUT | /admin/homeroom-classes/{id}/roster | Admin; {student_ids:UUID[]} thay roster, đồng bộ lớp AUTO, giữ lịch sử → 200 |
+| POST | /admin/homeroom-classes/{id}/students/{student_id}/transfer | Admin; {destination_homeroom_id} → 200; cùng năm/khối, đổi hai roster và sync AUTO trong một transaction |
+| POST | /admin/classes | Admin; {course_id,name,academic_year,semester,grade_level,homeroom_class_id?,enrollment_mode:AUTO/MANUAL,primary_lecturer_id} → 201 |
+| GET | /classes; /classes/{id}; /classes/{id}/members | Chỉ lớp cùng trường và còn quyền hiện hành; Admin xem trong phạm vi trường |
+| PUT | /admin/classes/{id}/teaching-assignments | Admin; {primary_lecturer_id,assisting_lecturer_ids:[]} → 200; giữ lịch sử PRIMARY/ASSISTING |
+| POST | /admin/classes/{id}/enrollment/preview | Admin; xem add/end và class_version/roster_version trước MANUAL→AUTO |
+| PATCH | /admin/classes/{id}/enrollment-mode | Admin; {mode,expected_class_version?,expected_roster_version?}; MANUAL→AUTO buộc version từ preview, stale trả 409 |
+| POST | /admin/classes/{id}/enrollment/sync | Admin; AUTO đồng bộ lại roster, không ghi đè lớp MANUAL |
+| POST/DELETE | /admin/classes/{id}/members[/{student_id}] | Admin; chỉ MANUAL, thêm/kết thúc membership, không xóa lịch sử |
+| POST | /admin/classes/{id}/members/{student_id}/transfer | Admin; {destination_class_id}; chuyển MANUAL cùng môn/năm/học kỳ trong một transaction |
+| POST | /admin/classes/{id}/archive; /admin/classes/{id}/restore | Chỉ Admin; archived chặn hoạt động chung mới, restore kiểm tra lại quyền hiện hành |
+| GET | /internal/v1/classes/{id}/access?user_id=&action= | Service credential scope core:check_access → quyết định quyền theo action/trường/lớp/trạng thái hiện hành |
 
-**PENDING DESIGN:** request/response schema, method/payload roster, idempotency bền vững, preview token, thời điểm chuyển lớp, API versioning, event contract. Không xem các route đề xuất là đã triển khai. Endpoint join-request/owner transfer cũ **SUPERSEDED/OUT OF MVP**; không xóa code hoặc migration lịch sử chỉ do thay đổi tài liệu.
+Các mutation quản trị quan trọng yêu cầu `X-Admin-Reason` là một trong `ADMIN_INTERVENTION`, `POLICY_VIOLATION`, `USER_REQUEST`; audit chỉ lưu reason_code hợp lệ, không lưu nguyên văn tự do. Roster và membership dùng constraint, version và transaction để chống trùng/mất lịch sử; HTTP Idempotency-Key vẫn dùng RAM một process theo phần Auth, không bảo đảm replay response qua restart. Chuyển lớp hiện có mốc hiệu lực khi transaction ghi dữ liệu; Learning xử lý attempt/bài nộp dở theo hợp đồng riêng chưa triển khai. School row được tạo từ school_id đã gán cho Admin; hệ thống không tự mapping trường cho user legacy.
+
+Access action hiện gồm `read_class_content`, `participate_current_class`, `moderate_class_content`, `manage_class_calendar`, `read_own_history`, `read_document_source`, `use_ai_tutor`, `grade_submitted_work`. Đọc lịch sử cá nhân không cấp quyền xem nội dung lớp mới hoặc mở nguồn bị thu hồi; consumer vẫn phải xác minh chủ tài nguyên/Document grant/Learning assignment. Action sai trả validation error; DB/service không xác minh được trả lỗi hạ tầng và consumer fail closed.
+
+**Còn chờ tích hợp:** import CSV/Excel, xử lý pending attempt theo Learning, Notification worker/recipient, policy retention, mapping School cho tài khoản cũ và bảo đảm idempotency bền vững nhiều worker. Những phần này chưa được tính là Core G2 hoàn tất.
 
 ## Feed / Comments / Calendar / Notifications — PROPOSED
 | Method | Endpoint | Quyền / Body |
@@ -66,7 +85,7 @@ Identity idempotency hiện dùng RAM một process, TTL 24 giờ; không bền 
 
 Các route Social/Notification ở bảng này chưa triển khai; payload/error/permission chi tiết cần review cùng TASK-009–012. Parent class/post/comment phải cùng scope, dữ liệu đã soft delete không lộ qua list/detail; archived từ chối hoạt động ghi chung. Deadline LEARNING chỉ đồng bộ qua integration, không chỉnh tại Core.
 
-## Admin / Internal — PROPOSED (Student implemented bên dưới)
+## Admin còn lại — PROPOSED (Student và Classroom đã triển khai ở mục riêng)
 | Method | Endpoint | Quyền / Body |
 |---|---|---|
 | POST | /admin/users | Admin {email,roles:ADMIN/LECTURER} → 201, gửi link đặt mật khẩu; Student dùng provisioning riêng |
@@ -75,9 +94,8 @@ Các route Social/Notification ở bảng này chưa triển khai; payload/error
 | GET | /admin/audit-events | Admin; paginated redacted audit |
 | GET/PATCH | /admin/data-requests/{id} | Admin; PATCH {status:IN_REVIEW/COMPLETED/REJECTED,resolution_note} |
 | GET | /admin/data-requests | Admin; paginated |
-| GET | /internal/v1/classes/{class_id}/access?user_id=&action= | Authenticated service scope core:check_access → {allowed,class_id,user_id,action} |
 
-Admin can thiệp lớp cần `X-Admin-Reason` và audit; không tự có quyền xem chat riêng tư. Common AuditMetadata hiện chỉ hỗ trợ allowlist/reason_code; cách lưu lý do tự do cần được thiết kế/redact ở TASK-013, không tự ghi nguyên header. Internal API không chấp nhận browser trực tiếp; fail closed.
+Admin can thiệp lớp có reason_code allowlist và audit theo mục Classroom; không tự có quyền xem chat riêng tư. Lý do tự do cho các workflow Administration khác vẫn cần thiết kế/redact ở TASK-013, không tự ghi nguyên header. Internal API không chấp nhận browser trực tiếp; fail closed.
 
 Credential nội bộ hiện dùng header `X-Service-Key` so với `INTERNAL_SERVICE_SECRET`, cấp scope `core:check_access`. Không dùng Bearer JWT của người dùng thay service credential; `user_id` chỉ được tin sau khi xác thực service, và endpoint vẫn phải kiểm tra quyền hiện hành/action.
 
@@ -88,7 +106,7 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 ## Validation / Contract tests
 - **IMPLEMENTED Identity:** email lowercase; username trim/lowercase, 1..200 ký tự, không whitespace hoặc @, unique toàn hệ thống; mật khẩu mới 12..128 ký tự. Student không cần email. Không expose hash; chỉ Admin nhận mã một lần trong response Student create/issue-code có `Cache-Control: no-store`. Post/comment 1..10000, title/name 1..200, starts_at < ends_at là contract các module tương ứng.
 - Test: unauthorized/cross-school/cross-class, LOCKED/ENDED/ARCHIVED, Admin-only mutations, AUTO/MANUAL concurrency, activation replay, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.
-- FastAPI sinh OpenAPI cho Identity auth/profile/data requests, với request/response/error schemas và snapshot trong test. Các bảng endpoint ngoài Identity vẫn là hợp đồng hành vi, chưa phải bằng chứng triển khai; CI chạy contract test cùng pytest.
+- FastAPI sinh OpenAPI cho Identity và Classroom đã triển khai; Identity có snapshot, Classroom có contract test kiểm tra Admin routes và không phơi bày luồng legacy. Social/Notification/Admin còn lại vẫn là PROPOSED; CI chạy test liên quan cùng pytest.
 
 ## Ghi chú tương thích — phạm vi Lumi THCS/THPT chính khóa
 Đối tượng: học sinh khối 6–12 trong lớp chính khóa. Giữ các enum/API role kỹ thuật `ADMIN`, `LECTURER`, `STUDENT` để tương thích code; UI hiển thị Quản trị viên/Giáo viên/Học sinh. Những route hiện được mô tả ở trên là **contract hiện hành hoặc dự kiến**, không phải toàn bộ đã triển khai.
@@ -100,11 +118,9 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 - Các API quản trị, dữ liệu cá nhân, điểm, quyền và audit tiếp tục phải tuân thủ Business Rules; không tự thêm role Phụ huynh/Admin theo trường.
 
 
-## API mục tiêu (PROPOSED, chưa triển khai)
+## API mục tiêu còn lại (PROPOSED, chưa triển khai)
 - `POST /admin/students/imports/preview` và `POST /admin/students/imports/confirm`: CSV/Excel, phát hiện trùng/lỗi, idempotency và audit; không trả mã kích hoạt trong log.
-- Nhóm homeroom/roster/classes/teaching-assignments theo mục Course / Class / Membership bên trên; chỉ Admin, ràng buộc school scope. Method/payload roster vẫn là đề xuất cần chốt, không có hai contract POST/PUT cùng được duyệt.
-- `POST /admin/classes/{id}/enrollment/preview`, `POST /admin/classes/{id}/enrollment/sync`, `PATCH /admin/classes/{id}/enrollment-mode`, `POST /admin/classes/{id}/members`, `DELETE /admin/classes/{id}/members/{student_id}`: chỉ Admin, đồng bộ AUTO/MANUAL, audit, giữ lịch sử; MANUAL→AUTO phải preview/confirm.
-- `POST /admin/classes/{id}/archive`, `POST /admin/classes/{id}/restore`: chỉ Admin.
+- Classroom routes và quyền đã triển khai theo mục Course / Class / Membership ở trên; các consumer Social/Document/AI/Learning phải dùng public/internal action check, không đọc repository Classroom.
 - Các route `/classes/join-requests*`, `/classes/{id}/co-lecturers/invitations*`, `/classes/{id}/ownership-transfer`, Lecturer `POST /classes`, Lecturer membership mutation, Owner archive/restore, public Student `/auth/register` là **legacy/ngoài phạm vi MVP**; không coi chúng là API được phép phát hành. Không xóa source/migration chỉ vì đổi contract.
 - Learning phải có quyền nháp → duyệt/công bố assessment, chấm được phân công → đề xuất/phê duyệt sửa điểm, attempt transfer cutoff; các service dùng access check theo hành động, không dựa độc nhất membership ACTIVE.
 - Kiểm thử: cross-school/cross-class, role Admin-only, Student no self-register/join, AUTO/MANUAL, idempotent bulk import, activation token expiry/replay, historical read vs source revoke, transfer attempt, grade approval/audit.

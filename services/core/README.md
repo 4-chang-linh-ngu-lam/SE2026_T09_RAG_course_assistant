@@ -10,7 +10,15 @@ Chuẩn bị môi trường theo `.env.example` tại root repo (chỉ mẫu loc
 
 Health contract: `/health/live` trả `{status:"live"}` (thay `{status:"ok"}` từ skeleton theo TASK-016); `/health/ready` trả `{status:"ready",db:"connected"}` khi kết nối và quyền USAGE schema `core` hợp lệ, ngược lại trả 503 error envelope. Liveness không phụ thuộc DB. Timeout kết nối/pool cấu hình bằng `DATABASE_CONNECT_TIMEOUT_SECONDS` và `DATABASE_POOL_TIMEOUT_SECONDS` (mặc định 3 giây).
 
-Common, Identity auth/profile/data requests và hai API Admin cấp tài khoản/mã Student đã triển khai. Classroom, Social, Notification và các API quản trị còn lại chưa triển khai. Migration 0001 khởi tạo baseline; 0002 tạo `core.audit_events`; 0003 tạo bốn bảng xác thực Identity; 0004 tạo `core.data_requests`; 0005 thêm CORRECTION; 0006 thêm username/school_id/activated_at và email nullable; 0007 thêm Student token purposes. Không dùng mật khẩu DB mặc định trong production.
+Common, Identity auth/profile/data requests, hai API Admin cấp tài khoản/mã Student và Classroom Admin/access API đã triển khai. Social, Notification worker và các API quản trị còn lại chưa triển khai. Migration 0001 khởi tạo baseline; 0002 tạo `core.audit_events`; 0003 tạo bốn bảng xác thực Identity; 0004 tạo `core.data_requests`; 0005 thêm CORRECTION; 0006 thêm username/school_id/activated_at và email nullable; 0007 thêm Student token purposes; 0008 tạo Classroom theo Lumi; 0009 tạo outbox. Không dùng mật khẩu DB mặc định trong production.
+
+## Classroom (TASK-005–008)
+
+- Admin cùng trường tạo môn, lớp hành chính, roster, lớp môn học và phân công PRIMARY/ASSISTING. Học sinh không tự join/leave; giáo viên không tự tạo lớp, mời/chuyển chủ hay sửa roster. API thực tế theo [Core API Contract](../../docs/architect/microservices-v1/core/API_CONTRACT.md).
+- `AUTO` đồng bộ membership từ roster; `MANUAL` do Admin quản lý. Đổi MANUAL→AUTO cần preview và xác nhận đúng `class_version`/`roster_version`, stale trả 409. Chuyển học sinh giữa lớp MANUAL hoặc giữa hai lớp hành chính cùng năm/khối ghi mốc UTC và giữ từng đợt membership; AUTO đi theo roster. Lớp ARCHIVED chỉ đọc hoạt động chung, quyền lịch sử cá nhân vẫn kiểm tra riêng.
+- School row chỉ được tạo từ `school_id` đã có trong Identity của Admin; không tự map user cũ thiếu trường. Backend kiểm tra role/status/trường hiện hành; các service khác dùng `classroom.public.check_class_action` hoặc internal API với `X-Service-Key` và scope `core:check_access`. Document/Learning/AI vẫn phải kiểm tra quyền nguồn, chủ dữ liệu lịch sử và phân công bài nộp tương ứng.
+- Mutation quản trị quan trọng yêu cầu `X-Admin-Reason` thuộc `ADMIN_INTERVENTION`, `POLICY_VIOLATION`, `USER_REQUEST`; audit ghi reason_code đã kiểm tra. Outbox ghi cùng transaction; notification worker chưa có. HTTP Idempotency-Key hiện dùng RAM một process, còn cần cơ chế bền vững nếu chạy nhiều worker. Import CSV/Excel, mapping School legacy và policy Learning đối với attempt dở chưa được hoàn tất.
+- Kiểm tra contract/unit: `pytest tests/classroom/test_contract.py -W error`. Integration cần `TEST_DATABASE_URL` trỏ đến PostgreSQL test riêng: `pytest tests/classroom/test_integration.py -W error`; thiếu DB thì test bị skip và không được tính là bằng chứng đã chạy.
 
 ## Common foundation (TASK-001)
 
