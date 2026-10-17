@@ -14,3 +14,7 @@ This file is a non-production test to verify whether Codex Automatic Review resp
 - [ ] Automatic Review is enabled for this repository.
 - [ ] A Codex review appears after a qualifying event.
 - [ ] The test pull request is closed without merging.
+
+## Push trigger
+
+This follow-up commit was pushed after opening the pull request to exercise the `On every push` trigger.
