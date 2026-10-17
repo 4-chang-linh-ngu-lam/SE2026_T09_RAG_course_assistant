@@ -14,7 +14,7 @@
 **Cần sửa/bổ sung:**
 - Phụ thuộc action policy TASK-008 và phân công PRIMARY/ASSISTING TASK-007; không suy quyền từ OWNER/CO_LECTURER legacy hoặc global LECTURER.
 - Mọi list/get/update/delete đều kiểm tra trường/lớp và quan hệ post–class; tác giả đã kết thúc ghi danh không giữ quyền sửa chỉ nhờ author_id. ARCHIVED chặn sửa/xóa hoạt động chung theo contract đã duyệt.
-- PostAuthorSummary không bắt buộc email vì Student email nullable; chỉ trả thông tin hiển thị cần thiết. DTO Identity hiện chưa có display_name, cần TV1 bổ sung public contract nếu cần, không query Identity model.
+- Identity public DTO đã có `display_name` nullable qua batch lookup; Social chỉ dùng `id` và tên hiển thị trong author response, không trả email/username đăng nhập và không query Identity model.
 - Chốt pagination trước code: Common hiện dùng cursor UUID, chưa hỗ trợ thứ tự created_at mới nhất. Nếu giữ yêu cầu mới nhất, thiết kế cursor/sort nhất quán và test không trùng/bỏ sót, không dùng cursor UUID với query created_at khác thứ tự.
 - Không mở quyền đọc toàn feed cũ bằng read_own_history; ngoại lệ lịch sử cá nhân không phải quyền xem nội dung mới của lớp. Soft delete ẩn cả list/detail; notification qua outbox và moderation audit tối thiểu.
 
@@ -45,7 +45,7 @@ Xây dựng bảng trong schema `core`:
 ### 2.2. `schemas.py`
 - `PostCreateRequest`: `body: str`
 - `PostUpdateRequest`: `body: str`
-- `PostAuthorSummary`: `id: UUID`, `display_name: Optional[str]`, `email: Optional[str]` (chỉ trả khi contract cho phép)
+- `PostAuthorSummary`: `id: UUID`, `display_name: Optional[str]`; không trả email/username đăng nhập
 - `PostResponse`: `id: UUID`, `class_id: UUID`, `author: PostAuthorSummary`, `body: str`, `created_at: datetime`, `updated_at: datetime`
 - `PostListResponse`: `items: list[PostResponse]`, `next_cursor: Optional[str]`
 

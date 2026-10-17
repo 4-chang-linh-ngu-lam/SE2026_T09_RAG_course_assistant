@@ -35,9 +35,9 @@ class IdentityRepository:
         if not user_ids:
             return {}
         rows = self.session.execute(
-            select(User.id, User.email, User.username, User.school_id, User.status).where(
-                User.id.in_(user_ids)
-            )
+            select(
+                User.id, User.email, User.username, User.school_id, User.display_name, User.status
+            ).where(User.id.in_(user_ids))
         ).all()
         return {
             row.id: UserSummaryDTO(
@@ -45,6 +45,7 @@ class IdentityRepository:
                 email=row.email,
                 username=row.username,
                 school_id=row.school_id,
+                display_name=row.display_name,
                 status=row.status,
             )
             for row in rows

@@ -448,6 +448,8 @@ def test_public_batch_fetch_reads_one_query_without_hashes(identity, engine):
     _, first = register()
     _, second = register(active=False)
     ids = [first.response.user_id, second.response.user_id]
+    session.get(User, ids[0]).display_name = "Student One"
+    session.flush()
     queries = []
 
     def capture(connection, cursor, statement, parameters, context, executemany):
@@ -460,6 +462,8 @@ def test_public_batch_fetch_reads_one_query_without_hashes(identity, engine):
         event.remove(engine, "before_cursor_execute", capture)
     assert set(summaries) == set(ids)
     assert len(queries) == 1 and "password_hash" not in queries[0]
+    assert summaries[ids[0]].display_name == "Student One"
+    assert summaries[ids[1]].display_name is None
     assert summaries[ids[1]].status == "PENDING_VERIFICATION"
     assert public.get_users_summaries([], session=session) == {}
     assert public.verify_user_active(ids[0], session=session)

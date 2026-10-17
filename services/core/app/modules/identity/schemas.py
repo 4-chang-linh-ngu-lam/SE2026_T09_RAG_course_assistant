@@ -159,6 +159,7 @@ class UserSummaryDTO(BaseModel):
     email: EmailStr | None
     username: str | None = None
     school_id: UUID | None = None
+    display_name: str | None = None
     status: Literal["PENDING_VERIFICATION", "ACTIVE", "LOCKED"]
 
 
