@@ -22,7 +22,7 @@ Lumi phục vụ một trường THCS/THPT, khối 6–12. Giữ ba role ADMIN/L
 | TV4 | Notification, Administration, tích hợp/audit, migration/Compose/CI | Các owner domain; không sở hữu thay user/roster |
 | Chưa phân công cụ thể | Document, AI, Learning, Learner Intelligence | Chốt owner trước triển khai từng giai đoạn |
 
-Repo có Common, Identity, health, migration 0001–0007 và Compose/CI. Classroom/Social/Notification/Administration mới có skeleton, trừ hai API Student do Identity đang phục vụ. Bốn service sau Core chưa có triển khai; apps/web hiện là skeleton. UI demo riêng bị gitignore không phải Web nghiệp vụ đã nghiệm thu.
+Repo có Common, Identity, Classroom Admin/access API, health, migration 0001–0009 và Compose/CI. Social/Notification worker/Administration mới có skeleton, trừ hai API Student do Identity đang phục vụ. Bốn service sau Core chưa có triển khai; apps/web hiện là skeleton. UI demo riêng bị gitignore không phải Web nghiệp vụ đã nghiệm thu. Classroom còn cần kiểm chứng PostgreSQL/CI và tích hợp consumer trước khi đóng G2.
 
 ## 3. Ma trận 20 task và phần cần đồng bộ
 
@@ -32,10 +32,10 @@ Repo có Common, Identity, health, migration 0001–0007 và Compose/CI. Classro
 | [002 Identity core](TASK-002-identity-auth-core.md) · G1 | Có Student activation/recovery, staff email; tích hợp mapping legacy, giữ flow đã kiểm thử | 004/005/013/014; TV1/TV2/TV4 |
 | [003 Identity HTTP](TASK-003-identity-api-router.md) · G1 | Có auth/profile/Student API/OpenAPI; giữ register 403, no-store code, tránh trùng Admin routes | 002/004/013/016; TV1/TV4 |
 | [004 Identity public/data requests](TASK-004-identity-public-interface.md) · G1 | Có DTO/helpers và 4 loại yêu cầu; bổ sung public operations cho Admin resolution/role/hiển thị khi chốt contract | 002/013; TV1/TV4 |
-| [005 Classroom schema](TASK-005-classroom-models-schema.md) · G1 | Thiết kế School/roster/SubjectClass/AUTO-MANUAL/TeachingAssignment, thay schema join/invitation | 004, Core Design; TV2/TV1/TV4 |
-| [006 Enrollment/transfer](TASK-006-classroom-membership-flow.md) · G1 | Thay join approval/self-leave bằng Admin sync, preview/confirm, chuyển lớp giữ lịch sử | 005, contract 008/012/013; TV2/TV4 |
-| [007 Lifecycle/phân công](TASK-007-classroom-lifecycle-colecturer.md) · G1 | Admin phân công PRIMARY/ASSISTING, thay giáo viên chính, archive/restore | 005/006, policy 008; TV2/TV1 |
-| [008 Classroom public/internal](TASK-008-classroom-public-interface.md) · G1 | Action access, lịch sử cá nhân, school scope; dùng X-Service-Key đã có | 001/004 và thiết kế 005–007; TV2 + consumers |
+| [005 Classroom schema](TASK-005-classroom-models-schema.md) · G1 | Có migration 0008 School/roster/SubjectClass/AUTO-MANUAL/TeachingAssignment; còn mapping trường cho user cũ | 004/014; TV2/TV1/TV4 |
+| [006 Enrollment/transfer](TASK-006-classroom-membership-flow.md) · G1 | Có Admin sync, preview/version confirm, MANUAL và chuyển homeroom/MANUAL giữ lịch sử; Learning attempt policy còn pending | 005/008/012/019; TV2/TV4 |
+| [007 Lifecycle/phân công](TASK-007-classroom-lifecycle-colecturer.md) · G1 | Có Admin PRIMARY/ASSISTING, thay giáo viên chính, archive/restore; consumer Learning approval còn pending | 005/006/008/019; TV2/TV1 |
+| [008 Classroom public/internal](TASK-008-classroom-public-interface.md) · G1 | Có action access, lịch sử cá nhân, school scope và X-Service-Key; consumer grant/grade cần tích hợp | 001/004/005–007; TV2 + consumers |
 | [009 Feed](TASK-009-social-feed.md) · G1 | Quyền hiện hành, author DTO không buộc email, chốt sort/cursor và parent scope | 004/005/007/008/012; TV3/TV1/TV2 |
 | [010 Comments](TASK-010-social-comments.md) · G1 | Body 1..10.000, class/post/comment checks, Feed public và moderation/outbox | 008/009/012; TV3/TV2/TV4 |
 | [011 Calendar](TASK-011-social-calendar.md) · G1 | PRIMARY/ASSISTING, starts_at < ends_at; Core event và Learning projection riêng | 007/008/012; contract 019 khi tích hợp |

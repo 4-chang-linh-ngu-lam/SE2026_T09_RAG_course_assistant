@@ -1,630 +1,571 @@
-import hashlib
-import secrets
-from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
 
 from app.common.audit import AuditMetadata, record_audit
-from app.common.auth_dependencies import CurrentUser
+from app.common.auth_dependencies import CurrentUser, require_school_scope
 from app.common.db import transaction
 from app.common.errors import AppError
 from app.common.outbox import record_outbox_event
 from app.common.pagination import Page, Pagination, encode_cursor
 from app.modules.classroom.models import (
-    Class,
     ClassMembership,
-    ClassRole,
     ClassStatus,
-    CoLecturerInvitation,
-    CoLecturerInvitationStatus,
     Course,
-    JoinRequest,
-    JoinRequestStatus,
+    EnrollmentMode,
+    HomeroomClass,
+    HomeroomRoster,
     MembershipStatus,
+    SubjectClass,
+    TeachingAssignment,
+    TeachingRole,
 )
-from app.modules.classroom.permissions import is_admin, require_class_lecturer, require_class_role
+from app.modules.classroom.permissions import require_admin, require_class_read
 from app.modules.classroom.repository import ClassroomRepository
 from app.modules.classroom.schemas import (
     ClassCreateRequest,
     ClassResponse,
-    ClassUpdateRequest,
-    CoLecturerInvitationResponse,
-    CoLecturerInviteRequest,
     CourseCreateRequest,
     CourseResponse,
-    JoinRequestCreatedResponse,
-    JoinRequestResponse,
+    EnrollmentModeRequest,
+    EnrollmentPreviewResponse,
+    HomeroomCreateRequest,
+    HomeroomResponse,
     MembershipResponse,
-    OwnershipTransferRequest,
+    RosterResponse,
+    TeachingAssignmentResponse,
+    TeachingAssignmentsRequest,
 )
-from app.modules.identity.public import check_user_is_lecturer
-
-_JOIN_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-_JOIN_CODE_LENGTH = 8
-_CO_LECTURER_INVITATION_TTL = timedelta(days=7)
+from app.modules.identity.public import get_user_roles, get_user_summary
 
 
-def generate_join_code() -> str:
-    """Crockford-like alphabet (no I/O/0/1) so codes survive transcription."""
-    return "".join(secrets.choice(_JOIN_CODE_ALPHABET) for _ in range(_JOIN_CODE_LENGTH))
-
-
-def hash_join_code(code: str) -> str:
-    """SHA-256 of the uppercased code; the raw code is never persisted."""
-    normalized = code.strip().upper()
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
-
-def _utcnow() -> datetime:
+def _now() -> datetime:
     return datetime.now(UTC)
 
 
-class ClassroomService:
-    """Business rules commit per unit of work; Admin-intervention paths audit with reason."""
+def _page(rows, limit, schema):
+    items = [schema.model_validate(row) for row in rows[:limit]]
+    return Page[schema](
+        items=items,
+        next_cursor=encode_cursor(rows[limit - 1].id) if len(rows) > limit else None,
+    )
 
-    def __init__(self, session, correlation_id: UUID | None = None):
+
+class ClassroomService:
+    def __init__(
+        self,
+        session,
+        correlation_id: UUID | None = None,
+        reason_code: str = "ADMIN_INTERVENTION",
+        reason_supplied: bool = False,
+    ):
         self.session = session
         self.repository = ClassroomRepository(session)
-        # Injected from X-Correlation-ID by the router; None in direct unit use.
-        self.correlation_id = correlation_id
+        self.correlation_id = correlation_id or uuid4()
+        self.reason_code = reason_code
+        self.reason_supplied = reason_supplied
 
-    # -- Course ----------------------------------------------------------------
-
-    def create_course(self, user: CurrentUser, request: CourseCreateRequest) -> CourseResponse:
-        """Creates a catalog course; LECTURER or ADMIN (409 on duplicate code)."""
-        if not (check_user_is_lecturer(user.id, session=self.session) or is_admin(user)):
-            raise AppError(403)
-        with transaction(self.session):
-            if self.repository.get_course_by_code(request.code) is not None:
-                raise AppError(409, "Course code already exists")
-            try:
-                course = self.repository.create_course(
-                    Course(code=request.code, name=request.name, description=request.description)
-                )
-            except IntegrityError as exc:
-                if _constraint(exc) == "courses_code_key":
-                    raise AppError(409, "Course code already exists") from exc
-                raise
-            return CourseResponse.model_validate(course)
-
-    def list_courses(self, pagination: Pagination) -> Page[CourseResponse]:
-        rows = self.repository.list_courses(pagination.limit, pagination.cursor)
-        return _page(rows, pagination.limit, CourseResponse)
-
-    # -- Class -------------------------------------------------------------------
-
-    def create_class(
-        self, user: CurrentUser, request: ClassCreateRequest
-    ) -> tuple[ClassResponse, str]:
-        """Returns the response plus the raw join code; the code is shown once.
-
-        Rule: only LECTURER-role users open classes; admin intervention uses
-        dedicated lifecycle endpoints, not class creation.
-        """
-        if not check_user_is_lecturer(user.id, session=self.session):
-            raise AppError(403)
-        with transaction(self.session):
-            if self.repository.get_course_by_id(request.course_id) is None:
-                raise AppError(404, "Course not found")
-            join_code = generate_join_code()
-            klass = Class(
-                course_id=request.course_id,
-                owner_user_id=user.id,
-                name=request.name,
-                join_code_hash=hash_join_code(join_code),
-            )
-            try:
-                created = self.repository.create_class(klass)
-            except IntegrityError as exc:
-                # Collisions are astronomically unlikely; one regenerate suffices,
-                # and a repeat collision means the store is unhealthy.
-                if _constraint(exc) == "classes_join_code_hash_key":
-                    raise AppError(503, "Join code generation unavailable") from exc
-                raise
-            membership = ClassMembership(
-                class_id=created.id,
-                user_id=user.id,
-                class_role=ClassRole.OWNER,
-                status=MembershipStatus.ACTIVE,
-            )
-            self.repository.create_membership(membership)
-            return ClassResponse.model_validate(created), join_code
-
-    def list_my_classes(self, user: CurrentUser, pagination: Pagination) -> Page[ClassResponse]:
-        rows = self.repository.list_classes_for_user(user.id, pagination.limit, pagination.cursor)
-        return _page(rows, pagination.limit, ClassResponse)
-
-    def get_class(self, class_id: UUID, user: CurrentUser) -> ClassResponse:
-        """Any ACTIVE member (or admin) may view the class; others get 404."""
-        klass = self.repository.get_class_by_id(class_id)
-        if klass is None:
-            raise AppError(404)
-        require_class_role(self.session, class_id, user, set(ClassRole), admin_intervenes=True)
-        return ClassResponse.model_validate(klass)
-
-    def update_class(
-        self, class_id: UUID, user: CurrentUser, request: ClassUpdateRequest
-    ) -> ClassResponse:
-        """Owner renames or toggles join_enabled; archived classes reject writes."""
-        require_class_role(self.session, class_id, user, {ClassRole.OWNER}, admin_intervenes=True)
-        with transaction(self.session):
-            klass = self.repository.get_class_by_id(class_id, for_update=True)
-            if klass is None:
-                raise AppError(404)
-            if klass.status == ClassStatus.ARCHIVED:
-                # Archived classes are read-only, even for the owner (Rule F5).
-                raise AppError(400, "Archived classes are read-only")
-            if request.name is not None:
-                klass.name = request.name
-            if request.join_enabled is not None:
-                klass.join_enabled = request.join_enabled
-            return ClassResponse.model_validate(klass)
-
-    # -- Join requests -------------------------------------------------------------
-
-    def create_join_request(self, user: CurrentUser, join_code: str) -> JoinRequestCreatedResponse:
-        """Student redeems a join code; REMOVED members must be re-invited first (Rule L2)."""
-        with transaction(self.session):
-            klass = self.repository.find_class_by_join_code_hash(hash_join_code(join_code))
-            if klass is None or klass.status != ClassStatus.ACTIVE:
-                # Same answer for wrong code and archived class; codes are secrets.
-                raise AppError(404, "Invalid join code")
-            if not klass.join_enabled:
-                raise AppError(400, "This class is not accepting join requests")
-            membership = self.repository.get_active_membership(klass.id, user.id)
-            if membership is not None:
-                raise AppError(409, "Already a member of this class")
-            previous = self.repository.get_membership(klass.id, user.id)
-            if previous is not None and previous.status == MembershipStatus.REMOVED:
-                raise AppError(403, "A lecturer must re-invite you before rejoining")
-            if self.repository.get_pending_join_request(klass.id, user.id) is not None:
-                raise AppError(409, "A join request is already pending")
-            try:
-                join_request = self.repository.create_join_request(
-                    JoinRequest(class_id=klass.id, student_id=user.id)
-                )
-            except IntegrityError as exc:
-                if _constraint(exc) == "ix_core_join_requests_pending":
-                    raise AppError(409, "A join request is already pending") from exc
-                raise
-            # TASK-006 line 28: notify lecturers via the transactional outbox.
-            self._record_event(
-                "JOIN_REQUEST_SUBMITTED",
-                aggregate_id=klass.id,
-                payload_json={
-                    "class_id": str(klass.id),
-                    "request_id": str(join_request.id),
-                    "student_id": str(user.id),
-                },
-            )
-            return JoinRequestCreatedResponse(
-                request_id=join_request.id, class_id=klass.id, status=join_request.status
-            )
-
-    def list_join_requests(
-        self,
-        class_id: UUID,
-        user: CurrentUser,
-        pagination: Pagination,
-        *,
-        pending_only: bool = False,
-    ) -> Page[JoinRequestResponse]:
-        """Lecturer view; pending_only=True narrows to the PENDING approval queue."""
-        require_class_lecturer(self.session, class_id, user)
-        rows = self.repository.list_join_requests(
-            class_id, pagination.limit, pagination.cursor, pending_only=pending_only
-        )
-        return _page(rows, pagination.limit, JoinRequestResponse)
-
-    def _decide_join_request(
-        self,
-        request_id: UUID,
-        actor: CurrentUser,
-        target: JoinRequestStatus,
-        *,
-        class_id: UUID | None = None,
-    ) -> JoinRequestResponse | MembershipResponse:
-        """Shared approve/reject/cancel path; the URL class_id must match the row."""
-        with transaction(self.session):
-            join_request = self.repository.get_join_request(request_id, for_update=True)
-            if join_request is None:
-                raise AppError(404)
-            # The URL class_id must match the row; a wrong path never mutates.
-            if class_id is not None and join_request.class_id != class_id:
-                raise AppError(404)
-            resolved_class_id = join_request.class_id
-            if target is JoinRequestStatus.CANCELLED:
-                if join_request.student_id != actor.id:
-                    raise AppError(403, "Only the requester can cancel")
-            else:
-                require_class_lecturer(self.session, resolved_class_id, actor)
-            if join_request.status == target and target is JoinRequestStatus.APPROVED:
-                existing = self.repository.get_active_membership(
-                    resolved_class_id, join_request.student_id
-                )
-                if existing is not None:
-                    return MembershipResponse.model_validate(existing)
-            if join_request.status != JoinRequestStatus.PENDING:
-                raise AppError(409, "Join request is no longer pending")
-            klass = self.repository.get_class_by_id(resolved_class_id, for_update=True)
-            if klass is None or klass.status != ClassStatus.ACTIVE:
-                raise AppError(400, "Class is not active")
-            join_request.status = target
-            join_request.decided_by = actor.id
-            join_request.decided_at = _utcnow()
-            if target is JoinRequestStatus.APPROVED:
-                membership = ClassMembership(
-                    class_id=resolved_class_id,
-                    user_id=join_request.student_id,
-                    class_role=ClassRole.STUDENT,
-                    status=MembershipStatus.ACTIVE,
-                )
-                try:
-                    created = self.repository.create_membership(membership)
-                except IntegrityError as exc:
-                    if _constraint(exc) == "ix_core_class_memberships_active":
-                        raise AppError(409, "Already a member of this class") from exc
-                    raise
-                # TASK-006 line 35: approval notifies the student via the outbox.
-                self._record_event(
-                    "JOIN_REQUEST_APPROVED",
-                    aggregate_id=resolved_class_id,
-                    payload_json={
-                        "class_id": str(resolved_class_id),
-                        "request_id": str(join_request.id),
-                        "student_id": str(join_request.student_id),
-                        "decided_by": str(actor.id),
-                    },
-                )
-                return MembershipResponse.model_validate(created)
-            return JoinRequestResponse.model_validate(join_request)
-
-    def approve_join_request(
-        self, class_id: UUID, request_id: UUID, user: CurrentUser
-    ) -> JoinRequestResponse | MembershipResponse:
-        return self._decide_join_request(
-            request_id, user, JoinRequestStatus.APPROVED, class_id=class_id
-        )
-
-    def reject_join_request(
-        self, class_id: UUID, request_id: UUID, user: CurrentUser
-    ) -> JoinRequestResponse | MembershipResponse:
-        return self._decide_join_request(
-            request_id, user, JoinRequestStatus.REJECTED, class_id=class_id
-        )
-
-    def cancel_join_request(
-        self, class_id: UUID, request_id: UUID, user: CurrentUser
-    ) -> JoinRequestResponse | MembershipResponse:
-        return self._decide_join_request(
-            request_id, user, JoinRequestStatus.CANCELLED, class_id=class_id
-        )
-
-    def readmit_student(
-        self, class_id: UUID, member_user_id: UUID, user: CurrentUser
-    ) -> MembershipResponse:
-        """Re-activate a REMOVED membership so the student can rejoin (Rules A1/L2)."""
-        with transaction(self.session):
-            require_class_role(
-                self.session,
-                class_id,
-                user,
-                {ClassRole.OWNER, ClassRole.CO_LECTURER},
-                admin_intervenes=True,
-            )
-            membership = self.repository.get_membership(class_id, member_user_id, for_update=True)
-            if membership is None:
-                raise AppError(404)
-            if membership.status == MembershipStatus.ACTIVE:
-                raise AppError(409, "Already a member of this class")
-            if membership.status != MembershipStatus.REMOVED:
-                raise AppError(404)  # LEFT members simply rejoin via join code.
-            klass = self.repository.get_class_by_id(class_id, for_update=True)
-            if klass is None or klass.status != ClassStatus.ACTIVE:
-                raise AppError(400, "Class is not active")
-            if self.repository.get_active_membership(class_id, member_user_id) is not None:
-                raise AppError(409, "Already a member of this class")
-            membership.status = MembershipStatus.ACTIVE
-            membership.ended_at = None
-            return MembershipResponse.model_validate(membership)
-
-    # -- Membership -------------------------------------------------------------------
-
-    def list_members(
-        self, class_id: UUID, user: CurrentUser, pagination: Pagination
-    ) -> Page[MembershipResponse]:
-        """Roster of ACTIVE members; any class member may view it."""
-        require_class_role(self.session, class_id, user, set(ClassRole), admin_intervenes=True)
-        rows = self.repository.list_active_members(class_id, pagination.limit, pagination.cursor)
-        return _page(rows, pagination.limit, MembershipResponse)
-
-    def leave_class(self, class_id: UUID, user: CurrentUser) -> None:
-        """Self-leave marks the membership LEFT; the owner must transfer first."""
-        with transaction(self.session):
-            membership = self.repository.get_membership(class_id, user.id, for_update=True)
-            active = (
-                membership
-                if membership is not None and membership.status == MembershipStatus.ACTIVE
-                else None
-            )
-            if active is None:
-                raise AppError(404)
-            klass = self.repository.get_class_by_id(class_id, for_update=True)
-            if klass is not None and klass.status == ClassStatus.ARCHIVED:
-                raise AppError(400, "Archived classes are read-only")
-            if active.class_role == ClassRole.OWNER:
-                raise AppError(400, "Transfer ownership before leaving the class")
-            active.status = MembershipStatus.LEFT
-            active.ended_at = _utcnow()
-
-    def remove_member(self, class_id: UUID, member_user_id: UUID, user: CurrentUser) -> None:
-        """Lecturer marks a student REMOVED; re-entry then requires re-admission."""
-        with transaction(self.session):
-            require_class_role(
-                self.session,
-                class_id,
-                user,
-                {ClassRole.OWNER, ClassRole.CO_LECTURER},
-                admin_intervenes=True,
-            )
-            klass = self.repository.get_class_by_id(class_id, for_update=True)
-            if klass is None:
-                raise AppError(404)
-            if klass.status == ClassStatus.ARCHIVED:
-                raise AppError(400, "Archived classes are read-only")
-            membership = self.repository.get_membership(class_id, member_user_id, for_update=True)
-            if membership is None or membership.status != MembershipStatus.ACTIVE:
-                raise AppError(404)
-            if membership.class_role == ClassRole.OWNER:
-                raise AppError(400, "The owner cannot be removed")
-            membership.status = MembershipStatus.REMOVED
-            membership.ended_at = _utcnow()
-
-    # -- Co-lecturer ------------------------------------------------------------------
-
-    def invite_co_lecturer(
-        self, class_id: UUID, user: CurrentUser, request: CoLecturerInviteRequest
-    ) -> CoLecturerInvitationResponse:
-        """Owner invites a system lecturer; one PENDING per pair, 7-day TTL."""
-        with transaction(self.session):
-            require_class_role(
-                self.session, class_id, user, {ClassRole.OWNER}, admin_intervenes=True
-            )
-            if not check_user_is_lecturer(request.lecturer_id, session=self.session):
-                raise AppError(400, "Invitee must be an active system lecturer")
-            membership = self.repository.get_active_membership(class_id, request.lecturer_id)
-            if membership is not None:
-                raise AppError(409, "User already belongs to this class")
-            klass = self.repository.get_class_by_id(class_id)
-            if klass is None or klass.status != ClassStatus.ACTIVE:
-                raise AppError(400, "Class is not active")
-            invitation = CoLecturerInvitation(
-                class_id=class_id,
-                lecturer_id=request.lecturer_id,
-                expires_at=_utcnow() + _CO_LECTURER_INVITATION_TTL,
-            )
-            try:
-                # Savepoint: the failed insert must not abort the surrounding transaction.
-                with self.session.begin_nested():
-                    created = self.repository.create_co_lecturer_invitation(invitation)
-            except IntegrityError as exc:
-                # A stale PENDING row (expired but never answered) must not block
-                # re-inviting: retire it and insert the fresh invitation.
-                if _constraint(exc) == "ix_core_co_lecturer_invitations_pending":
-                    stale = self.repository.get_pending_invitation(
-                        class_id, request.lecturer_id, for_update=True
-                    )
-                    if stale is not None and stale.expires_at <= _utcnow():
-                        stale.status = CoLecturerInvitationStatus.CANCELLED
-                        self.session.flush()
-                        try:
-                            with self.session.begin_nested():
-                                created = self.repository.create_co_lecturer_invitation(invitation)
-                        except IntegrityError:
-                            raise AppError(409, "An invitation is already pending") from None
-                    else:
-                        raise AppError(409, "An invitation is already pending") from exc
-                else:
-                    raise
-            return CoLecturerInvitationResponse.model_validate(created)
-
-    def accept_co_lecturer_invitation(
-        self, class_id: UUID, invitation_id: UUID, user: CurrentUser
-    ) -> CoLecturerInvitationResponse:
-        """Invitee accepts; an existing ACTIVE member is upgraded to CO_LECTURER in place."""
-        with transaction(self.session):
-            invitation = self.repository.get_co_lecturer_invitation(invitation_id, for_update=True)
-            if invitation is None or invitation.class_id != class_id:
-                raise AppError(404)
-            if invitation.lecturer_id != user.id:
-                raise AppError(403, "Only the invitee can accept")
-            if invitation.status == CoLecturerInvitationStatus.ACCEPTED:
-                return CoLecturerInvitationResponse.model_validate(invitation)
-            if (
-                invitation.status != CoLecturerInvitationStatus.PENDING
-                or invitation.expires_at <= _utcnow()
-            ):
-                raise AppError(409, "Invitation is no longer valid")
-            klass = self.repository.get_class_by_id(class_id, for_update=True)
-            if klass is None or klass.status != ClassStatus.ACTIVE:
-                raise AppError(400, "Class is not active")
-            invitation.status = CoLecturerInvitationStatus.ACCEPTED
-            previous = self.repository.get_membership(class_id, user.id)
-            if previous is not None and previous.status == MembershipStatus.ACTIVE:
-                previous.class_role = ClassRole.CO_LECTURER
-            else:
-                try:
-                    self.repository.create_membership(
-                        ClassMembership(
-                            class_id=class_id,
-                            user_id=user.id,
-                            class_role=ClassRole.CO_LECTURER,
-                            status=MembershipStatus.ACTIVE,
-                        )
-                    )
-                except IntegrityError as exc:
-                    # Concurrent accept/invite raced the partial unique index.
-                    if _constraint(exc) == "ix_core_class_memberships_active":
-                        raise AppError(409, "User already belongs to this class") from exc
-                    raise
-            return CoLecturerInvitationResponse.model_validate(invitation)
-
-    def reject_co_lecturer_invitation(
-        self, class_id: UUID, invitation_id: UUID, user: CurrentUser
-    ) -> CoLecturerInvitationResponse:
-        """Invitee rejects a PENDING invitation; other states return unchanged."""
-        with transaction(self.session):
-            invitation = self.repository.get_co_lecturer_invitation(invitation_id, for_update=True)
-            if invitation is None or invitation.class_id != class_id:
-                raise AppError(404)
-            if invitation.lecturer_id != user.id:
-                raise AppError(403, "Only the invitee can reject")
-            if invitation.status == CoLecturerInvitationStatus.PENDING:
-                invitation.status = CoLecturerInvitationStatus.REJECTED
-            return CoLecturerInvitationResponse.model_validate(invitation)
-
-    def cancel_co_lecturer_invitation(
-        self, class_id: UUID, invitation_id: UUID, user: CurrentUser
-    ) -> CoLecturerInvitationResponse:
-        """Owner withdraws a pending invitation (reaches the CANCELLED state)."""
-        with transaction(self.session):
-            require_class_role(
-                self.session, class_id, user, {ClassRole.OWNER}, admin_intervenes=True
-            )
-            invitation = self.repository.get_co_lecturer_invitation(invitation_id, for_update=True)
-            if invitation is None or invitation.class_id != class_id:
-                raise AppError(404)
-            if invitation.status == CoLecturerInvitationStatus.CANCELLED:
-                return CoLecturerInvitationResponse.model_validate(invitation)
-            if invitation.status != CoLecturerInvitationStatus.PENDING:
-                raise AppError(409, "Invitation is no longer pending")
-            invitation.status = CoLecturerInvitationStatus.CANCELLED
-            return CoLecturerInvitationResponse.model_validate(invitation)
-
-    # -- Lifecycle / ownership --------------------------------------------------------
-
-    def archive_class(self, class_id: UUID, user: CurrentUser) -> ClassResponse:
-        return self._set_class_status(class_id, user, ClassStatus.ARCHIVED)
-
-    def restore_class(self, class_id: UUID, user: CurrentUser) -> ClassResponse:
-        return self._set_class_status(class_id, user, ClassStatus.ACTIVE)
-
-    def _set_class_status(self, class_id: UUID, user: CurrentUser, status: ClassStatus):
-        """Idempotent archive/restore; audits only when the status actually changes."""
-        require_class_role(self.session, class_id, user, {ClassRole.OWNER}, admin_intervenes=True)
-        with transaction(self.session):
-            klass = self.repository.get_class_by_id(class_id, for_update=True)
-            if klass is None:
-                raise AppError(404)
-            if klass.status != status:
-                previous = klass.status.value
-                klass.status = status
-                self._record_status_audit(
-                    class_id,
-                    actor_id=user.id,
-                    admin_reason=is_admin(user),
-                    previous_status=previous,
-                    new_status=status.value,
-                )
-            return ClassResponse.model_validate(klass)
-
-    def transfer_ownership(
-        self, class_id: UUID, user: CurrentUser, request: OwnershipTransferRequest
-    ) -> ClassResponse:
-        """Hands OWNER to an active CO_LECTURER (old owner becomes co-lecturer); audited."""
-        with transaction(self.session):
-            klass = self.repository.get_class_by_id(class_id, for_update=True)
-            if klass is None:
-                raise AppError(404)
-            if klass.status == ClassStatus.ARCHIVED:
-                raise AppError(400, "Archived classes are read-only")
-            require_class_role(
-                self.session, class_id, user, {ClassRole.OWNER}, admin_intervenes=True
-            )
-            new_membership = self.repository.get_active_membership(
-                class_id, request.new_owner_user_id
-            )
-            if new_membership is None or new_membership.class_role != ClassRole.CO_LECTURER:
-                raise AppError(400, "New owner must be an active co-lecturer of this class")
-            if request.new_owner_user_id == user.id and not is_admin(user):
-                raise AppError(400, "You already own this class")
-            old_owner_id = klass.owner_user_id
-            klass.owner_user_id = request.new_owner_user_id
-            old_membership = self.repository.get_active_membership(class_id, old_owner_id)
-            if old_membership is not None:
-                old_membership.class_role = ClassRole.CO_LECTURER
-            new_membership.class_role = ClassRole.OWNER
-            # TASK-007: ownership transfer is audited.
-            self._record_event_audit(
-                class_id,
-                action="ADMIN_OWNERSHIP_TRANSFER" if is_admin(user) else "OWNERSHIP_TRANSFER",
-                actor_id=user.id,
-                metadata_json=AuditMetadata(
-                    changed_fields=["owner_user_id"],
-                    previous_status=klass.status.value,
-                    new_status=klass.status.value,
-                    reason_code="ADMIN_INTERVENTION" if is_admin(user) else "USER_REQUEST",
-                ),
-            )
-            return ClassResponse.model_validate(klass)
-
-    # -- Cross-cutting helpers ----------------------------------------------------------
-
-    def _record_event(self, event_type: str, *, aggregate_id: UUID, payload_json: dict) -> None:
-        record_outbox_event(
-            self.session,
-            event_type=event_type,
-            aggregate_id=aggregate_id,
-            payload_json=payload_json,
-        )
-
-    def _record_status_audit(
-        self,
-        class_id: UUID,
-        *,
-        actor_id: UUID,
-        admin_reason: bool,
-        previous_status: str,
-        new_status: str,
-        changed_fields: list[str] | None = None,
+    def _audit(
+        self, actor_id: UUID, action: str, target_id: UUID, *, target_type: str = "CLASS"
     ) -> None:
-        fields = changed_fields if changed_fields is not None else ["status"]
-        self._record_event_audit(
-            class_id,
-            action="ADMIN_CLASS_STATUS" if admin_reason else "CLASS_STATUS",
-            actor_id=actor_id,
-            metadata_json=AuditMetadata(
-                changed_fields=fields,
-                previous_status=previous_status,
-                new_status=new_status,
-                reason_code="ADMIN_INTERVENTION" if admin_reason else "USER_REQUEST",
-            ),
-        )
-
-    def _record_event_audit(
-        self, class_id: UUID, *, action: str, actor_id: UUID, metadata_json: AuditMetadata
-    ) -> None:
-        if self.correlation_id is None:
-            return  # No request context (scripts/tests); nothing audit-safe to record.
         record_audit(
             self.session,
             actor_id=actor_id,
             action=action,
-            target_type="CLASS",
-            target_id=class_id,
+            target_type=target_type,
+            target_id=target_id,
             correlation_id=self.correlation_id,
-            metadata_json=metadata_json,
+            metadata_json=AuditMetadata(reason_code=self.reason_code),
         )
 
+    def _event(self, event_type: str, class_id: UUID, **payload) -> None:
+        record_outbox_event(
+            self.session,
+            event_type=event_type,
+            aggregate_id=class_id,
+            payload_json={
+                "class_id": str(class_id),
+                **{k: str(v) if isinstance(v, (UUID, datetime)) else v for k, v in payload.items()},
+            },
+        )
 
-def _constraint(exc: IntegrityError) -> str | None:
-    """Constraint name of the wrapped PG error, used to dispatch IntegrityError."""
-    return getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    def _class_for_admin(
+        self, class_id: UUID, actor: CurrentUser, *, for_update: bool = False
+    ) -> SubjectClass:
+        school_id = require_admin(actor)
+        klass = self.repository.get_class(class_id, for_update=for_update)
+        if klass is None:
+            raise AppError(404)
+        require_school_scope(school_id, klass.school_id)
+        return klass
 
+    def _homeroom_for_admin(
+        self, homeroom_id: UUID, actor: CurrentUser, *, for_update: bool = False
+    ) -> HomeroomClass:
+        school_id = require_admin(actor)
+        homeroom = self.repository.get_homeroom(homeroom_id, for_update=for_update)
+        if homeroom is None:
+            raise AppError(404)
+        require_school_scope(school_id, homeroom.school_id)
+        return homeroom
 
-def _page(rows: list, limit: int, model):
-    """Builds a cursor page; repositories return limit+1 rows, the extra implies next_cursor."""
-    items = rows[:limit]
-    next_cursor = encode_cursor(items[-1].id) if len(rows) > limit else None
-    return Page(items=[model.model_validate(item) for item in items], next_cursor=next_cursor)
+    def _student(self, student_id: UUID, school_id: UUID) -> None:
+        student = get_user_summary(student_id, session=self.session)
+        if student is None:
+            raise AppError(404)
+        require_school_scope(school_id, student.school_id)
+        if set(get_user_roles(student_id, session=self.session)) != {"STUDENT"}:
+            raise AppError(400, "Expected a Student account")
+
+    def _lecturer(self, lecturer_id: UUID, school_id: UUID) -> None:
+        lecturer = get_user_summary(lecturer_id, session=self.session)
+        if lecturer is None:
+            raise AppError(404)
+        require_school_scope(school_id, lecturer.school_id)
+        if lecturer.status != "ACTIVE" or "LECTURER" not in get_user_roles(
+            lecturer_id, session=self.session
+        ):
+            raise AppError(400, "Expected an active lecturer")
+
+    @staticmethod
+    def _active(klass: SubjectClass) -> None:
+        if klass.status != ClassStatus.ACTIVE:
+            raise AppError(409, "Archived classes are read-only")
+
+    def create_course(self, actor: CurrentUser, request: CourseCreateRequest) -> CourseResponse:
+        school_id = require_admin(actor)
+        try:
+            with transaction(self.session):
+                self.repository.ensure_school(school_id)
+                if self.repository.get_course_by_code(school_id, request.code):
+                    raise AppError(409, "Course code already exists")
+                course = self.repository.add(
+                    Course(school_id=school_id, code=request.code, name=request.name)
+                )
+                self._audit(actor.id, "ADMIN_CREATE_COURSE", course.id, target_type="COURSE")
+                return CourseResponse.model_validate(course)
+        except IntegrityError as exc:
+            raise AppError(409, "Course code already exists") from exc
+
+    def create_homeroom(
+        self, actor: CurrentUser, request: HomeroomCreateRequest
+    ) -> HomeroomResponse:
+        school_id = require_admin(actor)
+        try:
+            with transaction(self.session):
+                self.repository.ensure_school(school_id)
+                year = self.repository.ensure_academic_year(school_id, request.academic_year)
+                if self.repository.get_homeroom_by_name(school_id, year.id, request.name):
+                    raise AppError(409, "Homeroom already exists")
+                homeroom = self.repository.add(
+                    HomeroomClass(
+                        school_id=school_id,
+                        academic_year_id=year.id,
+                        name=request.name,
+                        grade_level=request.grade_level,
+                    )
+                )
+                self._audit(actor.id, "ADMIN_CREATE_HOMEROOM", homeroom.id, target_type="HOMEROOM")
+                return HomeroomResponse.model_validate(homeroom)
+        except IntegrityError as exc:
+            raise AppError(409, "Homeroom already exists") from exc
+
+    def set_roster(
+        self, actor: CurrentUser, homeroom_id: UUID, student_ids: list[UUID]
+    ) -> RosterResponse:
+        with transaction(self.session):
+            homeroom = self._homeroom_for_admin(homeroom_id, actor, for_update=True)
+            for student_id in sorted(student_ids):
+                self._student(student_id, homeroom.school_id)
+            existing = {row.student_id: row for row in self.repository.active_roster(homeroom_id)}
+            incoming = set(student_ids)
+            if incoming != set(existing):
+                now = _now()
+                for student_id in set(existing) - incoming:
+                    existing[student_id].ended_at = now
+                for student_id in incoming - set(existing):
+                    self.repository.add(
+                        HomeroomRoster(
+                            homeroom_class_id=homeroom_id,
+                            student_id=student_id,
+                            joined_at=now,
+                        )
+                    )
+                homeroom.roster_version += 1
+                for klass in self.repository.auto_classes_for_homeroom(homeroom_id):
+                    self._sync_class(klass, incoming, bump_version=True)
+                self._audit(actor.id, "ADMIN_UPDATE_ROSTER", homeroom_id, target_type="HOMEROOM")
+            return RosterResponse(
+                homeroom_class_id=homeroom_id,
+                student_ids=sorted(incoming),
+                roster_version=homeroom.roster_version,
+            )
+
+    def transfer_homeroom_student(
+        self,
+        source_id: UUID,
+        destination_id: UUID,
+        student_id: UUID,
+        actor: CurrentUser,
+    ) -> RosterResponse:
+        if source_id == destination_id:
+            raise AppError(400, "Select a different destination homeroom")
+        with transaction(self.session):
+            homerooms = {
+                homeroom_id: self._homeroom_for_admin(homeroom_id, actor, for_update=True)
+                for homeroom_id in sorted([source_id, destination_id])
+            }
+            source, destination = homerooms[source_id], homerooms[destination_id]
+            if (
+                source.academic_year_id != destination.academic_year_id
+                or source.grade_level != destination.grade_level
+            ):
+                raise AppError(400, "Homerooms must share a year and grade")
+            self._student(student_id, source.school_id)
+            source_rows = {row.student_id: row for row in self.repository.active_roster(source_id)}
+            destination_rows = {
+                row.student_id: row for row in self.repository.active_roster(destination_id)
+            }
+            if student_id not in source_rows:
+                raise AppError(404)
+            if student_id in destination_rows:
+                raise AppError(409, "Student already belongs to destination homeroom")
+            now = _now()
+            source_rows[student_id].ended_at = now
+            self.repository.add(
+                HomeroomRoster(
+                    homeroom_class_id=destination_id,
+                    student_id=student_id,
+                    joined_at=now,
+                )
+            )
+            source.roster_version += 1
+            destination.roster_version += 1
+            for klass in self.repository.auto_classes_for_homeroom(source_id):
+                self._sync_class(klass, set(source_rows) - {student_id}, bump_version=True)
+            for klass in self.repository.auto_classes_for_homeroom(destination_id):
+                self._sync_class(klass, set(destination_rows) | {student_id}, bump_version=True)
+            self._audit(
+                actor.id,
+                "ADMIN_TRANSFER_HOMEROOM_STUDENT",
+                source_id,
+                target_type="HOMEROOM",
+            )
+            self._event(
+                "HOMEROOM_STUDENT_TRANSFERRED",
+                source_id,
+                destination_homeroom_id=destination_id,
+                student_id=student_id,
+                effective_at=now.isoformat(),
+            )
+            return RosterResponse(
+                homeroom_class_id=destination_id,
+                student_ids=sorted(set(destination_rows) | {student_id}),
+                roster_version=destination.roster_version,
+            )
+
+    def create_class(self, actor: CurrentUser, request: ClassCreateRequest) -> ClassResponse:
+        school_id = require_admin(actor)
+        try:
+            with transaction(self.session):
+                self._lecturer(request.primary_lecturer_id, school_id)
+                self.repository.ensure_school(school_id)
+                course = self.repository.get_course(request.course_id)
+                if course is None:
+                    raise AppError(404)
+                require_school_scope(school_id, course.school_id)
+                year = self.repository.ensure_academic_year(school_id, request.academic_year)
+                semester = self.repository.ensure_semester(year.id, request.semester)
+                homeroom = None
+                if request.homeroom_class_id is not None:
+                    homeroom = self._homeroom_for_admin(request.homeroom_class_id, actor)
+                    if (
+                        homeroom.academic_year_id != year.id
+                        or homeroom.grade_level != request.grade_level
+                    ):
+                        raise AppError(400, "Homeroom must match year and grade")
+                if request.enrollment_mode == EnrollmentMode.AUTO and homeroom is None:
+                    raise AppError(400, "AUTO enrollment requires a homeroom")
+                klass = self.repository.add(
+                    SubjectClass(
+                        school_id=school_id,
+                        academic_year_id=year.id,
+                        semester_id=semester.id,
+                        course_id=course.id,
+                        homeroom_class_id=homeroom.id if homeroom else None,
+                        name=request.name,
+                        grade_level=request.grade_level,
+                        enrollment_mode=request.enrollment_mode,
+                    )
+                )
+                self.repository.add(
+                    TeachingAssignment(
+                        class_id=klass.id,
+                        lecturer_id=request.primary_lecturer_id,
+                        role=TeachingRole.PRIMARY,
+                        assigned_at=_now(),
+                    )
+                )
+                if request.enrollment_mode == EnrollmentMode.AUTO:
+                    self._sync_class(
+                        klass,
+                        {row.student_id for row in self.repository.active_roster(homeroom.id)},
+                        bump_version=False,
+                    )
+                self._audit(actor.id, "ADMIN_CREATE_CLASS", klass.id)
+                return ClassResponse.model_validate(klass)
+        except IntegrityError as exc:
+            raise AppError(409, "Class creation conflicts with current data") from exc
+
+    def list_classes(self, actor: CurrentUser, pagination: Pagination) -> Page[ClassResponse]:
+        if actor.status != "ACTIVE" or actor.school_id is None:
+            raise AppError(404)
+        rows = self.repository.list_classes(
+            actor.school_id,
+            actor.id,
+            is_admin="ADMIN" in actor.roles,
+            limit=pagination.limit,
+            cursor=pagination.cursor,
+        )
+        return _page(rows, pagination.limit, ClassResponse)
+
+    def get_class(self, class_id: UUID, actor: CurrentUser) -> ClassResponse:
+        require_class_read(self.session, class_id, actor)
+        klass = self.repository.get_class(class_id)
+        return ClassResponse.model_validate(klass)
+
+    def list_members(self, class_id: UUID, actor: CurrentUser) -> list[MembershipResponse]:
+        require_class_read(self.session, class_id, actor)
+        return [
+            MembershipResponse.model_validate(row)
+            for row in self.repository.active_memberships(class_id)
+        ]
+
+    def set_teachers(
+        self, class_id: UUID, actor: CurrentUser, request: TeachingAssignmentsRequest
+    ) -> list[TeachingAssignmentResponse]:
+        with transaction(self.session):
+            klass = self._class_for_admin(class_id, actor, for_update=True)
+            self._active(klass)
+            desired = {request.primary_lecturer_id: TeachingRole.PRIMARY}
+            desired.update(
+                {
+                    lecturer_id: TeachingRole.ASSISTING
+                    for lecturer_id in request.assisting_lecturer_ids
+                }
+            )
+            for lecturer_id in sorted(desired):
+                self._lecturer(lecturer_id, klass.school_id)
+            current = {row.lecturer_id: row for row in self.repository.active_teachers(class_id)}
+            if {key: row.role for key, row in current.items()} == desired:
+                return [TeachingAssignmentResponse.model_validate(row) for row in current.values()]
+            now = _now()
+            for row in current.values():
+                row.ended_at = now
+            self.session.flush()
+            for lecturer_id, role in desired.items():
+                self.repository.add(
+                    TeachingAssignment(
+                        class_id=class_id, lecturer_id=lecturer_id, role=role, assigned_at=now
+                    )
+                )
+            klass.version += 1
+            self._audit(actor.id, "ADMIN_SET_TEACHERS", class_id)
+            self._event("CLASS_TEACHERS_CHANGED", class_id, version=klass.version)
+            return [
+                TeachingAssignmentResponse.model_validate(row)
+                for row in self.repository.active_teachers(class_id)
+            ]
+
+    def _sync_class(self, klass: SubjectClass, target: set[UUID], *, bump_version: bool) -> bool:
+        current = {row.student_id: row for row in self.repository.active_memberships(klass.id)}
+        if set(current) == target:
+            return False
+        now = _now()
+        for student_id in set(current) - target:
+            current[student_id].status = MembershipStatus.ENDED
+            current[student_id].ended_at = now
+        for student_id in target - set(current):
+            self.repository.add(
+                ClassMembership(
+                    class_id=klass.id,
+                    student_id=student_id,
+                    source=EnrollmentMode.AUTO,
+                    status=MembershipStatus.ACTIVE,
+                    joined_at=now,
+                )
+            )
+        if bump_version:
+            klass.version += 1
+        self._event("CLASS_ENROLLMENT_CHANGED", klass.id, version=klass.version)
+        return True
+
+    def preview_auto(self, class_id: UUID, actor: CurrentUser) -> EnrollmentPreviewResponse:
+        klass = self._class_for_admin(class_id, actor)
+        self._active(klass)
+        if klass.homeroom_class_id is None:
+            raise AppError(400, "A homeroom is required")
+        homeroom = self._homeroom_for_admin(klass.homeroom_class_id, actor)
+        roster = {row.student_id for row in self.repository.active_roster(homeroom.id)}
+        current = {row.student_id for row in self.repository.active_memberships(class_id)}
+        return EnrollmentPreviewResponse(
+            class_id=class_id,
+            target_mode=EnrollmentMode.AUTO,
+            class_version=klass.version,
+            roster_version=homeroom.roster_version,
+            add_student_ids=sorted(roster - current),
+            end_student_ids=sorted(current - roster),
+        )
+
+    def set_enrollment_mode(
+        self, class_id: UUID, actor: CurrentUser, request: EnrollmentModeRequest
+    ) -> ClassResponse:
+        with transaction(self.session):
+            klass = self._class_for_admin(class_id, actor, for_update=True)
+            self._active(klass)
+            if klass.enrollment_mode == request.mode:
+                return ClassResponse.model_validate(klass)
+            if request.mode == EnrollmentMode.AUTO:
+                if klass.homeroom_class_id is None:
+                    raise AppError(400, "AUTO enrollment requires a homeroom")
+                homeroom = self._homeroom_for_admin(klass.homeroom_class_id, actor)
+                if (
+                    request.expected_class_version != klass.version
+                    or request.expected_roster_version != homeroom.roster_version
+                ):
+                    raise AppError(409, "Enrollment preview is stale or missing")
+                target = {row.student_id for row in self.repository.active_roster(homeroom.id)}
+                klass.enrollment_mode = EnrollmentMode.AUTO
+                klass.version += 1
+                self._sync_class(klass, target, bump_version=False)
+            else:
+                klass.enrollment_mode = EnrollmentMode.MANUAL
+                klass.version += 1
+            self._audit(actor.id, "ADMIN_CHANGE_ENROLLMENT_MODE", class_id)
+            self._event("CLASS_ENROLLMENT_MODE_CHANGED", class_id, version=klass.version)
+            return ClassResponse.model_validate(klass)
+
+    def sync_enrollment(self, class_id: UUID, actor: CurrentUser) -> ClassResponse:
+        with transaction(self.session):
+            klass = self._class_for_admin(class_id, actor, for_update=True)
+            self._active(klass)
+            if klass.enrollment_mode != EnrollmentMode.AUTO or klass.homeroom_class_id is None:
+                raise AppError(409, "Only AUTO classes can sync a roster")
+            homeroom = self._homeroom_for_admin(klass.homeroom_class_id, actor)
+            target = {row.student_id for row in self.repository.active_roster(homeroom.id)}
+            if self._sync_class(klass, target, bump_version=True):
+                self._audit(actor.id, "ADMIN_SYNC_ENROLLMENT", class_id)
+            return ClassResponse.model_validate(klass)
+
+    def add_member(
+        self, class_id: UUID, actor: CurrentUser, student_id: UUID
+    ) -> MembershipResponse:
+        with transaction(self.session):
+            klass = self._class_for_admin(class_id, actor, for_update=True)
+            self._active(klass)
+            if klass.enrollment_mode != EnrollmentMode.MANUAL:
+                raise AppError(409, "Switch to MANUAL enrollment before exceptions")
+            self._student(student_id, klass.school_id)
+            member = self.repository.active_membership(class_id, student_id)
+            if member is None:
+                member = self.repository.add(
+                    ClassMembership(
+                        class_id=class_id,
+                        student_id=student_id,
+                        source=EnrollmentMode.MANUAL,
+                        status=MembershipStatus.ACTIVE,
+                        joined_at=_now(),
+                    )
+                )
+                klass.version += 1
+                self._audit(actor.id, "ADMIN_ADD_STUDENT", class_id)
+                self._event("CLASS_ENROLLMENT_CHANGED", class_id, version=klass.version)
+            return MembershipResponse.model_validate(member)
+
+    def end_member(self, class_id: UUID, actor: CurrentUser, student_id: UUID) -> None:
+        with transaction(self.session):
+            klass = self._class_for_admin(class_id, actor, for_update=True)
+            self._active(klass)
+            if klass.enrollment_mode != EnrollmentMode.MANUAL:
+                raise AppError(409, "Switch to MANUAL enrollment before exceptions")
+            member = self.repository.active_membership(class_id, student_id)
+            if member is None:
+                if not self.repository.has_membership_history(class_id, student_id):
+                    raise AppError(404)
+                return
+            member.status = MembershipStatus.ENDED
+            member.ended_at = _now()
+            klass.version += 1
+            self._audit(actor.id, "ADMIN_END_ENROLLMENT", class_id)
+            self._event("CLASS_ENROLLMENT_CHANGED", class_id, version=klass.version)
+
+    def transfer(
+        self, source_id: UUID, destination_id: UUID, student_id: UUID, actor: CurrentUser
+    ) -> MembershipResponse:
+        if source_id == destination_id:
+            raise AppError(400, "Select a different destination class")
+        with transaction(self.session):
+            classes = [
+                self._class_for_admin(class_id, actor, for_update=True)
+                for class_id in sorted([source_id, destination_id])
+            ]
+            by_id = {klass.id: klass for klass in classes}
+            source, destination = by_id[source_id], by_id[destination_id]
+            self._active(source)
+            self._active(destination)
+            if (
+                source.enrollment_mode != EnrollmentMode.MANUAL
+                or destination.enrollment_mode != EnrollmentMode.MANUAL
+            ):
+                raise AppError(409, "AUTO transfers follow the homeroom roster")
+            if (
+                source.course_id != destination.course_id
+                or source.academic_year_id != destination.academic_year_id
+                or source.semester_id != destination.semester_id
+            ):
+                raise AppError(400, "Transfer requires the same subject and term")
+            self._student(student_id, source.school_id)
+            old = self.repository.active_membership(source_id, student_id)
+            if old is None:
+                raise AppError(404)
+            if self.repository.active_membership(destination_id, student_id):
+                raise AppError(409, "Student already enrolled in destination")
+            now = _now()
+            old.status = MembershipStatus.ENDED
+            old.ended_at = now
+            new = self.repository.add(
+                ClassMembership(
+                    class_id=destination_id,
+                    student_id=student_id,
+                    source=EnrollmentMode.MANUAL,
+                    status=MembershipStatus.ACTIVE,
+                    joined_at=now,
+                )
+            )
+            source.version += 1
+            destination.version += 1
+            self._audit(actor.id, "ADMIN_TRANSFER_STUDENT", source_id)
+            self._event(
+                "CLASS_STUDENT_TRANSFERRED",
+                source_id,
+                destination_class_id=destination_id,
+                student_id=student_id,
+                effective_at=now.isoformat(),
+            )
+            return MembershipResponse.model_validate(new)
+
+    def set_archived(self, class_id: UUID, actor: CurrentUser, *, archived: bool) -> ClassResponse:
+        with transaction(self.session):
+            klass = self._class_for_admin(class_id, actor, for_update=True)
+            target = ClassStatus.ARCHIVED if archived else ClassStatus.ACTIVE
+            if klass.status != target:
+                klass.status = target
+                klass.version += 1
+                self._audit(
+                    actor.id,
+                    "ADMIN_ARCHIVE_CLASS" if archived else "ADMIN_RESTORE_CLASS",
+                    class_id,
+                )
+                self._event("CLASS_STATUS_CHANGED", class_id, version=klass.version)
+            return ClassResponse.model_validate(klass)

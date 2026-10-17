@@ -2,48 +2,28 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.common.auth_dependencies import CurrentUser
+from app.common.auth_dependencies import CurrentUser, require_school_scope
 from app.common.errors import AppError
-from app.modules.classroom.models import ClassRole
+from app.modules.classroom.public import check_class_action
 from app.modules.classroom.repository import ClassroomRepository
+from app.modules.classroom.schemas import ClassAccessAction
 
 
-def is_admin(user: CurrentUser) -> bool:
-    return "ADMIN" in user.roles
+def require_admin(user: CurrentUser) -> UUID:
+    if user.status != "ACTIVE" or "ADMIN" not in user.roles:
+        raise AppError(403)
+    require_school_scope(user.school_id, user.school_id)
+    return user.school_id
 
 
-def require_class_member(session: Session, class_id: UUID, user: CurrentUser) -> None:
-    """Any ACTIVE membership; the repository does not decide policy."""
-    membership = ClassroomRepository(session).get_active_membership(class_id, user.id)
-    if membership is None:
-        # Indistinguishable from a nonexistent class; PENDING/LEFT/REMOVED learn nothing.
+def require_class_read(session: Session, class_id: UUID, user: CurrentUser) -> None:
+    if "ADMIN" in user.roles and user.school_id is not None:
+        klass = ClassroomRepository(session).get_class(class_id)
+        if klass is None:
+            raise AppError(404)
+        require_school_scope(user.school_id, klass.school_id)
+        return
+    if not check_class_action(
+        class_id, user.id, ClassAccessAction.READ_CLASS_CONTENT, session=session
+    ).allowed:
         raise AppError(404)
-
-
-def require_class_role(
-    session: Session,
-    class_id: UUID,
-    user: CurrentUser,
-    roles: set[ClassRole],
-    *,
-    admin_intervenes: bool = False,
-) -> None:
-    """OWNER/CO_LECTURER/STUDENT membership check; Admin only when admin_intervenes."""
-    membership = ClassroomRepository(session).get_active_membership(class_id, user.id)
-    if membership is not None and membership.class_role in roles:
-        return
-    if admin_intervenes and is_admin(user):
-        return
-    # 404 for non-members, 403 for members lacking the role: cross-class probes learn
-    # nothing, while a real member gets an actionable denial.
-    raise AppError(404 if membership is None else 403)
-
-
-def require_class_owner(session: Session, class_id: UUID, user: CurrentUser) -> None:
-    require_class_role(session, class_id, user, {ClassRole.OWNER}, admin_intervenes=True)
-
-
-def require_class_lecturer(session: Session, class_id: UUID, user: CurrentUser) -> None:
-    require_class_role(
-        session, class_id, user, {ClassRole.OWNER, ClassRole.CO_LECTURER}, admin_intervenes=True
-    )

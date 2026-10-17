@@ -1,7 +1,7 @@
 """Transactional outbox for notifications (TASK-012).
 
-Revision ID: 0006
-Revises: 0005
+Revision ID: 0009
+Revises: 0008
 Create Date: 2026-10-15
 """
 

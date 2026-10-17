@@ -9,7 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
-    Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -18,175 +18,175 @@ from app.common.db import Base
 
 
 class ClassStatus(StrEnum):
-    """Lifecycle of a class; ARCHIVED is read-only (Rule F5)."""
-
     ACTIVE = "ACTIVE"
     ARCHIVED = "ARCHIVED"
 
 
-class ClassRole(StrEnum):
-    OWNER = "OWNER"
-    CO_LECTURER = "CO_LECTURER"
-    STUDENT = "STUDENT"
+class EnrollmentMode(StrEnum):
+    AUTO = "AUTO"
+    MANUAL = "MANUAL"
 
 
 class MembershipStatus(StrEnum):
-    """Row history model: LEFT/REMOVED rows are kept; re-admission flips back to ACTIVE.
-
-    REMOVED = expelled by a lecturer (needs re-admission to return);
-    LEFT = self-departure (may rejoin via join code).
-    """
-
     ACTIVE = "ACTIVE"
-    LEFT = "LEFT"
-    REMOVED = "REMOVED"
+    ENDED = "ENDED"
 
 
-class JoinRequestStatus(StrEnum):
-    """One PENDING per (class, student) enforced by a partial unique index."""
-
-    PENDING = "PENDING"
-    APPROVED = "APPROVED"
-    REJECTED = "REJECTED"
-    CANCELLED = "CANCELLED"
+class TeachingRole(StrEnum):
+    PRIMARY = "PRIMARY"
+    ASSISTING = "ASSISTING"
 
 
-class CoLecturerInvitationStatus(StrEnum):
-    """PENDING expires after 7 days; re-inviting retires expired PENDING rows."""
+class School(Base):
+    __tablename__ = "schools"
 
-    PENDING = "PENDING"
-    ACCEPTED = "ACCEPTED"
-    REJECTED = "REJECTED"
-    CANCELLED = "CANCELLED"
+    name: Mapped[str | None] = mapped_column(String(200))
+
+
+class AcademicYear(Base):
+    __tablename__ = "academic_years"
+    __table_args__ = (UniqueConstraint("school_id", "label", name="uq_academic_year_school_label"),)
+
+    school_id: Mapped[UUID] = mapped_column(ForeignKey("core.schools.id"), index=True)
+    label: Mapped[str] = mapped_column(String(30))
+
+
+class Semester(Base):
+    __tablename__ = "semesters"
+    __table_args__ = (UniqueConstraint("academic_year_id", "name", name="uq_semester_year_name"),)
+
+    academic_year_id: Mapped[UUID] = mapped_column(ForeignKey("core.academic_years.id"), index=True)
+    name: Mapped[str] = mapped_column(String(50))
 
 
 class Course(Base):
-    """Course catalog entry; classes belong to exactly one course."""
-
     __tablename__ = "courses"
-    __table_args__ = (CheckConstraint("code <> ''", name="ck_courses_code_not_empty"),)
-
-    code: Mapped[str] = mapped_column(String(50), unique=True)
-    name: Mapped[str] = mapped_column(String(200))
-    description: Mapped[str | None] = mapped_column(Text)
-
-
-class Class(Base):
-    """A teaching class; join codes are stored hashed, shown once at creation."""
-
-    __tablename__ = "classes"
     __table_args__ = (
-        CheckConstraint("name <> ''", name="ck_classes_name_not_empty"),
-        CheckConstraint("join_code_hash <> ''", name="ck_classes_join_code_hash_not_empty"),
+        UniqueConstraint("school_id", "code", name="uq_course_school_code"),
+        CheckConstraint("code <> ''", name="ck_courses_code_not_empty"),
     )
 
-    course_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.courses.id", ondelete="RESTRICT"), index=True
+    school_id: Mapped[UUID] = mapped_column(ForeignKey("core.schools.id"), index=True)
+    code: Mapped[str] = mapped_column(String(50))
+    name: Mapped[str] = mapped_column(String(200))
+
+
+class HomeroomClass(Base):
+    __tablename__ = "homeroom_classes"
+    __table_args__ = (
+        UniqueConstraint("school_id", "academic_year_id", "name", name="uq_homeroom_year_name"),
+        CheckConstraint("grade_level BETWEEN 6 AND 12", name="ck_homeroom_grade_level"),
+        CheckConstraint("roster_version >= 1", name="ck_homeroom_roster_version"),
     )
-    owner_user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.users.id", ondelete="RESTRICT"), index=True
+
+    school_id: Mapped[UUID] = mapped_column(ForeignKey("core.schools.id"), index=True)
+    academic_year_id: Mapped[UUID] = mapped_column(ForeignKey("core.academic_years.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    grade_level: Mapped[int]
+    roster_version: Mapped[int] = mapped_column(default=1, server_default=text("1"))
+
+
+class HomeroomRoster(Base):
+    __tablename__ = "homeroom_rosters"
+    __table_args__ = (
+        Index(
+            "uq_active_homeroom_student",
+            "homeroom_class_id",
+            "student_id",
+            unique=True,
+            postgresql_where=text("ended_at IS NULL"),
+        ),
+    )
+
+    homeroom_class_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core.homeroom_classes.id"), index=True
+    )
+    student_id: Mapped[UUID] = mapped_column(ForeignKey("core.users.id"), index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SubjectClass(Base):
+    __tablename__ = "subject_classes"
+    __table_args__ = (
+        UniqueConstraint(
+            "school_id",
+            "academic_year_id",
+            "semester_id",
+            "course_id",
+            "name",
+            name="uq_subject_class_identity",
+        ),
+        CheckConstraint("grade_level BETWEEN 6 AND 12", name="ck_subject_grade_level"),
+        CheckConstraint("version >= 1", name="ck_subject_version"),
+    )
+
+    school_id: Mapped[UUID] = mapped_column(ForeignKey("core.schools.id"), index=True)
+    academic_year_id: Mapped[UUID] = mapped_column(ForeignKey("core.academic_years.id"), index=True)
+    semester_id: Mapped[UUID] = mapped_column(ForeignKey("core.semesters.id"), index=True)
+    course_id: Mapped[UUID] = mapped_column(ForeignKey("core.courses.id"), index=True)
+    homeroom_class_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("core.homeroom_classes.id"), index=True
     )
     name: Mapped[str] = mapped_column(String(200))
-    join_code_hash: Mapped[str] = mapped_column(String(64), unique=True)
-    join_enabled: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+    grade_level: Mapped[int]
+    enrollment_mode: Mapped[EnrollmentMode] = mapped_column(
+        Enum(EnrollmentMode, native_enum=False, create_constraint=True, name="enrollment_mode")
+    )
     status: Mapped[ClassStatus] = mapped_column(
         Enum(ClassStatus, native_enum=False, create_constraint=True, name="class_status"),
         default=ClassStatus.ACTIVE,
         server_default=ClassStatus.ACTIVE.value,
     )
+    version: Mapped[int] = mapped_column(default=1, server_default=text("1"))
+
+
+class TeachingAssignment(Base):
+    __tablename__ = "teaching_assignments"
+    __table_args__ = (
+        Index(
+            "uq_active_teacher_per_class",
+            "class_id",
+            "lecturer_id",
+            unique=True,
+            postgresql_where=text("ended_at IS NULL"),
+        ),
+        Index(
+            "uq_active_primary_teacher",
+            "class_id",
+            unique=True,
+            postgresql_where=text("role = 'PRIMARY' AND ended_at IS NULL"),
+        ),
+    )
+
+    class_id: Mapped[UUID] = mapped_column(ForeignKey("core.subject_classes.id"), index=True)
+    lecturer_id: Mapped[UUID] = mapped_column(ForeignKey("core.users.id"), index=True)
+    role: Mapped[TeachingRole] = mapped_column(
+        Enum(TeachingRole, native_enum=False, create_constraint=True, name="teaching_role")
+    )
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ClassMembership(Base):
-    """User-in-class state; the partial unique index allows one ACTIVE row per pair."""
-
     __tablename__ = "class_memberships"
     __table_args__ = (
         Index(
-            "ix_core_class_memberships_active",
+            "uq_active_class_membership",
             "class_id",
-            "user_id",
+            "student_id",
             unique=True,
             postgresql_where=text("status = 'ACTIVE'"),
         ),
     )
 
-    class_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.classes.id", ondelete="CASCADE"), index=True
-    )
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.users.id", ondelete="RESTRICT"), index=True
-    )
-    class_role: Mapped[ClassRole] = mapped_column(
-        Enum(ClassRole, native_enum=False, create_constraint=True, name="class_role")
+    class_id: Mapped[UUID] = mapped_column(ForeignKey("core.subject_classes.id"), index=True)
+    student_id: Mapped[UUID] = mapped_column(ForeignKey("core.users.id"), index=True)
+    source: Mapped[EnrollmentMode] = mapped_column(
+        Enum(EnrollmentMode, native_enum=False, create_constraint=True, name="membership_source")
     )
     status: Mapped[MembershipStatus] = mapped_column(
         Enum(MembershipStatus, native_enum=False, create_constraint=True, name="membership_status")
     )
-    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class JoinRequest(Base):
-    """Student's ask to join; decisions are immutable once left PENDING."""
-
-    __tablename__ = "join_requests"
-    __table_args__ = (
-        Index(
-            "ix_core_join_requests_pending",
-            "class_id",
-            "student_id",
-            unique=True,
-            postgresql_where=text("status = 'PENDING'"),
-        ),
-    )
-
-    class_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.classes.id", ondelete="CASCADE"), index=True
-    )
-    student_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.users.id", ondelete="RESTRICT"), index=True
-    )
-    status: Mapped[JoinRequestStatus] = mapped_column(
-        Enum(
-            JoinRequestStatus, native_enum=False, create_constraint=True, name="join_request_status"
-        ),
-        default=JoinRequestStatus.PENDING,
-        server_default=JoinRequestStatus.PENDING.value,
-    )
-    decided_by: Mapped[UUID | None] = mapped_column(
-        ForeignKey("core.users.id", ondelete="RESTRICT"), index=True
-    )
-    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class CoLecturerInvitation(Base):
-    """Owner's ask for a lecturer to co-teach; an accepted invite creates or upgrades membership."""
-
-    __tablename__ = "co_lecturer_invitations"
-    __table_args__ = (
-        Index(
-            "ix_core_co_lecturer_invitations_pending",
-            "class_id",
-            "lecturer_id",
-            unique=True,
-            postgresql_where=text("status = 'PENDING'"),
-        ),
-    )
-
-    class_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.classes.id", ondelete="CASCADE"), index=True
-    )
-    lecturer_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.users.id", ondelete="RESTRICT"), index=True
-    )
-    status: Mapped[CoLecturerInvitationStatus] = mapped_column(
-        Enum(
-            CoLecturerInvitationStatus,
-            native_enum=False,
-            create_constraint=True,
-            name="co_lecturer_invitation_status",
-        ),
-        default=CoLecturerInvitationStatus.PENDING,
-        server_default=CoLecturerInvitationStatus.PENDING.value,
-    )
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

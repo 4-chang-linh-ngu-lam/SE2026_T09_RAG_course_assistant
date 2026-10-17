@@ -10,7 +10,7 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Hiện trạng:** Classroom mới có skeleton, chưa có ORM/router nghiệp vụ. Đặc tả JoinRequest/CoLecturerInvitation/owner_user_id trước đây đã bị baseline thay thế; không dùng làm kế hoạch tạo bảng mới.
+**Hiện trạng cập nhật:** ORM và migration 0008 đã dùng School/AcademicYear/Semester, homeroom roster, SubjectClass, TeachingAssignment và membership theo đợt; API Admin có triển khai. JoinRequest/CoLecturerInvitation/owner_user_id không được tạo trong migration mới. Mapping school_id cho user legacy và nghiệm thu PostgreSQL/CI còn cần kiểm chứng.
 
 **Cần sửa:** thiết kế School, năm học/học kỳ, lớp hành chính/roster, lớp môn học, phân công PRIMARY/ASSISTING và enrollment AUTO/MANUAL theo [Core Design](../docs/architect/microservices-v1/core/DESIGN.md). Đây là entity logic; tên bảng, enum kỹ thuật, FK và payload phải được TV2/TV1/TV4 review trước triển khai.
 

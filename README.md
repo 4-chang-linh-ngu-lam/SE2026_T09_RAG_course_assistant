@@ -13,7 +13,7 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 4. [Danh mục task](tasks/README.md) — hiện trạng, việc cần sửa và phụ thuộc của TASK-001–020 (rà soát 2026-10-16).
 5. [Roadmap](docs/architect/microservices-v1/IMPLEMENTATION_ROADMAP.md), [Quality Attributes](docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md), [Contributing](docs/CONTRIBUTING.md).
 
-**Trạng thái:** Core đã có Common, Identity và hạ tầng Compose/CI; các module Core khác vẫn chưa hoàn thành. Xem [Core README](services/core/README.md) để cấu hình, migration và kiểm thử. Sau khi cấu hình môi trường theo `.env.example`, chạy `docker compose up --build -d`; Compose tự chạy migration trước Core. Chưa nghiệm thu toàn Core/G2 hoặc chuyển G3.
+**Trạng thái:** Core đã có Common, Identity, Classroom Admin/access API và hạ tầng Compose/CI; Social, Notification worker và Administration còn thiếu. Xem [Core README](services/core/README.md) để cấu hình, migration và kiểm thử. Sau khi cấu hình môi trường theo `.env.example`, chạy `docker compose up --build -d`; Compose tự chạy migration trước Core. Chưa nghiệm thu toàn Core/G2 hoặc chuyển G3.
 
 ## Phạm vi sản phẩm Lumi
 Lumi phục vụ **học sinh THCS và THPT (khối 6–12)** trong **lớp học chính khóa**. Tiểu học, đại học và lớp học thêm không thuộc phạm vi MVP. Giao diện hướng đến học sinh phổ thông, giữ phong cách sáng, gọn, không game hóa hoặc trang trí quá mức.

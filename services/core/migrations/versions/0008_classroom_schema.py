@@ -1,341 +1,208 @@
-"""classroom_schema
+"""School, roster, subject classes and teaching assignments for Lumi.
 
-Revision ID: 0005
-Revises: 0004
-Create Date: 2026-10-12
+Revision ID: 0008
+Revises: 0007
 """
 
-import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0008"
+revision = "0008"
 down_revision = "0007"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "courses",
-        sa.Column("code", sa.String(length=50), nullable=False),
-        sa.Column("name", sa.String(length=200), nullable=False),
-        sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint("code <> ''", name="ck_courses_code_not_empty"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("code"),
-        schema="core",
+    op.execute("""CREATE TABLE core.schools (
+	name VARCHAR(200),
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id)
+)""")
+    op.execute("""CREATE TABLE core.academic_years (
+	school_id UUID NOT NULL,
+	label VARCHAR(30) NOT NULL,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_academic_year_school_label UNIQUE (school_id, label),
+	FOREIGN KEY(school_id) REFERENCES core.schools (id)
+)""")
+    op.execute(
+        """CREATE INDEX ix_core_academic_years_school_id ON core.academic_years (school_id)"""
     )
-    op.create_table(
-        "classes",
-        sa.Column(
-            "course_id",
-            sa.Uuid(),
-            nullable=False,
-        ),
-        sa.Column("owner_user_id", sa.Uuid(), nullable=False),
-        sa.Column("name", sa.String(length=200), nullable=False),
-        sa.Column("join_code_hash", sa.String(length=64), nullable=False),
-        sa.Column("join_enabled", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.Column(
-            "status",
-            sa.Enum(
-                "ACTIVE",
-                "ARCHIVED",
-                name="class_status",
-                native_enum=False,
-                create_constraint=True,
-                schema="core",
-            ),
-            server_default="ACTIVE",
-            nullable=False,
-        ),
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint("name <> ''", name="ck_classes_name_not_empty"),
-        sa.CheckConstraint("join_code_hash <> ''", name="ck_classes_join_code_hash_not_empty"),
-        sa.ForeignKeyConstraint(["course_id"], ["core.courses.id"], ondelete="RESTRICT"),
-        sa.ForeignKeyConstraint(["owner_user_id"], ["core.users.id"], ondelete="RESTRICT"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("join_code_hash"),
-        schema="core",
+    op.execute("""CREATE TABLE core.semesters (
+	academic_year_id UUID NOT NULL,
+	name VARCHAR(50) NOT NULL,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_semester_year_name UNIQUE (academic_year_id, name),
+	FOREIGN KEY(academic_year_id) REFERENCES core.academic_years (id)
+)""")
+    op.execute(
+        """CREATE INDEX ix_core_semesters_academic_year_id ON core.semesters (academic_year_id)"""
     )
-    op.create_index(
-        op.f("ix_core_classes_course_id"), "classes", ["course_id"], unique=False, schema="core"
+    op.execute("""CREATE TABLE core.courses (
+	school_id UUID NOT NULL,
+	code VARCHAR(50) NOT NULL,
+	name VARCHAR(200) NOT NULL,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_course_school_code UNIQUE (school_id, code),
+	CONSTRAINT ck_courses_code_not_empty CHECK (code <> ''),
+	FOREIGN KEY(school_id) REFERENCES core.schools (id)
+)""")
+    op.execute("""CREATE INDEX ix_core_courses_school_id ON core.courses (school_id)""")
+    op.execute("""CREATE TABLE core.homeroom_classes (
+	school_id UUID NOT NULL,
+	academic_year_id UUID NOT NULL,
+	name VARCHAR(200) NOT NULL,
+	grade_level INTEGER NOT NULL,
+	roster_version INTEGER DEFAULT 1 NOT NULL,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_homeroom_year_name UNIQUE (school_id, academic_year_id, name),
+	CONSTRAINT ck_homeroom_grade_level CHECK (grade_level BETWEEN 6 AND 12),
+	CONSTRAINT ck_homeroom_roster_version CHECK (roster_version >= 1),
+	FOREIGN KEY(school_id) REFERENCES core.schools (id),
+	FOREIGN KEY(academic_year_id) REFERENCES core.academic_years (id)
+)""")
+    op.execute(
+        """CREATE INDEX ix_core_homeroom_classes_academic_year_id ON core.homeroom_classes (academic_year_id)"""
     )
-    op.create_index(
-        op.f("ix_core_classes_owner_user_id"),
-        "classes",
-        ["owner_user_id"],
-        unique=False,
-        schema="core",
+    op.execute(
+        """CREATE INDEX ix_core_homeroom_classes_school_id ON core.homeroom_classes (school_id)"""
     )
-    op.create_table(
-        "class_memberships",
-        sa.Column("class_id", sa.Uuid(), nullable=False),
-        sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column(
-            "class_role",
-            sa.Enum(
-                "OWNER",
-                "CO_LECTURER",
-                "STUDENT",
-                name="class_role",
-                native_enum=False,
-                create_constraint=True,
-                schema="core",
-            ),
-            nullable=False,
-        ),
-        sa.Column(
-            "status",
-            sa.Enum(
-                "ACTIVE",
-                "LEFT",
-                "REMOVED",
-                name="membership_status",
-                native_enum=False,
-                create_constraint=True,
-                schema="core",
-            ),
-            nullable=False,
-        ),
-        sa.Column(
-            "joined_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(["class_id"], ["core.classes.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["user_id"], ["core.users.id"], ondelete="RESTRICT"),
-        sa.PrimaryKeyConstraint("id"),
-        schema="core",
+    op.execute("""CREATE TABLE core.homeroom_rosters (
+	homeroom_class_id UUID NOT NULL,
+	student_id UUID NOT NULL,
+	joined_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	ended_at TIMESTAMP WITH TIME ZONE,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	FOREIGN KEY(homeroom_class_id) REFERENCES core.homeroom_classes (id),
+	FOREIGN KEY(student_id) REFERENCES core.users (id)
+)""")
+    op.execute(
+        """CREATE INDEX ix_core_homeroom_rosters_homeroom_class_id ON core.homeroom_rosters (homeroom_class_id)"""
     )
-    op.create_index(
-        op.f("ix_core_class_memberships_class_id"),
-        "class_memberships",
-        ["class_id"],
-        unique=False,
-        schema="core",
+    op.execute(
+        """CREATE INDEX ix_core_homeroom_rosters_student_id ON core.homeroom_rosters (student_id)"""
     )
-    op.create_index(
-        op.f("ix_core_class_memberships_user_id"),
-        "class_memberships",
-        ["user_id"],
-        unique=False,
-        schema="core",
+    op.execute(
+        """CREATE UNIQUE INDEX uq_active_homeroom_student ON core.homeroom_rosters (homeroom_class_id, student_id) WHERE ended_at IS NULL"""
     )
-    op.create_index(
-        "ix_core_class_memberships_active",
-        "class_memberships",
-        ["class_id", "user_id"],
-        unique=True,
-        schema="core",
-        postgresql_where=sa.text("status = 'ACTIVE'"),
+    op.execute("""CREATE TABLE core.subject_classes (
+	school_id UUID NOT NULL,
+	academic_year_id UUID NOT NULL,
+	semester_id UUID NOT NULL,
+	course_id UUID NOT NULL,
+	homeroom_class_id UUID,
+	name VARCHAR(200) NOT NULL,
+	grade_level INTEGER NOT NULL,
+	enrollment_mode VARCHAR(6) NOT NULL,
+	status VARCHAR(8) DEFAULT 'ACTIVE' NOT NULL,
+	version INTEGER DEFAULT 1 NOT NULL,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_subject_class_identity UNIQUE (school_id, academic_year_id, semester_id, course_id, name),
+	CONSTRAINT ck_subject_grade_level CHECK (grade_level BETWEEN 6 AND 12),
+	CONSTRAINT ck_subject_version CHECK (version >= 1),
+	FOREIGN KEY(school_id) REFERENCES core.schools (id),
+	FOREIGN KEY(academic_year_id) REFERENCES core.academic_years (id),
+	FOREIGN KEY(semester_id) REFERENCES core.semesters (id),
+	FOREIGN KEY(course_id) REFERENCES core.courses (id),
+	FOREIGN KEY(homeroom_class_id) REFERENCES core.homeroom_classes (id),
+	CONSTRAINT enrollment_mode CHECK (enrollment_mode IN ('AUTO', 'MANUAL')),
+	CONSTRAINT class_status CHECK (status IN ('ACTIVE', 'ARCHIVED'))
+)""")
+    op.execute(
+        """CREATE INDEX ix_core_subject_classes_academic_year_id ON core.subject_classes (academic_year_id)"""
     )
-    op.create_table(
-        "join_requests",
-        sa.Column("class_id", sa.Uuid(), nullable=False),
-        sa.Column("student_id", sa.Uuid(), nullable=False),
-        sa.Column(
-            "status",
-            sa.Enum(
-                "PENDING",
-                "APPROVED",
-                "REJECTED",
-                "CANCELLED",
-                name="join_request_status",
-                native_enum=False,
-                create_constraint=True,
-                schema="core",
-            ),
-            server_default="PENDING",
-            nullable=False,
-        ),
-        sa.Column("decided_by", sa.Uuid(), nullable=True),
-        sa.Column("decided_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(["class_id"], ["core.classes.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["decided_by"], ["core.users.id"], ondelete="RESTRICT"),
-        sa.ForeignKeyConstraint(["student_id"], ["core.users.id"], ondelete="RESTRICT"),
-        sa.PrimaryKeyConstraint("id"),
-        schema="core",
+    op.execute(
+        """CREATE INDEX ix_core_subject_classes_course_id ON core.subject_classes (course_id)"""
     )
-    op.create_index(
-        op.f("ix_core_join_requests_class_id"),
-        "join_requests",
-        ["class_id"],
-        unique=False,
-        schema="core",
+    op.execute(
+        """CREATE INDEX ix_core_subject_classes_homeroom_class_id ON core.subject_classes (homeroom_class_id)"""
     )
-    op.create_index(
-        op.f("ix_core_join_requests_student_id"),
-        "join_requests",
-        ["student_id"],
-        unique=False,
-        schema="core",
+    op.execute(
+        """CREATE INDEX ix_core_subject_classes_school_id ON core.subject_classes (school_id)"""
     )
-    op.create_index(
-        op.f("ix_core_join_requests_decided_by"),
-        "join_requests",
-        ["decided_by"],
-        unique=False,
-        schema="core",
+    op.execute(
+        """CREATE INDEX ix_core_subject_classes_semester_id ON core.subject_classes (semester_id)"""
     )
-    op.create_index(
-        "ix_core_join_requests_pending",
-        "join_requests",
-        ["class_id", "student_id"],
-        unique=True,
-        schema="core",
-        postgresql_where=sa.text("status = 'PENDING'"),
+    op.execute("""CREATE TABLE core.teaching_assignments (
+	class_id UUID NOT NULL,
+	lecturer_id UUID NOT NULL,
+	role VARCHAR(9) NOT NULL,
+	assigned_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	ended_at TIMESTAMP WITH TIME ZONE,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	FOREIGN KEY(class_id) REFERENCES core.subject_classes (id),
+	FOREIGN KEY(lecturer_id) REFERENCES core.users (id),
+	CONSTRAINT teaching_role CHECK (role IN ('PRIMARY', 'ASSISTING'))
+)""")
+    op.execute(
+        """CREATE INDEX ix_core_teaching_assignments_class_id ON core.teaching_assignments (class_id)"""
     )
-    op.create_table(
-        "co_lecturer_invitations",
-        sa.Column("class_id", sa.Uuid(), nullable=False),
-        sa.Column("lecturer_id", sa.Uuid(), nullable=False),
-        sa.Column(
-            "status",
-            sa.Enum(
-                "PENDING",
-                "ACCEPTED",
-                "REJECTED",
-                "CANCELLED",
-                name="co_lecturer_invitation_status",
-                native_enum=False,
-                create_constraint=True,
-                schema="core",
-            ),
-            server_default="PENDING",
-            nullable=False,
-        ),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(["class_id"], ["core.classes.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["lecturer_id"], ["core.users.id"], ondelete="RESTRICT"),
-        sa.PrimaryKeyConstraint("id"),
-        schema="core",
+    op.execute(
+        """CREATE INDEX ix_core_teaching_assignments_lecturer_id ON core.teaching_assignments (lecturer_id)"""
     )
-    op.create_index(
-        op.f("ix_core_co_lecturer_invitations_class_id"),
-        "co_lecturer_invitations",
-        ["class_id"],
-        unique=False,
-        schema="core",
+    op.execute(
+        """CREATE UNIQUE INDEX uq_active_primary_teacher ON core.teaching_assignments (class_id) WHERE role = 'PRIMARY' AND ended_at IS NULL"""
     )
-    op.create_index(
-        op.f("ix_core_co_lecturer_invitations_lecturer_id"),
-        "co_lecturer_invitations",
-        ["lecturer_id"],
-        unique=False,
-        schema="core",
+    op.execute(
+        """CREATE UNIQUE INDEX uq_active_teacher_per_class ON core.teaching_assignments (class_id, lecturer_id) WHERE ended_at IS NULL"""
     )
-    op.create_index(
-        "ix_core_co_lecturer_invitations_pending",
-        "co_lecturer_invitations",
-        ["class_id", "lecturer_id"],
-        unique=True,
-        schema="core",
-        postgresql_where=sa.text("status = 'PENDING'"),
+    op.execute("""CREATE TABLE core.class_memberships (
+	class_id UUID NOT NULL,
+	student_id UUID NOT NULL,
+	source VARCHAR(6) NOT NULL,
+	status VARCHAR(6) NOT NULL,
+	joined_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	ended_at TIMESTAMP WITH TIME ZONE,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	FOREIGN KEY(class_id) REFERENCES core.subject_classes (id),
+	FOREIGN KEY(student_id) REFERENCES core.users (id),
+	CONSTRAINT membership_source CHECK (source IN ('AUTO', 'MANUAL')),
+	CONSTRAINT membership_status CHECK (status IN ('ACTIVE', 'ENDED'))
+)""")
+    op.execute(
+        """CREATE INDEX ix_core_class_memberships_class_id ON core.class_memberships (class_id)"""
+    )
+    op.execute(
+        """CREATE INDEX ix_core_class_memberships_student_id ON core.class_memberships (student_id)"""
+    )
+    op.execute(
+        """CREATE UNIQUE INDEX uq_active_class_membership ON core.class_memberships (class_id, student_id) WHERE status = 'ACTIVE'"""
     )
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_core_co_lecturer_invitations_pending",
-        table_name="co_lecturer_invitations",
-        schema="core",
-    )
-    op.drop_index(
-        op.f("ix_core_co_lecturer_invitations_lecturer_id"),
-        table_name="co_lecturer_invitations",
-        schema="core",
-    )
-    op.drop_index(
-        op.f("ix_core_co_lecturer_invitations_class_id"),
-        table_name="co_lecturer_invitations",
-        schema="core",
-    )
-    op.drop_table("co_lecturer_invitations", schema="core")
-    op.drop_index("ix_core_join_requests_pending", table_name="join_requests", schema="core")
-    op.drop_index(
-        op.f("ix_core_join_requests_decided_by"), table_name="join_requests", schema="core"
-    )
-    op.drop_index(
-        op.f("ix_core_join_requests_student_id"), table_name="join_requests", schema="core"
-    )
-    op.drop_index(op.f("ix_core_join_requests_class_id"), table_name="join_requests", schema="core")
-    op.drop_table("join_requests", schema="core")
-    op.drop_index("ix_core_class_memberships_active", table_name="class_memberships", schema="core")
-    op.drop_index(
-        op.f("ix_core_class_memberships_user_id"), table_name="class_memberships", schema="core"
-    )
-    op.drop_index(
-        op.f("ix_core_class_memberships_class_id"), table_name="class_memberships", schema="core"
-    )
-    op.drop_table("class_memberships", schema="core")
-    op.drop_index(op.f("ix_core_classes_owner_user_id"), table_name="classes", schema="core")
-    op.drop_index(op.f("ix_core_classes_course_id"), table_name="classes", schema="core")
-    op.drop_table("classes", schema="core")
-    op.drop_table("courses", schema="core")
+    op.execute("DROP TABLE core.class_memberships")
+    op.execute("DROP TABLE core.teaching_assignments")
+    op.execute("DROP TABLE core.subject_classes")
+    op.execute("DROP TABLE core.homeroom_rosters")
+    op.execute("DROP TABLE core.homeroom_classes")
+    op.execute("DROP TABLE core.courses")
+    op.execute("DROP TABLE core.semesters")
+    op.execute("DROP TABLE core.academic_years")
+    op.execute("DROP TABLE core.schools")

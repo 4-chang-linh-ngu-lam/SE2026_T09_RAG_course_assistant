@@ -10,7 +10,7 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Hiện trạng:** chưa có service/router membership. Luồng xin vào bằng mã, giáo viên approve/reject/remove và Student self-leave cũ đã bị thay thế hoàn toàn trong phạm vi task này.
+**Hiện trạng cập nhật:** service/router Admin đã có roster AUTO, MANUAL, preview/version confirm, chuyển giữa hai homeroom hoặc hai lớp MANUAL trong transaction và giữ membership history. Join code/teacher approval/Student self-leave không có route. Attempt/bài nộp dở do Learning sở hữu còn chờ hợp đồng tích hợp; test PostgreSQL/CI cần chạy trước nghiệm thu G2.
 
 **Cần sửa:** triển khai ghi danh AUTO/MANUAL do Admin điều phối, sync roster, preview/confirm và chuyển lớp giữ lịch sử; không chỉ đổi tên JoinRequest.
 

@@ -1,199 +1,190 @@
 from uuid import UUID
 
-from sqlalchemy import case, select
+from sqlalchemy import exists, or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.modules.classroom.models import (
-    Class,
+    AcademicYear,
     ClassMembership,
-    ClassRole,
-    CoLecturerInvitation,
-    CoLecturerInvitationStatus,
+    ClassStatus,
     Course,
-    JoinRequest,
+    EnrollmentMode,
+    HomeroomClass,
+    HomeroomRoster,
     MembershipStatus,
+    School,
+    Semester,
+    SubjectClass,
+    TeachingAssignment,
 )
-from app.modules.identity.public import check_user_is_lecturer, get_user_roles
 
 
 class ClassroomRepository:
-    """Query layer for the classroom tables; policy lives in permissions/service.
-
-    List methods fetch limit+1 rows so callers can derive next_cursor cheaply.
-    """
-
     def __init__(self, session: Session):
         self.session = session
 
-    def get_course_by_id(self, course_id: UUID) -> Course | None:
-        return self.session.scalar(select(Course).where(Course.id == course_id))
-
-    def get_course_by_code(self, code: str) -> Course | None:
-        return self.session.scalar(select(Course).where(Course.code == code))
-
-    def list_courses(self, limit: int, cursor: UUID | None) -> list[Course]:
-        """Keyset page ordered by id; returns limit+1 rows (extra implies next_cursor)."""
-        query = select(Course)
-        if cursor is not None:
-            query = query.where(Course.id > cursor)
-        return list(self.session.scalars(query.order_by(Course.id).limit(limit + 1)))
-
-    def create_course(self, course: Course) -> Course:
-        self.session.add(course)
-        self.session.flush()
-        return course
-
-    def get_class_by_id(self, class_id: UUID, *, for_update: bool = False) -> Class | None:
-        """FOR UPDATE with populate_existing re-reads fresh state inside mutations."""
-        query = select(Class).where(Class.id == class_id)
-        if for_update:
-            query = query.with_for_update().execution_options(populate_existing=True)
-        return self.session.scalar(query)
-
-    def find_class_by_join_code_hash(self, join_code_hash: str) -> Class | None:
-        """Join-code lookup; the raw code is never stored, only its SHA-256."""
-        return self.session.scalar(select(Class).where(Class.join_code_hash == join_code_hash))
-
-    def list_classes_for_user(self, user_id: UUID, limit: int, cursor: UUID | None) -> list[Class]:
-        """Classes where the user holds an ACTIVE membership."""
-        query = (
-            select(Class)
-            .join(ClassMembership, ClassMembership.class_id == Class.id)
-            .where(
-                ClassMembership.user_id == user_id,
-                ClassMembership.status == MembershipStatus.ACTIVE,
-            )
+    def ensure_school(self, school_id: UUID) -> None:
+        # Identity school IDs are preassigned; this creates only their Classroom-owned row.
+        self.session.execute(
+            insert(School).values(id=school_id).on_conflict_do_nothing(index_elements=[School.id])
         )
-        if cursor is not None:
-            query = query.where(Class.id > cursor)
-        return list(self.session.scalars(query.order_by(Class.id).limit(limit + 1)))
 
-    def create_class(self, klass: Class) -> Class:
-        self.session.add(klass)
-        self.session.flush()
-        return klass
-
-    def get_membership(
-        self, class_id: UUID, user_id: UUID, *, for_update: bool = False
-    ) -> ClassMembership | None:
-        """Prefer the ACTIVE row when several exist (re-admitted members keep history)."""
-        active_first = case((ClassMembership.status == MembershipStatus.ACTIVE, 0), else_=1)
-        query = (
-            select(ClassMembership)
-            .where(ClassMembership.class_id == class_id, ClassMembership.user_id == user_id)
-            .order_by(active_first, ClassMembership.id.desc())
-            .limit(1)
+    def ensure_academic_year(self, school_id: UUID, label: str) -> AcademicYear:
+        self.session.execute(
+            insert(AcademicYear)
+            .values(school_id=school_id, label=label)
+            .on_conflict_do_nothing(index_elements=[AcademicYear.school_id, AcademicYear.label])
         )
-        if for_update:
-            query = query.with_for_update().execution_options(populate_existing=True)
-        return self.session.scalar(query)
-
-    def get_active_membership(self, class_id: UUID, user_id: UUID) -> ClassMembership | None:
         return self.session.scalar(
-            select(ClassMembership).where(
-                ClassMembership.class_id == class_id,
-                ClassMembership.user_id == user_id,
-                ClassMembership.status == MembershipStatus.ACTIVE,
+            select(AcademicYear).where(
+                AcademicYear.school_id == school_id, AcademicYear.label == label
             )
         )
 
-    def list_active_members(
-        self, class_id: UUID, limit: int, cursor: UUID | None
-    ) -> list[ClassMembership]:
-        """Paged ACTIVE roster (all roles)."""
-        query = select(ClassMembership).where(
-            ClassMembership.class_id == class_id,
-            ClassMembership.status == MembershipStatus.ACTIVE,
+    def ensure_semester(self, academic_year_id: UUID, name: str) -> Semester:
+        self.session.execute(
+            insert(Semester)
+            .values(academic_year_id=academic_year_id, name=name)
+            .on_conflict_do_nothing(index_elements=[Semester.academic_year_id, Semester.name])
         )
+        return self.session.scalar(
+            select(Semester).where(
+                Semester.academic_year_id == academic_year_id, Semester.name == name
+            )
+        )
+
+    def get_course(self, course_id: UUID) -> Course | None:
+        return self.session.get(Course, course_id)
+
+    def get_course_by_code(self, school_id: UUID, code: str) -> Course | None:
+        return self.session.scalar(
+            select(Course).where(Course.school_id == school_id, Course.code == code)
+        )
+
+    def get_homeroom(self, homeroom_id: UUID, *, for_update: bool = False) -> HomeroomClass | None:
+        query = select(HomeroomClass).where(HomeroomClass.id == homeroom_id)
+        if for_update:
+            query = query.with_for_update()
+        return self.session.scalar(query)
+
+    def get_homeroom_by_name(
+        self, school_id: UUID, academic_year_id: UUID, name: str
+    ) -> HomeroomClass | None:
+        return self.session.scalar(
+            select(HomeroomClass).where(
+                HomeroomClass.school_id == school_id,
+                HomeroomClass.academic_year_id == academic_year_id,
+                HomeroomClass.name == name,
+            )
+        )
+
+    def active_roster(self, homeroom_id: UUID) -> list[HomeroomRoster]:
+        return list(
+            self.session.scalars(
+                select(HomeroomRoster).where(
+                    HomeroomRoster.homeroom_class_id == homeroom_id,
+                    HomeroomRoster.ended_at.is_(None),
+                )
+            )
+        )
+
+    def auto_classes_for_homeroom(self, homeroom_id: UUID) -> list[SubjectClass]:
+        return list(
+            self.session.scalars(
+                select(SubjectClass)
+                .where(
+                    SubjectClass.homeroom_class_id == homeroom_id,
+                    SubjectClass.enrollment_mode == EnrollmentMode.AUTO,
+                    SubjectClass.status == ClassStatus.ACTIVE,
+                )
+                .order_by(SubjectClass.id)
+                .with_for_update()
+            )
+        )
+
+    def get_class(self, class_id: UUID, *, for_update: bool = False) -> SubjectClass | None:
+        query = select(SubjectClass).where(SubjectClass.id == class_id)
+        if for_update:
+            query = query.with_for_update()
+        return self.session.scalar(query)
+
+    def list_classes(
+        self, school_id: UUID, user_id: UUID, *, is_admin: bool, limit: int, cursor: UUID | None
+    ) -> list[SubjectClass]:
+        query = select(SubjectClass).where(SubjectClass.school_id == school_id)
+        if not is_admin:
+            enrolled = exists(
+                select(ClassMembership.id).where(
+                    ClassMembership.class_id == SubjectClass.id,
+                    ClassMembership.student_id == user_id,
+                    ClassMembership.status == MembershipStatus.ACTIVE,
+                )
+            )
+            assigned = exists(
+                select(TeachingAssignment.id).where(
+                    TeachingAssignment.class_id == SubjectClass.id,
+                    TeachingAssignment.lecturer_id == user_id,
+                    TeachingAssignment.ended_at.is_(None),
+                )
+            )
+            query = query.where(or_(enrolled, assigned))
         if cursor is not None:
-            query = query.where(ClassMembership.id > cursor)
-        return list(self.session.scalars(query.order_by(ClassMembership.id).limit(limit + 1)))
+            query = query.where(SubjectClass.id > cursor)
+        return list(self.session.scalars(query.order_by(SubjectClass.id).limit(limit + 1)))
 
-    def create_membership(self, membership: ClassMembership) -> ClassMembership:
-        self.session.add(membership)
-        self.session.flush()
-        return membership
-
-    def list_class_lecturers(self, class_id: UUID) -> list[ClassMembership]:
-        """ACTIVE OWNER/CO_LECTURER rows only — unbounded, unlike list_active_members."""
+    def active_memberships(self, class_id: UUID) -> list[ClassMembership]:
         return list(
             self.session.scalars(
                 select(ClassMembership).where(
                     ClassMembership.class_id == class_id,
                     ClassMembership.status == MembershipStatus.ACTIVE,
-                    ClassMembership.class_role.in_((ClassRole.OWNER, ClassRole.CO_LECTURER)),
                 )
             )
         )
 
-    def get_join_request(self, request_id: UUID, *, for_update: bool = False) -> JoinRequest | None:
-        query = select(JoinRequest).where(JoinRequest.id == request_id)
-        if for_update:
-            query = query.with_for_update().execution_options(populate_existing=True)
-        return self.session.scalar(query)
-
-    def get_pending_join_request(self, class_id: UUID, student_id: UUID) -> JoinRequest | None:
-        """Guards create_join_request against the partial PENDING unique index."""
+    def active_membership(self, class_id: UUID, student_id: UUID) -> ClassMembership | None:
         return self.session.scalar(
-            select(JoinRequest).where(
-                JoinRequest.class_id == class_id,
-                JoinRequest.student_id == student_id,
-                JoinRequest.status == "PENDING",
+            select(ClassMembership).where(
+                ClassMembership.class_id == class_id,
+                ClassMembership.student_id == student_id,
+                ClassMembership.status == MembershipStatus.ACTIVE,
             )
         )
 
-    def list_join_requests(
-        self, class_id: UUID, limit: int, cursor: UUID | None, *, pending_only: bool = False
-    ) -> list[JoinRequest]:
-        """Keyset page over a class's join requests (PENDING slice when pending_only)."""
-        query = select(JoinRequest).where(JoinRequest.class_id == class_id)
-        if pending_only:
-            query = query.where(JoinRequest.status == "PENDING")
-        if cursor is not None:
-            query = query.where(JoinRequest.id > cursor)
-        return list(self.session.scalars(query.order_by(JoinRequest.id).limit(limit + 1)))
-
-    def create_join_request(self, join_request: JoinRequest) -> JoinRequest:
-        self.session.add(join_request)
-        self.session.flush()
-        return join_request
-
-    def get_pending_invitation(
-        self, class_id: UUID, lecturer_id: UUID, *, for_update: bool = False
-    ) -> CoLecturerInvitation | None:
-        """Re-reads the PENDING row after an index conflict (see invite_co_lecturer)."""
-        query = select(CoLecturerInvitation).where(
-            CoLecturerInvitation.class_id == class_id,
-            CoLecturerInvitation.lecturer_id == lecturer_id,
-            CoLecturerInvitation.status == CoLecturerInvitationStatus.PENDING,
+    def has_membership_history(self, class_id: UUID, student_id: UUID) -> bool:
+        return (
+            self.session.scalar(
+                select(ClassMembership.id)
+                .where(
+                    ClassMembership.class_id == class_id,
+                    ClassMembership.student_id == student_id,
+                )
+                .limit(1)
+            )
+            is not None
         )
-        if for_update:
-            query = query.with_for_update().execution_options(populate_existing=True)
-        return self.session.scalar(query)
 
-    def get_co_lecturer_invitation(
-        self, invitation_id: UUID, *, for_update: bool = False
-    ) -> CoLecturerInvitation | None:
-        """Fetch by id for accept/reject/cancel; FOR UPDATE serializes state flips."""
-        query = select(CoLecturerInvitation).where(CoLecturerInvitation.id == invitation_id)
-        if for_update:
-            query = query.with_for_update().execution_options(populate_existing=True)
-        return self.session.scalar(query)
+    def active_teachers(self, class_id: UUID) -> list[TeachingAssignment]:
+        return list(
+            self.session.scalars(
+                select(TeachingAssignment).where(
+                    TeachingAssignment.class_id == class_id,
+                    TeachingAssignment.ended_at.is_(None),
+                )
+            )
+        )
 
-    def create_co_lecturer_invitation(
-        self, invitation: CoLecturerInvitation
-    ) -> CoLecturerInvitation:
-        self.session.add(invitation)
+    def active_teacher(self, class_id: UUID, lecturer_id: UUID) -> TeachingAssignment | None:
+        return self.session.scalar(
+            select(TeachingAssignment).where(
+                TeachingAssignment.class_id == class_id,
+                TeachingAssignment.lecturer_id == lecturer_id,
+                TeachingAssignment.ended_at.is_(None),
+            )
+        )
+
+    def add(self, row):
+        self.session.add(row)
         self.session.flush()
-        return invitation
-
-    def is_lecturer(self, user_id: UUID) -> bool:
-        """Delegates to identity via public API (cross-module rule)."""
-        return check_user_is_lecturer(user_id, session=self.session)
-
-    def roles_of(self, user_id: UUID) -> list[str]:
-        """System roles for the user, again via identity's public API."""
-        return get_user_roles(user_id, session=self.session)
-
-
-__all__ = ["ClassroomRepository"]
+        return row

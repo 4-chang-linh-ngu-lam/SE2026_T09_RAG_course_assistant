@@ -1,6 +1,6 @@
 # Core Service — Thiết kế v1
 
-**Trạng thái:** BASELINE THIẾT KẾ · **Ngày:** 2026-10-11. Identity có triển khai và bằng chứng test tại TASK-001–004; các phần còn lại vẫn là thiết kế, chưa xác nhận toàn Core hoàn thành.
+**Trạng thái:** BASELINE THIẾT KẾ · **Ngày:** 2026-10-11. Identity đã triển khai tại TASK-001–004; Classroom Admin/access API và schema đã triển khai tại TASK-005–008, nhưng toàn Core G1/G2 vẫn chưa hoàn thành.
 
 ## 1. Công nghệ và xác thực (Identity legacy và mục tiêu được phân biệt)
 - Một Core FastAPI service, Next.js Web, PostgreSQL schema `core`, SQLAlchemy, Alembic, Docker Compose.
@@ -88,7 +88,7 @@ Quyền kiểm tra theo hành động + trạng thái + phạm vi trường/lớ
 Admin-only create/enroll/teacher assignment/archive, cross-school/cross-class, AUTO/MANUAL sync/retry, bulk import duplicate/invalid, activation expiry/replay, JWT rotation/lock, transfer with pending assessment/submission, archive, historical read vs document grant, chat privacy, grade approval/audit, notification dedup, calendar LEARNING read-only. Integration test PostgreSQL thực.
 
 ### Thiết kế Core đích và chênh lệch triển khai
-- Entity/quan hệ mục tiêu: School, AcademicYear, Semester, HomeroomClass, HomeroomRoster, Course/SubjectClass (school_id, grade_level, school_year_id, homeroom_class_id?, enrollment_mode AUTO|MANUAL), TeachingAssignment (PRIMARY|ASSISTING), ClassMembership (nguồn ghi danh, trạng thái, thời gian hiệu lực, lịch sử), StudentActivationToken; username unique cho Student, email nullable theo loại tài khoản.
+- Entity/quan hệ Classroom đã triển khai bằng migration 0008: School, AcademicYear, Semester, HomeroomClass, HomeroomRoster, Course/SubjectClass (`school_id`, grade_level, academic_year_id, semester_id, homeroom_class_id?, enrollment_mode AUTO|MANUAL), TeachingAssignment (PRIMARY|ASSISTING), ClassMembership (nguồn ghi danh, ACTIVE/ENDED, thời gian hiệu lực và từng đợt lịch sử). Identity sở hữu Student activation tokens; username unique cho Student, email nullable theo loại tài khoản.
 - Phân công giáo viên và roster chỉ Admin mutation. Co-lecturer/owner invitation, ownership transfer, join request và Lecturer-created class ở thiết kế cũ **không còn là luồng MVP**. Archive/restore chỉ Admin. Đồng bộ AUTO không ghi đè lớp MANUAL; chuyển MANUAL→AUTO có preview/confirm.
 - Access check tách `participate_current_class`, `read_own_history`, `read_document_source`, `use_ai_tutor`, `grade_submitted_work`. Transfer/archive fail closed cho hoạt động mới nhưng không chặn xem lịch sử hợp lệ.
 - Identity chuyển đổi bằng migration mới 0005–0007: CORRECTION, username/email nullable/school_id/activated_at và Student token purposes. Không sửa migration cũ hoặc tự chuyển tài khoản/tạo trường; School thuộc Classroom chưa có FK. Backend kiểm tra school scope từ DB cho Admin helpers/API, fail closed khi thiếu/khác trường.
