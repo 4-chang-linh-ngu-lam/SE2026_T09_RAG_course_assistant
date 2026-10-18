@@ -103,9 +103,15 @@ class ClassroomRepository:
             )
         )
 
-    def get_class(self, class_id: UUID, *, for_update: bool = False) -> SubjectClass | None:
+    def get_class(
+        self, class_id: UUID, *, for_update: bool = False, for_share: bool = False
+    ) -> SubjectClass | None:
         query = select(SubjectClass).where(SubjectClass.id == class_id)
-        if for_update:
+        if for_share:
+            # FOR SHARE serializes with Classroom's own FOR UPDATE mutations
+            # without blocking other readers.
+            query = query.with_for_update(read=True)
+        elif for_update:
             query = query.with_for_update()
         return self.session.scalar(query)
 
