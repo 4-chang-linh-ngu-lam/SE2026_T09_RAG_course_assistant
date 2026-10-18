@@ -18,8 +18,10 @@
 - Comments cần interface công khai tối thiểu của Feed để xác minh post; không import repository/model Feed để thực hiện nghiệp vụ. Comment tạo thành công ghi outbox cùng transaction; TASK-012 xử lý recipient/dedup và kiểm tra quyền khi mở link.
 
 **Phụ thuộc và nghiệm thu bổ sung:**
-- [ ] TASK-008/009/012/014 thống nhất DTO, transaction và notification contract; test parent ID giả, cross-school/class, post/comment đã xóa và tác giả mất quyền.
+- [x] TASK-008/009/012/014 thống nhất DTO, transaction và notification contract; test parent ID giả, cross-school/class, post/comment đã xóa và tác giả mất quyền.
 - [ ] Test biên body 1/10.000/10.001, LOCKED/ENDED/ARCHIVED, moderation có audit và notification lỗi không rollback comment đã commit.
+
+**Bằng chứng 2026-10-18:** `pytest tests/social -q -W error` → 35 passed; có test body/parent/ARCHIVED/outbox tối thiểu. Checklist thứ hai giữ nguyên vì hợp đồng hiện hành yêu cầu lỗi **ghi outbox** rollback comment, khác câu “notification lỗi không rollback” cũ, và PostgreSQL 16 chưa chạy được.
 
 ---
 

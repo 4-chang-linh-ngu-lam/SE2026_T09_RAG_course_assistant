@@ -10,7 +10,7 @@ Chuẩn bị môi trường theo `.env.example` tại root repo (chỉ mẫu loc
 
 Health contract: `/health/live` trả `{status:"live"}` (thay `{status:"ok"}` từ skeleton theo TASK-016); `/health/ready` trả `{status:"ready",db:"connected"}` khi kết nối và quyền USAGE schema `core` hợp lệ, ngược lại trả 503 error envelope. Liveness không phụ thuộc DB. Timeout kết nối/pool cấu hình bằng `DATABASE_CONNECT_TIMEOUT_SECONDS` và `DATABASE_POOL_TIMEOUT_SECONDS` (mặc định 3 giây).
 
-Common, Identity auth/profile/data requests, hai API Admin cấp tài khoản/mã Student và Classroom Admin/access API đã triển khai. Social, Notification worker và các API quản trị còn lại chưa triển khai. Migration 0001 khởi tạo baseline; 0002 tạo `core.audit_events`; 0003 tạo bốn bảng xác thực Identity; 0004 tạo `core.data_requests`; 0005 thêm CORRECTION; 0006 thêm username/school_id/activated_at và email nullable; 0007 thêm Student token purposes; 0008 tạo Classroom theo Lumi; 0009 tạo outbox. Không dùng mật khẩu DB mặc định trong production.
+Common, Identity auth/profile/data requests, hai API Admin cấp tài khoản/mã Student, Classroom Admin/access API và Social đã triển khai. Notification worker và các API quản trị còn lại chưa triển khai. Migration 0001 khởi tạo baseline; 0002 tạo `core.audit_events`; 0003 tạo bốn bảng xác thực Identity; 0004 tạo `core.data_requests`; 0005 thêm CORRECTION; 0006 thêm username/school_id/activated_at và email nullable; 0007 thêm Student token purposes; 0008 tạo Classroom theo Lumi; 0009 tạo outbox; 0010 tạo feed, comments và calendar. Không dùng mật khẩu DB mặc định trong production.
 
 ## Classroom (TASK-005–008)
 
@@ -20,6 +20,16 @@ Common, Identity auth/profile/data requests, hai API Admin cấp tài khoản/m�
 - Mutation quản trị quan trọng yêu cầu `X-Admin-Reason` thuộc `ADMIN_INTERVENTION`, `POLICY_VIOLATION`, `USER_REQUEST`; audit ghi reason_code đã kiểm tra. Outbox ghi cùng transaction; notification worker chưa có. HTTP Idempotency-Key hiện dùng RAM một process, còn cần cơ chế bền vững nếu chạy nhiều worker. Import CSV/Excel, mapping School legacy và policy Learning đối với attempt dở chưa được hoàn tất.
 - Kiểm tra contract/unit: `pytest tests/classroom/test_contract.py -W error`. Integration cần `TEST_DATABASE_URL` trỏ đến PostgreSQL test riêng: `pytest tests/classroom/test_integration.py -W error`; thiếu DB thì test bị skip và không được tính là bằng chứng đã chạy.
 
+## Social (TASK-009–011)
+
+- Feed: `GET/POST /api/v1/classes/{class_id}/posts`, `PATCH/DELETE /api/v1/classes/{class_id}/posts/{post_id}`. Comments lồng dưới post với GET/POST/PATCH/DELETE. Calendar dùng `GET/POST /api/v1/classes/{class_id}/calendar` và `PATCH/DELETE .../{event_id}`. Không có detail GET cho post và không có HTTP endpoint đồng bộ Learning.
+- Tất cả quyền lớp đi qua `classroom.public.check_class_action`; Comments chỉ xác minh post qua `social.feed.public.get_visible_post_ref`, không import model/repository Feed. Author response chỉ có `id,display_name`; Identity được batch lookup một lần mỗi trang, user không còn tồn tại trả tên null.
+- Người mất membership/assignment hiện hành không đọc hoặc ghi Social. ARCHIVED vẫn đọc, mọi ghi trả 409. Admin không được đọc; Admin cùng trường chỉ moderation DELETE, ghi audit reason code `POLICY_VIOLATION`. Post/comment soft-delete; CORE calendar event hard-delete; LEARNING projection read-only qua API.
+- Cursor là UUID bản ghi cuối trang nhưng repository tra timestamp trong đúng parent trước khi tiếp tục: Feed sắp `created_at DESC,id DESC`; Comments `created_at ASC,id ASC`; Calendar `starts_at ASC,id ASC`. Cursor parent khác trả 400.
+- Tạo post ghi `SOCIAL_POST_CREATED`; tạo comment cho tác giả khác ghi `SOCIAL_COMMENT_CREATED`; tạo/cập nhật projection deadline ghi `CALENDAR_DEADLINE_CHANGED`. Outbox cùng transaction và payload không chứa body. Notification recipient/delivery vẫn thuộc TASK-012.
+- Public Feed interface: `get_visible_post_ref(class_id, post_id, *, session=None) -> PostRefDTO | None`, chỉ trả `{id,class_id,author_id}` cho post chưa xóa. Internal Calendar helper `upsert_learning_deadline(...)` đang chờ contract TASK-019; event trùng/cũ không ghi đè.
+- Test nhanh: `pytest tests/social -q -W error`. Integration/migration: đặt `TEST_DATABASE_URL` tới PostgreSQL test riêng rồi chạy `pytest tests/integration/test_social.py -q -W error`; không có DB thì bị skip và không được tính là bằng chứng PostgreSQL.
+
 ## Common foundation (TASK-001)
 
 - Cấu hình qua biến môi trường: `DATABASE_URL`, `CORS_ORIGINS` (JSON array), `SECRET_KEY`, `ALGORITHM=HS256`, `ACCESS_TOKEN_EXPIRE_MINUTES=15`, `REFRESH_TOKEN_EXPIRE_DAYS=7`, `INTERNAL_SERVICE_SECRET`, `COOKIE_SECURE=true`, `COOKIE_HTTPONLY=true`, `COOKIE_SAMESITE=lax`.
@@ -27,7 +37,7 @@ Common, Identity auth/profile/data requests, hai API Admin cấp tài khoản/m�
 - `get_current_user` dùng `get_user_lookup` để lấy `CurrentUser` hiện hành. Bootstrap đã nối dependency này với `identity.public.get_identity_user_lookup` truy vấn DB. Ứng dụng không dùng bootstrap vẫn fail closed khi chưa nối lookup. `require_roles` dùng role hiện hành từ lookup; quyền theo lớp vẫn do Classroom kiểm tra.
 - Request nội bộ dùng `X-Service-Key`, so sánh constant-time với `INTERNAL_SERVICE_SECRET`; dependency trả scope `core:check_access`. Endpoint nội bộ phải kiểm tra action/quyền lớp; không dùng JWT người dùng thay credential service.
 - Mọi response có `X-Correlation-ID` UUID; giữ UUID hợp lệ từ request hoặc sinh mới. Lỗi HTTP/validation/server trả envelope `error` và không phản chiếu input nhạy cảm. Resource ngoài quyền cần chủ động trả `AppError(404)`.
-- `get_pagination` giới hạn 1..100 (mặc định 20). Cursor mã hóa UUID cuối; truy vấn phải sắp xếp theo UUID và lọc `id > cursor`, lấy `limit + 1` để xác định `next_cursor`. Cursor không cấp quyền truy cập.
+- `get_pagination` giới hạn 1..100 (mặc định 20). Cursor mã hóa UUID cuối. Truy vấn sắp UUID trực tiếp lọc `id > cursor`; consumer có thứ tự nghiệp vụ khác phải tra UUID trong đúng scope để lấy tuple sắp xếp ổn định (Social dùng thời gian + ID). Luôn lấy `limit + 1` để xác định `next_cursor`; cursor không cấp quyền truy cập.
 - `get_db` cung cấp session; `transaction(session)` commit/rollback unit of work do caller sở hữu. Không lồng transaction này vào transaction khác. UUID dùng `uuid4` phía Python và `gen_random_uuid()` có sẵn trên PostgreSQL 16, không cần extension `uuid-ossp`.
 - `record_audit` thêm event vào cùng transaction, không tự commit. Chỉ truyền action/target type định danh từ code và `AuditMetadata` đã allowlist; không truyền mô tả tự do, token, mật khẩu, nội dung chat/tài liệu. Mở rộng metadata phải review theo K5/F7.
 

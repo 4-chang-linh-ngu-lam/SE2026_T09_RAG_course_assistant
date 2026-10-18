@@ -67,23 +67,25 @@ Access action hiện gồm `read_class_content`, `participate_current_class`, `m
 
 **Còn chờ tích hợp:** import CSV/Excel, xử lý pending attempt theo Learning, Notification worker/recipient, policy retention, mapping School cho tài khoản cũ và bảo đảm idempotency bền vững nhiều worker. Những phần này chưa được tính là Core G2 hoàn tất.
 
-## Feed / Comments / Calendar / Notifications — PROPOSED
-| Method | Endpoint | Quyền / Body |
+## Feed / Comments / Calendar — IMPLEMENTED; Notifications — PROPOSED
+| Method | Endpoint | Quyền / Body → Kết quả |
 |---|---|---|
-| GET/POST | /classes/{class_id}/posts | ACTIVE member; POST {body} |
-| PATCH | /classes/{class_id}/posts/{post_id} | Author còn quyền hiện hành |
-| DELETE | /classes/{class_id}/posts/{post_id} | Author còn quyền hoặc giáo viên được phân công moderation; Admin can thiệp có audit |
-| GET/POST | /classes/{class_id}/posts/{post_id}/comments | ACTIVE member; POST {body} |
-| PATCH | /classes/{class_id}/posts/{post_id}/comments/{id} | Author còn quyền hiện hành |
-| DELETE | /classes/{class_id}/posts/{post_id}/comments/{id} | Author còn quyền hoặc giáo viên được phân công moderation; Admin can thiệp có audit |
-| GET | /classes/{class_id}/calendar | ACTIVE member; ?from=ISO&to=ISO |
-| POST | /classes/{class_id}/calendar | Giáo viên PRIMARY/ASSISTING hiện hành; {title,starts_at,ends_at} |
-| PATCH/DELETE | /classes/{class_id}/calendar/{id} | Giáo viên PRIMARY/ASSISTING hiện hành; chỉ CORE-origin event |
+| GET/POST | /classes/{class_id}/posts | Thành viên hiện hành; GET `{items,next_cursor}`, POST `{body}` → 201 |
+| PATCH | /classes/{class_id}/posts/{post_id} | Tác giả còn quyền hiện hành; `{body}` → 200 |
+| DELETE | /classes/{class_id}/posts/{post_id} | Tác giả còn quyền hoặc moderation hiện hành; soft-delete → 204; xóa nội dung người khác có audit |
+| GET/POST | /classes/{class_id}/posts/{post_id}/comments | Thành viên hiện hành và post còn hiển thị; GET `{items,next_cursor}`, POST `{body}` → 201 |
+| PATCH | /classes/{class_id}/posts/{post_id}/comments/{id} | Tác giả còn quyền hiện hành; `{body}` → 200 |
+| DELETE | /classes/{class_id}/posts/{post_id}/comments/{id} | Tác giả còn quyền hoặc moderation hiện hành; soft-delete → 204; xóa nội dung người khác có audit |
+| GET | /classes/{class_id}/calendar | Thành viên hiện hành; `?from=ISO&to=ISO&limit=&cursor=` → `{items,next_cursor}` |
+| POST | /classes/{class_id}/calendar | Giáo viên PRIMARY/ASSISTING hiện hành; `{title,description?,starts_at,ends_at}` → CORE event 201 |
+| PATCH/DELETE | /classes/{class_id}/calendar/{id} | Giáo viên PRIMARY/ASSISTING hiện hành; chỉ CORE-origin event; PATCH → 200, DELETE hard-delete → 204 |
 | GET | /notifications | Authenticated; chỉ của mình, paginated |
 | PATCH | /notifications/{id}/read | Recipient → 200 {read:true} |
 | POST | /notifications/read-all | Authenticated → 204 |
 
-Các route Social/Notification ở bảng này chưa triển khai; payload/error/permission chi tiết cần review cùng TASK-009–012. Parent class/post/comment phải cùng scope, dữ liệu đã soft delete không lộ qua list/detail; archived từ chối hoạt động ghi chung. Deadline LEARNING chỉ đồng bộ qua integration, không chỉnh tại Core.
+Social kiểm tra quyền đọc trước khi tra tài nguyên: ngoài quyền/trường/lớp, parent sai scope hoặc đã soft-delete trả 404; thiếu action ghi trả 403; lớp ARCHIVED vẫn đọc nhưng mọi ghi trả 409. Mọi thao tác ghi Social khóa chia sẻ hàng lớp qua access-check trong cùng transaction với mutation. Cursor không hợp lệ hoặc thuộc parent khác trả 400. Body post/comment 1..10.000 và không toàn khoảng trắng; title 1..200; datetime phải có timezone và `starts_at < ends_at`; validation trả 422. LEARNING-origin PATCH/DELETE trả 400. Mọi response Social có `Cache-Control: no-store`; author chỉ gồm `id,display_name`, không lộ email/username. Admin không được đọc Social; Admin cùng trường chỉ đi nhánh moderation DELETE và ghi audit, khác trường trả 404.
+
+Tạo post/comment ghi outbox trong cùng transaction; lỗi ghi outbox làm rollback mutation. Payload không chứa body. Projection deadline Learning chỉ có helper nội bộ chờ contract TASK-019, dedup bằng `external_ref` và bỏ qua version trùng/cũ; không có HTTP sync endpoint. Calendar CORE dùng hard-delete vì DESIGN chưa yêu cầu giữ lịch sử xóa. Notifications ở ba dòng cuối bảng vẫn PROPOSED.
 
 ## Admin còn lại — PROPOSED (Student và Classroom đã triển khai ở mục riêng)
 | Method | Endpoint | Quyền / Body |
@@ -106,7 +108,7 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 ## Validation / Contract tests
 - **IMPLEMENTED Identity:** email lowercase; username trim/lowercase, 1..200 ký tự, không whitespace hoặc @, unique toàn hệ thống; mật khẩu mới 12..128 ký tự. Student không cần email. Không expose hash; chỉ Admin nhận mã một lần trong response Student create/issue-code có `Cache-Control: no-store`. Post/comment 1..10000, title/name 1..200, starts_at < ends_at là contract các module tương ứng.
 - Test: unauthorized/cross-school/cross-class, LOCKED/ENDED/ARCHIVED, Admin-only mutations, AUTO/MANUAL concurrency, activation replay, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.
-- FastAPI sinh OpenAPI cho Identity và Classroom đã triển khai; Identity có snapshot, Classroom có contract test kiểm tra Admin routes và không phơi bày luồng legacy. Social/Notification/Admin còn lại vẫn là PROPOSED; CI chạy test liên quan cùng pytest.
+- FastAPI sinh OpenAPI cho Identity, Classroom và Social đã triển khai; Identity có snapshot, Classroom/Social có contract test kiểm tra đúng tập route. Notification/Admin còn lại vẫn là PROPOSED; CI chạy test liên quan cùng pytest.
 
 ## Ghi chú tương thích — phạm vi Lumi THCS/THPT chính khóa
 Đối tượng: học sinh khối 6–12 trong lớp chính khóa. Giữ các enum/API role kỹ thuật `ADMIN`, `LECTURER`, `STUDENT` để tương thích code; UI hiển thị Quản trị viên/Giáo viên/Học sinh. Những route hiện được mô tả ở trên là **contract hiện hành hoặc dự kiến**, không phải toàn bộ đã triển khai.
