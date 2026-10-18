@@ -9,7 +9,7 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Hiện trạng:** Feed mới có skeleton; bảng/route bên dưới là thiết kế, chưa triển khai.
+**Hiện trạng tại ngày 2026-10-16:** Feed mới có skeleton; nhận định này đã được thay thế sau khi PR #8 triển khai Social.
 
 **Cần sửa/bổ sung:**
 - Phụ thuộc action policy TASK-008 và phân công PRIMARY/ASSISTING TASK-007; không suy quyền từ OWNER/CO_LECTURER legacy hoặc global LECTURER.
@@ -23,6 +23,8 @@
 - [ ] Test DTO không phụ thuộc email Student, phân trang ổn định và bài đã xóa không lộ qua detail/comments; TV1/TV2 review public contracts.
 
 **Bằng chứng 2026-10-18:** `pytest tests/social -q -W error` → 35 passed; toàn Core không có `TEST_DATABASE_URL` → 135 passed, 62 skipped. Test PostgreSQL 16/TV1–TV2 review chưa hoàn tất nên checklist review giữ nguyên.
+
+**Cập nhật sau PR #8 (2026-10-19):** Feed hiện đã có trong `main`; full Core PostgreSQL 16 suite trên commit sau PR #10 đạt 342 passed, 0 skipped. CI PR #10 cũng xanh. Các con số 135/62 và nhận định chưa triển khai ở trên là bằng chứng lịch sử, không phải trạng thái mới. Owner review cho shared/action contracts vẫn cần ghi nhận riêng.
 
 ---
 
@@ -77,7 +79,7 @@ Xây dựng bảng trong schema `core`:
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
 - [ ] Thành viên `ACTIVE` có thể đăng bài và đọc danh sách bài đăng theo thứ tự mới nhất.
-- [ ] Học sinh chưa được Admin ghi danh hoặc đã kết thúc ghi danh không thể đăng bài hay đọc bảng tin.
+- [ ] Học sinh chưa được Admin ghi danh hoặc đã kết thúc ghi danh không thể đăng bài hay đọc bảng tin; tài nguyên ngoài quyền được che theo API Contract.
 - [ ] Khi một bài viết bị xóa (soft delete), gọi `GET /posts` không còn nhìn thấy bài viết đó (Rule L1).
 - [ ] Giảng viên có thể xóa bài viết của sinh viên khác và hệ thống ghi lại sự kiện vào `audit_events` (Rule L5).
 - [ ] Khi lớp bị `ARCHIVED`, yêu cầu `POST /posts` bị từ chối với thông báo lỗi thích hợp.

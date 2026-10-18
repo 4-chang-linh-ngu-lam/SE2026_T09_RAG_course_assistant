@@ -7,6 +7,8 @@
 - **Business Rules liên quan:** `A1–A8`, `F1–F2`, `F7`, `H1–H2`, `K5`
 - **Tài liệu căn cứ:** [DESIGN.md](../docs/architect/microservices-v1/core/DESIGN.md), [FOLDER_STRUCTURE.md](../docs/architect/microservices-v1/core/FOLDER_STRUCTURE.md#4-quy-tắc-giảm-git-conflict-cho-4-người)
 
+**Cập nhật sau PR #10 (2026-10-19):** Main hiện có head `0012`; full Core PostgreSQL 16 đạt 342 passed, 0 skipped và CI PR #10 xanh. Mapping School dữ liệu thực, FK `users.school_id` và owner approval vẫn pending.
+
 
 ## Rà soát đồng bộ — 2026-10-16
 
@@ -53,7 +55,7 @@ Quản lý lịch sử Alembic và dữ liệu mẫu của Core, bảo đảm t�
 - [ ] Mapping School **dữ liệu thực** được TV1/TV2 review trước backfill/FK: chưa có manifest được duyệt, không tự tạo trường/gán scope hoặc bật users.school_id FK. Công cụ và runbook đã sẵn sàng.
 - [x] Round trip downgrade/upgrade trên fixture tương thích; fixture không tương thích bị chặn có giải thích, không mất dữ liệu.
 - [x] Test membership/assignment cạnh tranh và audit/outbox persistence theo schema đã duyệt; không áp dụng tổng số bảng cố định.
-- [x] Seed lặp không tạo trùng, không ghi secret/log mã, chỉ tác động database test/dev được chỉ định; TASK-016 vẫn chạy migration trước startup. CI bổ sung heads/report artifact, full suite có test maintenance; không tuyên bố remote CI đã chạy.
+- [x] Seed lặp không tạo trùng, không ghi secret/log mã, chỉ tác động database test/dev được chỉ định; TASK-016 vẫn chạy migration trước startup. CI bổ sung heads/report artifact, full suite có test maintenance. Trạng thái remote tại thời điểm viết được cập nhật ở phần cuối.
 
 ## 4. Triển khai — 2026-10-19
 
@@ -70,4 +72,4 @@ Quản lý lịch sử Alembic và dữ liệu mẫu của Core, bảo đảm t�
 - `pytest tests/identity/test_public.py -q -W error -p no:cacheprovider --cov=app.modules.identity.public --cov-branch --cov-fail-under=100` → **17 passed, 100% line/branch**.
 - `ruff check app tests migrations` và `ruff format --check app tests migrations` đạt; **127 file** format đúng. `alembic heads` → **0012 (head)**; upgrade/check/roundtrip được chạy thật trong test, gồm schema khác service không bị tác động.
 - Docker Core build thành công; smoke trong wheel/site-packages với UID 10001: upgrade head/check, seed lần đầu/lặp, report 6 user và check không drift đều đạt. Mật khẩu test sinh riêng trong môi trường, không xuất ra log; tài nguyên Docker test được dọn sau kiểm thử.
-- CI workflow bổ sung `alembic heads --verbose`, read-only maintenance report và artifact; full PostgreSQL suite bao gồm maintenance/CLI. Chưa push nên **chưa có kết quả remote CI**; không coi bằng chứng local là owner approval hoặc nghiệm thu toàn Core G2.
+- CI workflow bổ sung `alembic heads --verbose`, read-only maintenance report và artifact; full PostgreSQL suite bao gồm maintenance/CLI. Tại thời điểm ghi chú này trước khi push, chưa có kết quả remote CI; PR #10 sau đó đã đạt CI, còn owner approval và nghiệm thu toàn Core G2 vẫn pending.

@@ -2,6 +2,8 @@
 
 Ngày tổng hợp: **2026-10-19**. Nhánh bàn giao: **`tv4`**.
 
+**Cập nhật sau merge PR #10:** `main` hiện ở commit `2f7d70a`; full Core chạy lại trên PostgreSQL 16.14/Python 3.12.14 đạt **342 passed, 0 failed, 0 skipped** trong 387.46 giây; Rule evidence xác nhận 342 cases và 0 skipped/failed scenario. [CI PR head `bb7f88d`](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/39157402992) đạt `core-tests`, `compose-smoke`, `web-build`; `core-load` được skip theo cấu hình tùy chọn. PR đã merge, nhưng chưa có owner approval, nghiệm thu toàn Core G2, Web E2E hoặc full TP-01.
+
 Backend Core đã có các luồng chính và bằng chứng kiểm thử local; **chưa nghiệm thu
 toàn Core G2, full TP-01 hoặc khả năng vận hành production**. Tài liệu này tập hợp
 phần đã làm, giới hạn và việc tiếp theo; không thay thế Business Rules/API Contract.
@@ -38,7 +40,7 @@ phần đã làm, giới hạn và việc tiếp theo; không thay thế Busines
 | 012 Notification | Inbox/read/read-all, recipient-only, transactional outbox, worker retry/dedup | Review event contracts; không dùng để giao credential SMTP |
 | 013 Administration | Staff/status/roles, school audit, CSV/XLSX preview/confirm, data-request review | Thiếu policy/executor giữ IN_REVIEW; SMTP/legacy audit giới hạn bên dưới |
 | 014 Migrations/seed | Metadata registry, head 0012, downgrade guard, report/plan/apply manifest, seed dev/test | Dữ liệu thực/mapping/FK và quy trình production onboarding chưa được nghiệm thu |
-| 015 Security/integration | HTTP journey, permissions, concurrency, boundaries, evidence, backend runtime/load checks | Client latency cao; full TP-01, remote CI và owner approval chưa có kết quả tại thời điểm tổng hợp |
+| 015 Security/integration | HTTP journey, permissions, concurrency, boundaries, evidence, backend runtime/load checks | Client latency cao; full TP-01 và owner approval còn pending. CI PR #10 đã xanh; xem cập nhật đầu tài liệu |
 
 Các checklist/đoạn “hiện trạng” cũ trong task 001–011 là lịch sử và có chỗ chưa
 cập nhật theo đợt tích hợp này. Không diễn giải ô chưa tick thành chắc chắn thiếu
@@ -102,11 +104,11 @@ code, cũng không tự tick acceptance liên service chỉ vì Core tests đạ
   không bị gate. Pool cấu hình qua môi trường, mặc định vẫn 5 + 10 overflow.
 - Rule catalog nối scenario với JUnit; missing/skip/failure không được tính đạt.
   CI xuất artifacts, có workflow_dispatch tùy chọn đo tải 10 phút. Nhánh `tv4`
-  được thêm vào push trigger; remote CI phải được đọc từ run thực sau push.
+  được thêm vào push trigger; tại thời điểm bàn giao, remote CI chưa chạy.
 
 ## 4. Bằng chứng kiểm thử đã chạy
 
-Đây là kết quả local trước bàn giao; không phải khẳng định remote CI đã chạy.
+Các số liệu bảng dưới đây là kết quả local tại thời điểm chạy; CI PR #10 được bổ sung trong cập nhật đầu tài liệu.
 
 | Kiểm tra | Kết quả |
 |---|---|
@@ -115,6 +117,7 @@ code, cũng không tự tick acceptance liên service chỉ vì Core tests đạ
 | Identity public gate | 17 tests, **100% line/branch** trong module này |
 | Concurrency bổ sung | 3 tests đạt sau khi tăng đối soát MANUAL; 300 thao tác, 39,37 giây |
 | Lint/format | Ruff đạt; 139 files đã kiểm tra format tại mốc task 015 |
+| CI PR #10 | `core-tests`, `compose-smoke`, `web-build` đạt tại head `bb7f88d`; `core-load` skipped |
 | Runtime backend | Compose sạch: DB/migrate/Core/worker; wheel site-packages, UID 10001, no schema drift |
 | Health | DB down: ready 503/live 200; DB restart: ready hồi phục |
 | Scope | Không build/start Web trong lần smoke local; không dùng dữ liệu người dùng thật |
@@ -149,7 +152,7 @@ không phải trạng thái Git hiện tại. Command tái lập tại [tests RE
 
 | Mã | Vấn đề / ảnh hưởng | Bước tiếp theo / owner phối hợp |
 |---|---|---|
-| OPEN-01 | Client latency cao dù backend ASGI thấp; chưa đủ bằng chứng capacity/end-user SLO | TV4 đo độc lập trên môi trường riêng, giữ cả backend/client metrics, tìm bottleneck trước khi nghiệm thu TP-01 |
+| OPEN-01 | Follow-up không chạy suite/build đồng thời ghi backend p95 18,79 ms, client p95 1,17 giây (max 9,99 giây), trong khi lượt trước là 15,58 giây; chênh lệch chưa rõ nguyên nhân và chưa đủ bằng chứng user-facing SLO | TV4 đo lại trên môi trường cô lập, giữ cả backend/client metrics và phân tích bottleneck trước khi nghiệm thu TP-01 |
 | OPEN-02 | Legacy School mapping chưa duyệt, users.school_id nullable/chưa FK | TV1/TV2 duyệt manifest dữ liệu thực; provision School trước Identity, plan/apply theo runbook rồi migration constraint mới khi đủ điều kiện |
 | OPEN-03 | Limiter/non-import idempotency cache process-local | TV1/TV2/TV4 chốt yêu cầu multi-worker/restart, thiết kế cơ chế dùng chung/bền vững; không suy ra durable semantics từ import |
 | OPEN-04 | SMTP trước DB commit có thể gửi invite không dùng được nếu commit lỗi; chưa test provider thật | TV1/TV4 chốt delivery/reissue/retry có bảo vệ credential; thử SMTP thật khi có cấu hình, không đưa mã vào inbox/outbox chung |
@@ -158,10 +161,10 @@ không phải trạng thái Git hiện tại. Command tái lập tại [tests RE
 | OPEN-07 | Audit legacy school null không hiện trong scoped Admin API | Giữ nguyên dữ liệu; nếu cần phân loại, dùng phương án mapping riêng có bằng chứng/approval, không đoán school hoặc nới quyền |
 | OPEN-08 | Seed chỉ dev/test, không phải production first-Admin bootstrap/onboarding | Operator/TV1/TV2/TV4 cần chốt runbook production riêng trước rollout; không bỏ guard seed |
 | OPEN-09 | Một số task 001–011 còn checklist/nhận định lịch sử | Owner đồng bộ với code/evidence này, phân biệt phần Core đã test và acceptance liên service còn pending |
-| OPEN-10 | Shared/API/schema thay đổi chưa có owner approval; remote CI chưa có kết quả tại mốc báo cáo | Sau push đọc run trên đúng SHA; TV1 review auth/public/audit, TV2 review Classroom/mapping, TV3 review Social/events, TV4 review worker/Admin/infra |
+| OPEN-10 | Shared/API/schema thay đổi chưa có owner approval; CI PR #10 đã xanh tại head `bb7f88d` | TV1 review auth/public/audit, TV2 review Classroom/mapping, TV3 review Social/events, TV4 review worker/Admin/infra; không coi CI thay owner review |
 | OPEN-11 | Bộ test hữu hạn, overall branch coverage 78,28%; AST guard có giới hạn | Bổ sung test theo lỗi/rủi ro phát hiện và review thực tế; không tuyên bố không còn bug hoặc bảo đảm tuyệt đối từ coverage |
 
-Ưu tiên: OPEN-01 và CI/review trên đúng commit; sau đó chốt mapping/onboarding,
+Ưu tiên: OPEN-01 và owner review trên đúng commit; sau đó chốt mapping/onboarding,
 delivery/idempotency theo cách triển khai dự kiến. Phần thiếu policy/service vẫn
 được ghi pending. Frontend không nằm trong phạm vi đợt backend này.
 
@@ -173,7 +176,8 @@ delivery/idempotency theo cách triển khai dự kiến. Phần thiếu policy/
 - Các file shared cần review: `common/`, `bootstrap.py`, `main.py`, public interfaces,
   migration environment/model registry, dependencies, Compose, CI và API contract.
 - Cấu hình thật theo `.env.example`; không commit `.env`, DSN/token/mật khẩu thật.
-  Không có deploy, merge main, force-push hoặc gửi thông báo cho owner trong lần upload.
+  Tại thời điểm bàn giao ban đầu chưa có merge/deploy; PR #10 sau đó đã squash-merge vào `main`.
+  Không force-push hoặc gửi thông báo cho owner.
 - Tài liệu chi tiết: [Core README](../services/core/README.md),
   [API Contract](../docs/architect/microservices-v1/core/API_CONTRACT.md),
   [task 012](TASK-012-notification-module.md), [task 013](TASK-013-administration-audit.md),

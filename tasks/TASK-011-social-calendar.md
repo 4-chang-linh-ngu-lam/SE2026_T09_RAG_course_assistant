@@ -9,7 +9,7 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Hiện trạng:** Calendar chưa triển khai; Learning chưa có API/event, chỉ chốt ranh giới deadline.
+**Hiện trạng tại ngày 2026-10-16:** Calendar chưa triển khai; Learning chưa có API/event. Phần Core Calendar đã được thêm sau đợt rà soát này.
 
 **Cần sửa/bổ sung:**
 - Thay OWNER/CO_LECTURER bằng assignment PRIMARY/ASSISTING hiện hành; kiểm tra school/class ở mọi thao tác. ARCHIVED chặn ghi sự kiện chung; lịch lớp không trở thành cách đọc nội dung mới sau chuyển lớp.
@@ -22,6 +22,8 @@
 - [x] Test thời gian bằng nhau/đảo chiều, PATCH, giả class/event ID, ARCHIVED và LEARNING-origin read-only; duplicate/out-of-order không tạo nhiều sự kiện hoặc thông báo.
 
 **Bằng chứng 2026-10-18:** unit/contract Social → 35 passed; `alembic upgrade head --sql` sinh DDL tới 0010 thành công. Integration test PostgreSQL đã được thêm nhưng PostgreSQL 16 Compose chưa chạy do Docker daemon không có; contract TASK-019 vẫn chưa được review nên checklist phụ thuộc giữ nguyên.
+
+**Cập nhật sau PR #8 (2026-10-19):** Core Calendar hiện đã có trong `main`; full Core PostgreSQL 16 suite sau PR #10 đạt 342 passed, 0 skipped và CI PR #10 xanh. Learning-origin hiện chỉ là projection/contract trong Core; Learning API/event thật và owner review contract TASK-019 vẫn chưa có.
 
 ---
 
