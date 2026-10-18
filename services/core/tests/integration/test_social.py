@@ -292,3 +292,55 @@ def test_calendar_core_and_learning_versioning(social):
     with pytest.raises(AppError) as archived:
         calendar.delete_event(class_id, core_event.id, users["teacher"])
     assert archived.value.status_code == 409
+
+
+def test_learning_deadline_upsert_handles_row_created_by_another_worker(social):
+    session, _classroom, class_id, _users = social
+    start = datetime.now(UTC) + timedelta(days=2)
+    # Mô phỏng worker khác đã insert trước: nhánh ON CONFLICT không được ném IntegrityError.
+    session.add(
+        CalendarEvent(
+            class_id=class_id,
+            title="Worker A",
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            origin="LEARNING",
+            external_ref="assessment-race",
+            version=1,
+        )
+    )
+    session.flush()
+
+    same = upsert_learning_deadline(
+        session,
+        class_id=class_id,
+        external_ref="assessment-race",
+        title="Worker B duplicate",
+        starts_at=start,
+        ends_at=start + timedelta(hours=1),
+        version=1,
+    )
+    assert same.title == "Worker A"
+    newer = upsert_learning_deadline(
+        session,
+        class_id=class_id,
+        external_ref="assessment-race",
+        title="Worker B newer",
+        starts_at=start,
+        ends_at=start + timedelta(hours=3),
+        version=2,
+    )
+    assert newer.id == same.id
+    assert newer.title == "Worker B newer"
+    assert newer.version == 2
+    rows = session.scalars(
+        select(CalendarEvent).where(CalendarEvent.external_ref == "assessment-race")
+    ).all()
+    assert len(rows) == 1
+    events = session.scalars(
+        select(OutboxEvent).where(
+            OutboxEvent.event_type == "CALENDAR_DEADLINE_CHANGED",
+            OutboxEvent.aggregate_id == str(same.id),
+        )
+    ).all()
+    assert len(events) == 1

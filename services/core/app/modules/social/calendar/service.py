@@ -164,29 +164,26 @@ def upsert_learning_deadline(
         raise AppError(422, "Invalid Learning deadline")
     _validate_interval(starts_at, ends_at)
     repository = CalendarRepository(session)
+    values = {
+        "class_id": class_id,
+        "title": title,
+        "starts_at": starts_at,
+        "ends_at": ends_at,
+        "version": version,
+    }
     with transaction(session):
+        # INSERT ... ON CONFLICT: SELECT FOR UPDATE không khóa được dòng chưa tồn tại.
+        inserted_id = repository.insert_learning_if_absent(
+            {**values, "external_ref": external_ref, "description": None}
+        )
         event = repository.get_learning(external_ref, for_update=True)
-        if event is not None and version <= event.version:
-            return event
         if event is None:
-            event = repository.create(
-                CalendarEvent(
-                    class_id=class_id,
-                    title=title,
-                    description=None,
-                    starts_at=starts_at,
-                    ends_at=ends_at,
-                    origin=CalendarOrigin.LEARNING,
-                    external_ref=external_ref,
-                    version=version,
-                )
-            )
-        else:
-            event.class_id = class_id
-            event.title = title
-            event.starts_at = starts_at
-            event.ends_at = ends_at
-            event.version = version
+            raise AppError(503)
+        if inserted_id is None:
+            if version <= event.version:
+                return event
+            for field, value in values.items():
+                setattr(event, field, value)
             session.flush()
         record_outbox_event(
             session,

@@ -1,7 +1,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.common.errors import AppError
@@ -31,6 +32,19 @@ class CalendarRepository:
         if for_update:
             query = query.with_for_update().execution_options(populate_existing=True)
         return self.session.scalar(query)
+
+    def insert_learning_if_absent(self, values: dict) -> UUID | None:
+        """Insert nguyên tử; trả None nếu external_ref đã có (worker khác vừa tạo)."""
+        statement = (
+            insert(CalendarEvent)
+            .values(origin=CalendarOrigin.LEARNING, **values)
+            .on_conflict_do_nothing(
+                index_elements=["origin", "external_ref"],
+                index_where=text("external_ref IS NOT NULL"),
+            )
+            .returning(CalendarEvent.id)
+        )
+        return self.session.scalar(statement)
 
     def list(
         self,
