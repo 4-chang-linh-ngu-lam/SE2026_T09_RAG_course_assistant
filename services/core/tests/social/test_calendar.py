@@ -67,6 +67,17 @@ def test_calendar_create_rejects_invalid_or_naive_intervals(start, end):
         CalendarEventCreateRequest(title="Event", starts_at=start, ends_at=end)
 
 
+@pytest.mark.parametrize("field", ["title", "starts_at", "ends_at"])
+def test_calendar_patch_rejects_explicit_null_for_required_fields(field):
+    with pytest.raises(ValidationError):
+        CalendarEventUpdateRequest.model_validate({field: None})
+
+
+def test_calendar_patch_allows_clearing_description():
+    request = CalendarEventUpdateRequest.model_validate({"description": None})
+    assert request.model_dump(exclude_unset=True) == {"description": None}
+
+
 def test_calendar_patch_checks_value_remaining_in_database(monkeypatch):
     session = MagicMock(spec=Session)
     service = CalendarService(session)

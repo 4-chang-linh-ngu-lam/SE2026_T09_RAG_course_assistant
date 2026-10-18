@@ -60,6 +60,14 @@ class CalendarEventUpdateRequest(BaseModel):
     def timezone_required(cls, value: datetime | None) -> datetime | None:
         return _aware(value) if value is not None else None
 
+    @model_validator(mode="after")
+    def reject_explicit_nulls(self):
+        # Chỉ description được xóa bằng null; các cột còn lại là NOT NULL.
+        for field in ("title", "starts_at", "ends_at"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
 
 class CalendarEventResponse(BaseModel):
     model_config = ConfigDict(frozen=True, from_attributes=True)
