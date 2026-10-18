@@ -21,6 +21,7 @@ def check_class_action(
     action: ClassAccessAction | str,
     *,
     session: Session | None = None,
+    lock: bool = False,
 ) -> ClassAccessDTO:
     try:
         action = ClassAccessAction(action)
@@ -28,14 +29,19 @@ def check_class_action(
         raise AppError(400, "Unknown class action") from exc
 
     with SessionLocal() if session is None else nullcontext(session) as db:
-        denied = ClassAccessDTO(allowed=False, class_id=class_id)
         user = get_user_summary(user_id, session=db)
         if user is None or user.status != "ACTIVE" or user.school_id is None:
-            return denied
+            return ClassAccessDTO(allowed=False, class_id=class_id)
         repository = ClassroomRepository(db)
-        klass = repository.get_class(class_id)
+        # lock=True lets a consumer take a FOR SHARE row lock inside its own
+        # write transaction, so Classroom mutations (set_teachers, archive,
+        # enrollment sync, ...) that hold FOR UPDATE commit first and the
+        # access decision cannot race them.
+        klass = repository.get_class(class_id, for_share=lock)
         if klass is None or klass.school_id != user.school_id:
-            return denied
+            # Unknown or cross-school class stays indistinguishable (404-che).
+            return ClassAccessDTO(allowed=False, class_id=class_id)
+        denied = ClassAccessDTO(allowed=False, class_id=class_id, class_status=klass.status)
 
         roles = set(get_user_roles(user_id, session=db))
         member = repository.active_membership(class_id, user_id)
