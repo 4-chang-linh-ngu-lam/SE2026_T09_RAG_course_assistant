@@ -17,6 +17,7 @@ app.add_middleware(
         "X-CSRF-Token",
         "Idempotency-Key",
         "X-Correlation-ID",
+        "X-Admin-Reason",
     ],
     expose_headers=["X-Correlation-ID"],
 )

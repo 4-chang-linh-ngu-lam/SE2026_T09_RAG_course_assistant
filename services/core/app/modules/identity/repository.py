@@ -19,6 +19,12 @@ class IdentityRepository:
     def __init__(self, session: Session):
         self.session = session
 
+    def get_by_username(self, username: str, *, for_update: bool = False) -> User | None:
+        query = select(User).where(User.username == username)
+        if for_update:
+            query = query.with_for_update().execution_options(populate_existing=True)
+        return self.session.scalar(query)
+
     def get_by_email(self, email: str, *, for_update: bool = False) -> User | None:
         query = select(User).where(User.email == email.lower())
         if for_update:
@@ -29,10 +35,20 @@ class IdentityRepository:
         if not user_ids:
             return {}
         rows = self.session.execute(
-            select(User.id, User.email, User.status).where(User.id.in_(user_ids))
+            select(
+                User.id, User.email, User.username, User.school_id, User.display_name, User.status
+            ).where(User.id.in_(user_ids))
         ).all()
         return {
-            row.id: UserSummaryDTO(id=row.id, email=row.email, status=row.status) for row in rows
+            row.id: UserSummaryDTO(
+                id=row.id,
+                email=row.email,
+                username=row.username,
+                school_id=row.school_id,
+                display_name=row.display_name,
+                status=row.status,
+            )
+            for row in rows
         }
 
     def lock_users(self, user_ids: list[UUID]) -> dict[UUID, User]:
@@ -60,7 +76,15 @@ class IdentityRepository:
 
     def get_profile(self, user_id: UUID) -> UserProfile | None:
         rows = self.session.execute(
-            select(User.id, User.email, User.display_name, User.status, RoleAssignment.role)
+            select(
+                User.id,
+                User.email,
+                User.username,
+                User.school_id,
+                User.display_name,
+                User.status,
+                RoleAssignment.role,
+            )
             .outerjoin(RoleAssignment, RoleAssignment.user_id == User.id)
             .where(User.id == user_id)
         ).all()
@@ -70,6 +94,8 @@ class IdentityRepository:
         return UserProfile(
             id=user.id,
             email=user.email,
+            username=user.username,
+            school_id=user.school_id,
             display_name=user.display_name,
             status=user.status,
             roles=sorted(row.role for row in rows if row.role),

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     email_verification_expire_hours: int = Field(default=24, gt=0)
     password_reset_expire_minutes: int = Field(default=60, gt=0)
     admin_invitation_expire_hours: int = Field(default=24, gt=0)
+    student_activation_expire_hours: int = Field(default=24, gt=0)
     internal_service_secret: SecretStr | None = Field(default=None, min_length=32)
     cookie_secure: bool = True
     cookie_httponly: Literal[True] = True

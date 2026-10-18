@@ -34,11 +34,14 @@ class TokenPurpose(StrEnum):
     EMAIL_VERIFICATION = "EMAIL_VERIFICATION"
     PASSWORD_RESET = "PASSWORD_RESET"
     ADMIN_INVITATION = "ADMIN_INVITATION"
+    STUDENT_ACTIVATION = "STUDENT_ACTIVATION"
+    STUDENT_PASSWORD_RESET = "STUDENT_PASSWORD_RESET"
 
 
 class DataRequestType(StrEnum):
     ACCESS = "ACCESS"
     EXPORT = "EXPORT"
+    CORRECTION = "CORRECTION"
     DELETE = "DELETE"
 
 
@@ -53,11 +56,16 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         UniqueConstraint("email", name="uq_users_email"),
+        UniqueConstraint("username", name="uq_users_username"),
         CheckConstraint("email = lower(email)", name="ck_users_email_lowercase"),
+        CheckConstraint("username = lower(username)", name="ck_users_username_lowercase"),
         CheckConstraint("session_version >= 1", name="ck_users_session_version"),
     )
 
-    email: Mapped[str] = mapped_column(String(320))
+    email: Mapped[str | None] = mapped_column(String(320))
+    username: Mapped[str | None] = mapped_column(String(200))
+    school_id: Mapped[UUID | None] = mapped_column(index=True)
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     display_name: Mapped[str | None] = mapped_column(String(200))
     password_hash: Mapped[str] = mapped_column(String(255))
     status: Mapped[UserStatus] = mapped_column(

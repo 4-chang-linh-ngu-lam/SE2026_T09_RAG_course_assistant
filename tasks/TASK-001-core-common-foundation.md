@@ -4,11 +4,27 @@
 - **Giai đoạn:** `G0 — Contract Core / Foundation`
 - **Owner chính:** `TV1` (Phối hợp toàn đội)
 - **Module:** `services/core/app/common/`
+- **Business Rules liên quan:** `F1`, `F7`, `K2`, `K5`
 - **Tài liệu căn cứ:** [DESIGN.md](../docs/architect/microservices-v1/core/DESIGN.md), [FOLDER_STRUCTURE.md](../docs/architect/microservices-v1/core/FOLDER_STRUCTURE.md), [ADR-001](../docs/architect/microservices-v1/ADR-001.md)
+
+## Rà soát đồng bộ — 2026-10-16
+
+**Hiện trạng:** Common đã có triển khai; bản cập nhật Lumi lấy `school_id`, role/status/session version từ DB và kiểm tra scope theo trường. Không cần viết lại JWT/Argon2id chỉ vì đổi miền sản phẩm.
+
+**Cần sửa/bổ sung:**
+- Giữ cấu hình và chữ ký đúng code: SQLAlchemy sync + psycopg, `session_version`, `COOKIE_SECURE/COOKIE_HTTPONLY/COOKIE_SAMESITE`, cursor UUID; không bổ sung passlib, offset pagination hoặc JWT claim thay thế khi chưa có nhu cầu.
+- Phối hợp TV2/TV4 ở TASK-005/014 để tạo School và mapping tài khoản cũ được duyệt; không tự gán trường, không coi hai scope null là cùng trường.
+- Khi Classroom/Administration cần audit mới, mở rộng allowlist có review và test; nhãn legacy không có nghĩa là cho phép luồng join/chuyển chủ cũ. Quyền theo action/tài nguyên vẫn thuộc module sở hữu, không đưa nghiệp vụ lớp vào Common.
+
+**Phụ thuộc và nghiệm thu bổ sung:**
+- [ ] TASK-008/013 dùng Common với kiểm tra quyền hiện hành, cross-school và thiếu school scope đều fail closed.
+- [ ] Mọi thay đổi shared auth/audit có test hồi quy, TV1 và owner consumer review; giới hạn một process của limiter/cache được TASK-016 giữ đúng.
 
 ---
 
 ## 1. Mục tiêu
+
+**Cập nhật Lumi (2026-10-14):** Common bổ sung `CurrentUser.school_id` từ Identity DB và `require_school_scope` fail closed (404 khi thiếu/khác trường). Audit allowlist thêm nhãn username/credentials, không lưu giá trị mã/mật khẩu. Thêm STUDENT_ACTIVATION_EXPIRE_HOURS (24 giờ). JWT/Argon2id/refresh/cookie policy giữ nguyên. Không tự gán trường cho tài khoản cũ; schema School thuộc TV2. Bằng chứng cập nhật tại Core README.
 Xây dựng lớp hạ tầng kỹ thuật dùng chung cho toàn bộ Core service bên trong `services/core/app/common/`, đảm bảo tính thống nhất về xử lý lỗi, xác thực JWT, hash mật khẩu Argon2id, phân trang, truy vấn cơ sở dữ liệu và ghi audit.
 
 ---
@@ -17,17 +33,17 @@ Xây dựng lớp hạ tầng kỹ thuật dùng chung cho toàn bộ Core servi
 
 ### 2.1. `app/common/config.py`
 - Đọc biến môi trường an toàn qua Pydantic `BaseSettings`:
-  - `DATABASE_URL` (PostgreSQL async/sync connection string)
+  - `DATABASE_URL` (SQLAlchemy sync với psycopg theo code hiện tại)
   - `SECRET_KEY`, `ALGORITHM` (HS256)
   - `ACCESS_TOKEN_EXPIRE_MINUTES = 15`
   - `REFRESH_TOKEN_EXPIRE_DAYS = 7`
   - `INTERNAL_SERVICE_SECRET` (dùng cho service-to-service auth)
-  - Cấu hình Cookie: `SECURE=True` (False in local dev), `HTTPONLY=True`, `SAMESITE="Lax"`
+  - Cấu hình Cookie: `COOKIE_SECURE=true` (false cho HTTP local), `COOKIE_HTTPONLY=true`, `COOKIE_SAMESITE=lax`
 
 ### 2.2. `app/common/security.py`
-- Hash mật khẩu bằng **Argon2id** (`passlib.context.CryptContext` hoặc thư viện `argon2-cffi`).
+- Hash mật khẩu bằng **Argon2id** (thư viện `argon2-cffi` hiện có).
 - Tạo và xác thực Access JWT:
-  - Payload bắt buộc: `sub` (User ID UUID), `roles` (list string), `token_version` / `session_version`, `exp`, `iat`.
+  - Payload bắt buộc: `sub` (User ID UUID), `roles` (list string), `session_version`, `exp`, `iat`.
 - Refresh token helpers:
   - Sinh random opaque token chuỗi an toàn cao (32 bytes hex).
   - Hash refresh token bằng SHA-256 trước khi lưu DB (`refresh_hash`).
@@ -45,7 +61,7 @@ Xây dựng lớp hạ tầng kỹ thuật dùng chung cho toàn bộ Core servi
   - Che giấu tài nguyên không có quyền bằng `404 NOT_FOUND` thay vì `403` để chống enumeration.
 
 ### 2.5. `app/common/pagination.py`
-- Trình phân trang bằng con trỏ (opaque cursor) hoặc limit-offset chuẩn hóa:
+- Trình phân trang bằng cursor UUID opaque hiện có (query sort theo UUID, không tự chuyển sang offset):
   - Query params: `limit: int = Query(default=20, ge=1, le=100)`, `cursor: Optional[str] = None`.
   - Output schema: `{"items": [...], "next_cursor": Optional[str]}`.
 

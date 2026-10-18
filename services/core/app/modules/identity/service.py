@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.common.audit import AuditMetadata, record_audit
+from app.common.auth_dependencies import require_school_scope
 from app.common.config import settings
 from app.common.db import transaction
 from app.common.errors import AppError
@@ -34,7 +35,10 @@ from app.modules.identity.models import (
 )
 from app.modules.identity.repository import IdentityRepository
 from app.modules.identity.schemas import (
+    ActivateStudentRequest,
+    AdminCreateStudentRequest,
     AdminCreateUserRequest,
+    AssignStudentUsernameRequest,
     CreateDataRequest,
     DataRequestResponse,
     ForgotPasswordRequest,
@@ -75,6 +79,14 @@ class AuthTokens:
     refresh_expires_at: datetime
 
 
+@dataclass(frozen=True)
+class StudentCode:
+    student: UserSummaryDTO
+    purpose: str
+    code: SecretStr = field(repr=False)
+    expires_at: datetime
+
+
 class IdentityService:
     """Auth/profile/request mutations commit; Admin helpers use savepoints in a caller-owned unit."""
 
@@ -85,6 +97,7 @@ class IdentityService:
     def register(
         self, request: RegisterRequest, *, deliver: Callable[[TokenDelivery], None] | None = None
     ) -> RegistrationResult:
+        """Legacy internal workflow retained for compatibility; public registration is blocked."""
         try:
             with transaction(self.session):
                 if self.repository.get_by_email(request.email) is not None:
@@ -120,7 +133,7 @@ class IdentityService:
             user, token = self._lock_one_time_token(
                 request.token.get_secret_value(), TokenPurpose.EMAIL_VERIFICATION
             )
-            if user.status != UserStatus.PENDING_VERIFICATION:
+            if user.status != UserStatus.PENDING_VERIFICATION or not self._is_staff(user):
                 raise AppError(400, "Invalid verification token")
             now = datetime.now(UTC)
             self.repository.consume_one_time_token(token, now)
@@ -147,7 +160,7 @@ class IdentityService:
                 current.revoked_at is not None
                 or current.expires_at <= datetime.now(UTC)
                 or user.status != UserStatus.ACTIVE
-                or user.email_verified_at is None
+                or not self._credentials_ready(user)
                 or user.id != claims.sub
                 or user.session_version != claims.session_version
             ):
@@ -161,17 +174,38 @@ class IdentityService:
         return current.user_id
 
     def _authenticate(self, request: LoginRequest) -> User:
-        user = self.repository.get_by_email(request.email, for_update=True)
+        user = (
+            self.repository.get_by_username(request.username, for_update=True)
+            if request.username is not None
+            else self.repository.get_by_email(request.email, for_update=True)
+        )
         password_hash = user.password_hash if user is not None else _DUMMY_PASSWORD_HASH
         password_valid = verify_password(request.password.get_secret_value(), password_hash)
         if (
             user is None
             or not password_valid
             or user.status != UserStatus.ACTIVE
-            or user.email_verified_at is None
+            or not self._credentials_ready(user)
+            or (request.username is not None) == self._is_staff(user)
         ):
             raise AppError(401)
         return user
+
+    def _is_staff(self, user: User) -> bool:
+        return bool(
+            {Role.ADMIN, Role.LECTURER}.intersection(self.repository.get_user_roles(user.id))
+        )
+
+    def _credentials_ready(self, user: User) -> bool:
+        roles = set(self.repository.get_user_roles(user.id))
+        if roles.intersection({Role.ADMIN, Role.LECTURER}):
+            return user.email is not None and user.email_verified_at is not None
+        return (
+            roles == {Role.STUDENT}
+            and user.username is not None
+            and user.activated_at is not None
+            and user.school_id is not None
+        )
 
     @staticmethod
     def _access_claims(access_token: str) -> AccessClaims:
@@ -194,7 +228,7 @@ class IdentityService:
             elif (
                 current.expires_at <= now
                 or user.status != UserStatus.ACTIVE
-                or user.email_verified_at is None
+                or not self._credentials_ready(user)
             ):
                 raise AppError(401)
             else:
@@ -233,7 +267,12 @@ class IdentityService:
     ) -> TokenDelivery | None:
         with transaction(self.session):
             user = self.repository.get_by_email(request.email, for_update=True)
-            if user is None or user.status != UserStatus.ACTIVE or user.email_verified_at is None:
+            if (
+                user is None
+                or user.status != UserStatus.ACTIVE
+                or user.email_verified_at is None
+                or not self._is_staff(user)
+            ):
                 return None
             self.repository.invalidate_one_time_tokens(
                 user.id, TokenPurpose.PASSWORD_RESET, datetime.now(UTC)
@@ -263,23 +302,46 @@ class IdentityService:
             self.session.flush()
             return self.get_profile(user_id)
 
-    def reset_password(self, request: ResetPasswordRequest) -> None:
+    def reset_password(
+        self, request: ResetPasswordRequest, *, correlation_id: UUID | None = None
+    ) -> None:
         with transaction(self.session):
             user, token = self._lock_one_time_token(
                 request.token.get_secret_value(),
-                (TokenPurpose.PASSWORD_RESET, TokenPurpose.ADMIN_INVITATION),
+                (
+                    TokenPurpose.PASSWORD_RESET,
+                    TokenPurpose.ADMIN_INVITATION,
+                    TokenPurpose.STUDENT_PASSWORD_RESET,
+                ),
             )
+            if token.purpose == TokenPurpose.STUDENT_PASSWORD_RESET:
+                if (
+                    user.status != UserStatus.ACTIVE
+                    or not self._credentials_ready(user)
+                    or self._is_staff(user)
+                ):
+                    raise AppError(400, "Invalid reset token")
+            elif not self._is_staff(user):
+                raise AppError(400, "Invalid reset token")
             if token.purpose == TokenPurpose.ADMIN_INVITATION:
                 if user.status != UserStatus.PENDING_VERIFICATION:
                     raise AppError(400, "Invalid invitation token")
                 user.status = UserStatus.ACTIVE
                 user.email_verified_at = datetime.now(UTC)
-            elif user.status != UserStatus.ACTIVE or user.email_verified_at is None:
+            elif user.status != UserStatus.ACTIVE or not self._credentials_ready(user):
                 raise AppError(400, "Invalid reset token")
             user.password_hash = hash_password(request.new_password.get_secret_value())
             self.repository.consume_one_time_token(token, datetime.now(UTC))
             self.repository.invalidate_one_time_tokens(user.id, token.purpose, datetime.now(UTC))
             self._revoke_all(user)
+            if token.purpose == TokenPurpose.STUDENT_PASSWORD_RESET:
+                self._audit_student(
+                    user.id,
+                    user,
+                    correlation_id or uuid4(),
+                    "STUDENT_PASSWORD_RESET",
+                    ["credentials"],
+                )
 
     def set_user_status(self, user_id: UUID, status: UserStatus) -> None:
         """Internal mutation; the future Admin workflow must authorize and audit the caller."""
@@ -292,8 +354,8 @@ class IdentityService:
     def _apply_status(self, user: User, status: UserStatus) -> None:
         if status not in (UserStatus.ACTIVE, UserStatus.LOCKED):
             raise ValueError("Expected ACTIVE or LOCKED")
-        if status == UserStatus.ACTIVE and user.email_verified_at is None:
-            raise AppError(409, "Email verification required")
+        if status == UserStatus.ACTIVE and not self._credentials_ready(user):
+            raise AppError(409, "Account activation required")
         if user.status != status:
             user.status = status
             self._revoke_all(user)
@@ -311,6 +373,7 @@ class IdentityService:
             with self.session.begin_nested():
                 actor = self.repository.lock_users([actor_id]).get(actor_id)
                 self._require_admin(actor)
+                require_school_scope(actor.school_id, actor.school_id)
                 if self.repository.get_by_email(request.email) is not None:
                     raise AppError(409, "Email already registered")
                 user = self.repository.create_user(
@@ -318,6 +381,7 @@ class IdentityService:
                         email=request.email,
                         password_hash=hash_password(generate_refresh_token()),
                         status=UserStatus.PENDING_VERIFICATION,
+                        school_id=actor.school_id,
                     )
                 )
                 self.session.add_all(
@@ -343,9 +407,7 @@ class IdentityService:
                 )
                 if deliver is not None:
                     deliver(delivery)
-                return UserSummaryDTO(
-                    id=user.id, email=user.email, status=user.status
-                ), delivery.token
+                return self._summary(user), delivery.token
         except IntegrityError as exc:
             if (
                 getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
@@ -368,6 +430,8 @@ class IdentityService:
             user = users.get(user_id)
             if user is None:
                 raise AppError(404)
+            actor = users[actor_id]
+            require_school_scope(actor.school_id, user.school_id)
             previous = user.status.value
             self._apply_status(user, status)
             record_audit(
@@ -393,6 +457,210 @@ class IdentityService:
             or Role.ADMIN not in self.repository.get_user_roles(actor.id)
         ):
             raise AppError(403)
+
+    def admin_create_student(
+        self,
+        request: AdminCreateStudentRequest,
+        *,
+        actor_id: UUID,
+        correlation_id: UUID,
+    ) -> StudentCode:
+        try:
+            with self.session.begin_nested():
+                actor = self.repository.lock_users([actor_id]).get(actor_id)
+                self._require_admin(actor)
+                require_school_scope(actor.school_id, actor.school_id)
+                if self.repository.get_by_username(request.username) is not None:
+                    raise AppError(409, "Username already assigned")
+                user = self.repository.create_user(
+                    User(
+                        username=request.username,
+                        school_id=actor.school_id,
+                        display_name=request.display_name,
+                        email=None,
+                        password_hash=hash_password(generate_refresh_token()),
+                        status=UserStatus.PENDING_VERIFICATION,
+                    )
+                )
+                self.session.add(RoleAssignment(user_id=user.id, role=Role.STUDENT))
+                self.session.flush()
+                result = self._issue_student_code(user, TokenPurpose.STUDENT_ACTIVATION)
+                self._audit_student(
+                    actor_id,
+                    user,
+                    correlation_id,
+                    "ADMIN_CREATE_STUDENT",
+                    ["roles", "status", "credentials"],
+                )
+                return result
+        except IntegrityError as exc:
+            self._username_conflict(exc)
+            raise
+
+    def admin_assign_student_username(
+        self,
+        user_id: UUID,
+        request: AssignStudentUsernameRequest,
+        *,
+        actor_id: UUID,
+        correlation_id: UUID,
+    ) -> UserSummaryDTO:
+        try:
+            with self.session.begin_nested():
+                user = self._lock_admin_student(actor_id, user_id)
+                if user.username is not None:
+                    if user.username != request.username:
+                        raise AppError(409, "Username already assigned to this account")
+                    return self._summary(user)
+                if user.status in (UserStatus.ACTIVE, UserStatus.LOCKED):
+                    if user.email_verified_at is None:
+                        raise AppError(409, "Legacy account verification required")
+                    user.activated_at = datetime.now(UTC)
+                user.username = request.username
+                for purpose in TokenPurpose:
+                    self.repository.invalidate_one_time_tokens(user.id, purpose, datetime.now(UTC))
+                self._revoke_all(user)
+                self.session.flush()
+                self._audit_student(
+                    actor_id,
+                    user,
+                    correlation_id,
+                    "ADMIN_ASSIGN_STUDENT_USERNAME",
+                    ["username", "credentials"],
+                )
+                return self._summary(user)
+        except IntegrityError as exc:
+            self._username_conflict(exc)
+            raise
+
+    def admin_issue_student_code(
+        self,
+        user_id: UUID,
+        *,
+        actor_id: UUID,
+        correlation_id: UUID,
+        identity_verified: bool = False,
+    ) -> StudentCode:
+        with self.session.begin_nested():
+            user = self._lock_admin_student(actor_id, user_id)
+            if user.username is None:
+                raise AppError(409, "Assign a username before issuing a code")
+            if user.status == UserStatus.PENDING_VERIFICATION:
+                purpose = TokenPurpose.STUDENT_ACTIVATION
+            elif user.status == UserStatus.ACTIVE and self._credentials_ready(user):
+                if identity_verified is not True:
+                    raise AppError(409, "Administrator identity verification required")
+                purpose = TokenPurpose.STUDENT_PASSWORD_RESET
+                # Verified recovery revokes existing sessions without unlocking the account.
+                self._revoke_all(user)
+            else:
+                raise AppError(409, "Account cannot receive a code in its current state")
+            result = self._issue_student_code(user, purpose)
+            self._audit_student(
+                actor_id,
+                user,
+                correlation_id,
+                "ADMIN_ISSUE_STUDENT_RESET_CODE"
+                if purpose == TokenPurpose.STUDENT_PASSWORD_RESET
+                else "ADMIN_ISSUE_STUDENT_ACTIVATION_CODE",
+                ["credentials"],
+            )
+            return result
+
+    def activate_student(self, request: ActivateStudentRequest, *, correlation_id: UUID) -> None:
+        with transaction(self.session):
+            user, token = self._lock_one_time_token(
+                request.activation_code.get_secret_value(), TokenPurpose.STUDENT_ACTIVATION
+            )
+            if (
+                user.username != request.username
+                or user.status != UserStatus.PENDING_VERIFICATION
+                or user.school_id is None
+                or self.repository.get_user_roles(user.id) != [Role.STUDENT]
+            ):
+                raise AppError(400, "Invalid or expired activation code")
+            user.password_hash = hash_password(request.new_password.get_secret_value())
+            user.status = UserStatus.ACTIVE
+            user.activated_at = datetime.now(UTC)
+            self.repository.invalidate_one_time_tokens(user.id, token.purpose, datetime.now(UTC))
+            self._revoke_all(user)
+            self._audit_student(
+                user.id, user, correlation_id, "STUDENT_ACTIVATED", ["status", "credentials"]
+            )
+
+    def _lock_admin_student(self, actor_id: UUID, user_id: UUID) -> User:
+        users = self.repository.lock_users([actor_id, user_id])
+        actor, user = users.get(actor_id), users.get(user_id)
+        self._require_admin(actor)
+        if user is None:
+            raise AppError(404)
+        require_school_scope(actor.school_id, user.school_id)
+        if self.repository.get_user_roles(user.id) != [Role.STUDENT]:
+            raise AppError(409, "Expected a Student account without staff roles")
+        return user
+
+    @staticmethod
+    def _username_conflict(exc: IntegrityError) -> None:
+        if getattr(getattr(exc.orig, "diag", None), "constraint_name", None) == "uq_users_username":
+            raise AppError(409, "Username already assigned") from exc
+
+    @staticmethod
+    def _summary(user: User) -> UserSummaryDTO:
+        return UserSummaryDTO(
+            id=user.id,
+            email=user.email,
+            username=user.username,
+            school_id=user.school_id,
+            display_name=user.display_name,
+            status=user.status,
+        )
+
+    def _issue_student_code(self, user: User, purpose: TokenPurpose) -> StudentCode:
+        now = datetime.now(UTC)
+        for previous in (TokenPurpose.STUDENT_ACTIVATION, TokenPurpose.STUDENT_PASSWORD_RESET):
+            self.repository.invalidate_one_time_tokens(user.id, previous, now)
+        code = generate_refresh_token()
+        expiry = now + (
+            timedelta(hours=settings.student_activation_expire_hours)
+            if purpose == TokenPurpose.STUDENT_ACTIVATION
+            else timedelta(minutes=settings.password_reset_expire_minutes)
+        )
+        self.repository.create_one_time_token(
+            OneTimeToken(
+                user_id=user.id,
+                purpose=purpose,
+                token_hash=hash_refresh_token(code),
+                expires_at=expiry,
+            )
+        )
+        return StudentCode(
+            self._summary(user),
+            "ACTIVATION" if purpose == TokenPurpose.STUDENT_ACTIVATION else "PASSWORD_RESET",
+            SecretStr(code),
+            expiry,
+        )
+
+    def _audit_student(
+        self,
+        actor_id: UUID,
+        user: User,
+        correlation_id: UUID,
+        action: str,
+        changed_fields: list,
+    ) -> None:
+        record_audit(
+            self.session,
+            actor_id=actor_id,
+            action=action,
+            target_type="USER",
+            target_id=user.id,
+            correlation_id=correlation_id,
+            metadata_json=AuditMetadata(
+                changed_fields=changed_fields,
+                new_status=user.status.value,
+                reason_code="ADMIN_INTERVENTION" if actor_id != user.id else "USER_REQUEST",
+            ),
+        )
 
     def create_data_request(self, user_id: UUID, request: CreateDataRequest) -> DataRequestResponse:
         with transaction(self.session):

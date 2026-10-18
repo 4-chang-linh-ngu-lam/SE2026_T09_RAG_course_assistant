@@ -16,6 +16,7 @@ from app.common.auth_dependencies import (
     CurrentUser,
     get_user_lookup,
     require_roles,
+    require_school_scope,
     verify_internal_service_key,
 )
 from app.common.config import Settings, settings
@@ -338,3 +339,18 @@ def test_base_and_audit_postgresql_schema():
     ddl = str(CreateTable(table).compile(dialect=postgresql.dialect()))
     assert "core.audit_events" in ddl
     assert "JSONB" in ddl
+
+
+@pytest.mark.parametrize("case", ["missing_actor", "missing_resource", "different", "both_missing"])
+def test_school_scope_fails_closed(case):
+    school_id = uuid4()
+    scopes = {
+        "missing_actor": (None, school_id),
+        "missing_resource": (school_id, None),
+        "different": (school_id, uuid4()),
+        "both_missing": (None, None),
+    }
+    with pytest.raises(AppError) as error:
+        require_school_scope(*scopes[case])
+    assert error.value.status_code == 404
+    require_school_scope(school_id, school_id)

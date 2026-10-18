@@ -5,7 +5,7 @@
 **Kiến trúc liên quan:** [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 1. Cấu hình kiểm thử TP-01
-100 người dùng đồng thời, 10 lớp, 50 sinh viên mỗi lớp, 20 tài liệu mỗi lớp, tệp trung bình 10 MB, 30 câu mỗi bài đánh giá; đo tải ổn định trong 10 phút sau khi khởi động. Khi thử nghiệm phải ghi cấu hình CPU/RAM, cơ sở dữ liệu, hàng đợi, mạng, vùng triển khai và mô hình AI. Đây là **tải kiểm thử mục tiêu**, không phải số liệu năng lực thực tế.
+100 người dùng đồng thời, 10 lớp, 50 học sinh mỗi lớp, 20 tài liệu mỗi lớp, tệp trung bình 10 MB, 30 câu mỗi bài đánh giá; đo tải ổn định trong 10 phút sau khi khởi động. Khi thử nghiệm phải ghi cấu hình CPU/RAM, cơ sở dữ liệu, hàng đợi, mạng, vùng triển khai và mô hình AI. Đây là **tải kiểm thử mục tiêu**, không phải số liệu năng lực thực tế.
 
 Mỗi kịch bản gồm: **Nguồn tác động, Sự kiện, Môi trường, Thành phần chịu tác động, Phản ứng mong đợi, Chỉ số đo**.
 
@@ -29,7 +29,7 @@ Mỗi kịch bản gồm: **Nguồn tác động, Sự kiện, Môi trường, T
 - **Đo:** không có bản ghi nghiệp vụ trùng hoặc mất trong ít nhất 1.000 tình huống thử lại/cạnh tranh có kiểm soát; đối soát đúng.
 
 ### QAS-04 — Bảo mật và quyền riêng tư (Security & Privacy)
-- **Nguồn/sự kiện:** sinh viên thay mã lớp, tài liệu, bài làm, người dùng; quyền tài liệu bị thu hồi.
+- **Nguồn/sự kiện:** học sinh thay class_id, document_id, submission_id, user_id trong yêu cầu; quyền tài liệu bị thu hồi.
 - **Môi trường/thành phần:** API, truy hồi, mở nguồn.
 - **Phản ứng:** từ chối truy cập trái phép, không đưa nguồn không có quyền vào lời nhắc mô hình; từ chối khi không xác minh được quyền.
 - **Đo:** 100% trường hợp trái phép trong bộ kiểm thử bị chặn; không rò rỉ dữ liệu xuyên lớp; quyền thu hồi được thực thi tại lần kiểm tra mới.
@@ -66,7 +66,7 @@ Thay thuật toán ước lượng năng lực trong Learner Intelligence mà kh
 Tiến trình xử lý tài liệu lỗi giữa lúc lập chỉ mục. Tệp gốc và phiên bản hợp lệ trước đó vẫn còn; thử lại an toàn; không công bố chỉ mục chưa hoàn chỉnh. Đo thời gian phục hồi và độ trễ hàng đợi. Chưa đặt ngưỡng RPO/RTO cho Core local; kế hoạch production cần được bổ sung khi có môi trường vận hành.
 
 ### QAS-11 — Chất lượng gợi ý (Recommendation Quality)
-Tối thiểu 50 tình huống học tập do giảng viên kiểm tra. Gợi ý phải phù hợp chủ đề yếu, có bằng chứng, có thể giải thích và không kết luận năng lực khi dữ liệu thiếu. Báo cáo mức phù hợp, khả năng truy vết bằng chứng và từ chối khi thiếu dữ liệu. Báo cáo kết quả đánh giá và tỷ lệ phù hợp theo bộ tình huống đã duyệt; không tuyên bố đạt trước khi đo.
+Tối thiểu 50 tình huống học tập do giáo viên kiểm tra. Gợi ý phải phù hợp chủ đề yếu, có bằng chứng, có thể giải thích và không kết luận năng lực khi dữ liệu thiếu. Báo cáo mức phù hợp, khả năng truy vết bằng chứng và từ chối khi thiếu dữ liệu. Báo cáo kết quả đánh giá và tỷ lệ phù hợp theo bộ tình huống đã duyệt; không tuyên bố đạt trước khi đo.
 
 ## 4. Bộ thử nghiệm kiến trúc
 | Mã | Thử nghiệm | Mục tiêu |
@@ -88,9 +88,24 @@ Tối thiểu 50 tình huống học tập do giảng viên kiểm tra. Gợi ý
 **Lưu ý:** 0 lỗi trong một bộ kiểm thử hữu hạn không chứng minh hệ thống tuyệt đối không thể xảy ra lỗi.
 
 ## 6. Kiểm thử Core (G1–G2)
-- Core-01: toàn bộ ca cross-class, LOCKED, PENDING, REMOVED, archived phải bị chặn.
-- Core-02: 100 lần thử approve/transfer đồng thời không sinh membership ACTIVE hoặc owner trùng.
+- Core-01: mọi ca truy cập chéo lớp/trường, LOCKED, kết thúc ghi danh và ARCHIVED bị chặn đối với hoạt động mới; quyền đọc lịch sử cá nhân được kiểm thử riêng.
+- Core-02: 100 lần sync/transfer/import đồng thời không sinh membership ACTIVE trùng, không mất lịch sử và không ghi đè roster MANUAL.
 - Core-03: refresh rotation/replay, logout-all, password reset, CSRF, rate limit và khóa tài khoản được kiểm tra.
 - Core-04: soft delete feed/comments, calendar LEARNING read-only, notification dedup, admin audit chạy end-to-end.
 - Core-05: Docker Compose từ môi trường sạch, migration, health, contract/unit/integration test chạy có bằng chứng.
 - Core-06: đo p95 danh sách lớp ≤500ms theo TP-01; lưu cấu hình, script, kết quả thực tế.
+
+## Bổ sung tiêu chí nghiệm thu cho Lumi THCS/THPT
+- **QAS-04 (quyền):** kiểm thử học sinh không thể tự join/rời lớp chính khóa hoặc truy cập lớp môn học khác; giáo viên không thể tạo lớp, thay roster/ghi danh/phân công hoặc archive/restore. Kiểm thử Admin cùng trường quản lý AUTO/MANUAL, transfer và quyền lịch sử cá nhân; không có luồng yêu cầu bằng mã trong MVP.
+- **QAS-04 (dữ liệu học sinh):** trước triển khai thực tế phải có kiểm thử onboarding/ủy quyền hợp lệ khi cần, giới hạn quyền truy cập dữ liệu học sinh, quy trình yêu cầu dữ liệu và retention đã phê duyệt; không tự khẳng định đáp ứng pháp luật khi chưa đánh giá.
+- **QAS-06 (AI):** đánh giá câu trả lời có phù hợp khối 6–12, bám sát nguồn, gợi mở thay vì làm hộ; giữ các mục tiêu đo citation/grounding/refusal hiện có.
+- **QAS-11 (analytics):** kiểm tra cách diễn đạt “Chủ đề cần ôn tập” và “Chưa đủ dữ liệu”, không kết luận năng lực hoặc gắn nhãn rủi ro khi thiếu bằng chứng.
+
+
+### Kịch bản nghiệm thu bổ sung theo baseline (mục tiêu, chưa có bằng chứng)
+- Admin-only: Student/Lecturer không thể tạo lớp, ghi danh chính thức, thay phân công hay archive/restore; thử truy cập chéo lớp/trường phải fail closed.
+- AUTO/MANUAL: sync lặp không nhân đôi membership; lớp MANUAL không bị ghi đè; đổi mode yêu cầu preview/confirm; transfer giữ submissions/grades và audit.
+- Identity Student: không cần email; mã kích hoạt một lần có hạn, không tái sử dụng, không lộ trong logs; import CSV/Excel phát hiện lỗi/trùng, retry an toàn.
+- Assessment: co-lecturer chỉ tạo nháp/chấm được phân công; sửa điểm đã công bố có phê duyệt giáo viên chính và audit.
+- Historical access: học sinh đã chuyển lớp xem kết quả/chat/notes của mình nhưng không hỏi AI lớp cũ, không xem hoạt động mới, không mở nguồn bị thu hồi.
+- Dữ liệu trẻ em: policy retention/căn cứ xử lý/đại diện phải được xác minh trước dữ liệu thật; hoãn automation không được hiểu là hoãn tuân thủ.

@@ -5,6 +5,8 @@ from pydantic import ValidationError
 
 from app.modules.identity.models import UserStatus
 from app.modules.identity.schemas import (
+    ActivateStudentRequest,
+    AdminCreateStudentRequest,
     LoginRequest,
     RegisterRequest,
     RegisterResponse,
@@ -47,3 +49,38 @@ def test_responses_never_serialize_storage_hashes():
         "token_type",
         "expires_in",
     }
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {},
+        {"email": "staff@example.com", "username": "student"},
+        {"username": ""},
+        {"username": "student\x00"},
+        {"username": "a b"},
+        {"username": "student@example.com"},
+    ],
+)
+def test_login_requires_one_valid_identifier(values):
+    with pytest.raises(ValidationError):
+        LoginRequest(password="test-only", **values)
+
+
+def test_student_inputs_normalize_username_and_do_not_accept_email_or_roles():
+    request = AdminCreateStudentRequest(username="  Student.Example  ")
+    assert request.username == "student.example"
+    assert LoginRequest(username=" STUDENT.EXAMPLE ", password="test").login_key == (
+        "username:student.example"
+    )
+    for extra in (
+        {"roles": ["ADMIN"]},
+        {"email": "student@example.com"},
+        {"school_id": str(uuid4())},
+    ):
+        with pytest.raises(ValidationError):
+            AdminCreateStudentRequest(username="student", **extra)
+    body = ActivateStudentRequest(
+        username="student", activation_code="test-only-code", new_password="test-only long password"
+    )
+    assert "test-only-code" not in repr(body)
