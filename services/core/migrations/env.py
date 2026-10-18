@@ -7,6 +7,9 @@ from app.common.db import Base
 from app.common.outbox import OutboxEvent  # noqa: F401 -- register outbox metadata for Alembic
 from app.modules.classroom import models as classroom_models  # noqa: F401 -- register Classroom tables
 from app.modules.identity import models as identity_models  # noqa: F401 -- register Identity tables
+from app.modules.social.calendar import models as calendar_models  # noqa: F401
+from app.modules.social.comments import models as comments_models  # noqa: F401
+from app.modules.social.feed import models as feed_models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
