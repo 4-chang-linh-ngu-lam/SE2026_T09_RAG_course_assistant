@@ -51,8 +51,12 @@ class CommentsService:
             updated_at=comment.updated_at,
         )
 
-    def _post(self, class_id: UUID, post_id: UUID) -> feed_public.PostRefDTO:
-        post = feed_public.get_visible_post_ref(class_id, post_id, session=self.session)
+    def _post(
+        self, class_id: UUID, post_id: UUID, *, for_update: bool = False
+    ) -> feed_public.PostRefDTO:
+        post = feed_public.get_visible_post_ref(
+            class_id, post_id, session=self.session, for_update=for_update
+        )
         if post is None:
             raise AppError(404)
         return post
@@ -95,8 +99,8 @@ class CommentsService:
             current_user,
             ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
         )
-        post = self._post(class_id, post_id)
         with transaction(self.session):
+            post = self._post(class_id, post_id, for_update=True)
             comment = self.repository.create(
                 PostComment(post_id=post_id, author_id=current_user.id, body=request.body)
             )
@@ -129,8 +133,8 @@ class CommentsService:
             current_user,
             ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
         )
-        self._post(class_id, post_id)
         with transaction(self.session):
+            self._post(class_id, post_id, for_update=True)
             comment = self.repository.get(comment_id, for_update=True)
             if comment is None or comment.post_id != post_id:
                 raise AppError(404)
@@ -149,8 +153,8 @@ class CommentsService:
         correlation_id: UUID,
     ) -> None:
         access = get_delete_access(self.session, class_id, current_user)
-        self._post(class_id, post_id)
         with transaction(self.session):
+            self._post(class_id, post_id, for_update=True)
             comment = self.repository.get(comment_id, for_update=True)
             if comment is None or comment.post_id != post_id:
                 raise AppError(404)

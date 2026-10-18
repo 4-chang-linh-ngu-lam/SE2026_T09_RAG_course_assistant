@@ -190,3 +190,26 @@ def test_comment_moderation_records_audit(service, monkeypatch):
         getattr(call.args[0], "action", None) == "MODERATE_DELETE_COMMENT"
         for call in session.add.call_args_list
     )
+
+
+@pytest.mark.parametrize("operation", ["create", "update", "delete"])
+def test_comment_mutations_lock_parent_post_inside_transaction(monkeypatch, operation):
+    session = MagicMock(spec=Session)
+    service = CommentsService(session)
+    user, class_id, post_id = _user(), uuid4(), uuid4()
+    _access(monkeypatch)
+    calls = []
+
+    def visible(_class_id, _post_id, *, session, for_update=False):
+        calls.append(for_update)
+
+    monkeypatch.setattr(feed_public, "get_visible_post_ref", visible)
+    with pytest.raises(AppError) as missing:
+        if operation == "create":
+            service.create_comment(class_id, post_id, CommentCreateRequest(body="x"), user)
+        elif operation == "update":
+            service.update_comment(class_id, post_id, uuid4(), CommentUpdateRequest(body="x"), user)
+        else:
+            service.delete_comment(class_id, post_id, uuid4(), user, uuid4())
+    assert missing.value.status_code == 404
+    assert calls == [True]
