@@ -19,7 +19,9 @@
 
 **Phụ thuộc và nghiệm thu bổ sung:**
 - [ ] TASK-005/007/008/012/014 hoàn thành cho Calendar Core; hợp đồng liên service được review trước tích hợp TASK-019.
-- [ ] Test thời gian bằng nhau/đảo chiều, PATCH, giả class/event ID, ARCHIVED và LEARNING-origin read-only; duplicate/out-of-order không tạo nhiều sự kiện hoặc thông báo.
+- [x] Test thời gian bằng nhau/đảo chiều, PATCH, giả class/event ID, ARCHIVED và LEARNING-origin read-only; duplicate/out-of-order không tạo nhiều sự kiện hoặc thông báo.
+
+**Bằng chứng 2026-10-18:** unit/contract Social → 35 passed; `alembic upgrade head --sql` sinh DDL tới 0010 thành công. Integration test PostgreSQL đã được thêm nhưng PostgreSQL 16 Compose chưa chạy do Docker daemon không có; contract TASK-019 vẫn chưa được review nên checklist phụ thuộc giữ nguyên.
 
 ---
 

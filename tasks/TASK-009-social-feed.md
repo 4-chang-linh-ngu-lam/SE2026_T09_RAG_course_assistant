@@ -19,8 +19,10 @@
 - Không mở quyền đọc toàn feed cũ bằng read_own_history; ngoại lệ lịch sử cá nhân không phải quyền xem nội dung mới của lớp. Soft delete ẩn cả list/detail; notification qua outbox và moderation audit tối thiểu.
 
 **Phụ thuộc và nghiệm thu bổ sung:**
-- [ ] TASK-004/005/007/008/014 được tích hợp; cross-school/class, post thuộc lớp khác, LOCKED/ENDED/ARCHIVED và quyền tác giả cũ đều có test.
+- [x] TASK-004/005/007/008/014 được tích hợp; cross-school/class, post thuộc lớp khác, LOCKED/ENDED/ARCHIVED và quyền tác giả cũ đều có test.
 - [ ] Test DTO không phụ thuộc email Student, phân trang ổn định và bài đã xóa không lộ qua detail/comments; TV1/TV2 review public contracts.
+
+**Bằng chứng 2026-10-18:** `pytest tests/social -q -W error` → 35 passed; toàn Core không có `TEST_DATABASE_URL` → 135 passed, 62 skipped. Test PostgreSQL 16/TV1–TV2 review chưa hoàn tất nên checklist review giữ nguyên.
 
 ---
 
