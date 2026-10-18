@@ -11,6 +11,7 @@ from app.common.outbox import record_outbox_event
 from app.common.pagination import Pagination, encode_cursor
 from app.modules.classroom.public import ClassAccessAction
 from app.modules.identity import public as identity_public
+from app.modules.notification.public import snapshot_audience
 from app.modules.social.access import get_delete_access, require_read_access, require_write_access
 from app.modules.social.feed.models import ClassPost
 from app.modules.social.feed.repository import FeedRepository
@@ -74,6 +75,7 @@ class FeedService:
                 event_type="SOCIAL_POST_CREATED",
                 aggregate_id=post.id,
                 payload_json={
+                    **snapshot_audience(self.session, class_id),
                     "class_id": str(class_id),
                     "post_id": str(post.id),
                     "author_id": str(current_user.id),
@@ -149,6 +151,7 @@ class FeedService:
                 record_audit(
                     self.session,
                     actor_id=current_user.id,
+                    school_id=current_user.school_id,
                     action="MODERATE_DELETE_POST",
                     target_type="CLASS_POST",
                     target_id=post.id,

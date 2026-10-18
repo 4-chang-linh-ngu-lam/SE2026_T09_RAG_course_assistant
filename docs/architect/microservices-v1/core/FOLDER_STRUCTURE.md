@@ -16,14 +16,18 @@ services/core/                         # Một service FastAPI; build/chạy/tes
 │   ├── __init__.py
 │   ├── main.py                        # Khởi tạo FastAPI, middleware, đăng ký router; file shared, ít sửa
 │   ├── bootstrap.py                   # Hàm lắp ghép router/module tập trung, tránh mọi người sửa main.py
+│   ├── model_registry.py              # Metadata composition root dùng bởi Alembic/maintenance
+│   ├── maintenance/                   # CLI offline report/mapping School, seed dev/test, downgrade guard
 │   ├── common/                        # Hạ tầng chung, KHÔNG chứa logic nghiệp vụ riêng từng module
 │   │   ├── config.py                  # Đọc/cấu hình biến môi trường, không hardcode secret
 │   │   ├── db.py                      # Engine, session, transaction và dependency DB
+│   │   ├── admission.py               # Queue async trước dependency DB sync; health bypass
 │   │   ├── security.py                # JWT, hash mật khẩu, refresh-token helpers
 │   │   ├── auth_dependencies.py       # Lấy người dùng hiện tại; kiểm tra trạng thái tài khoản/phiên
 │   │   ├── errors.py                  # Cấu trúc lỗi HTTP thống nhất, correlation ID
 │   │   ├── pagination.py              # Quy ước phân trang dùng chung
-│   │   └── audit.py                   # Hạ tầng ghi audit; không lưu nội dung chat riêng tư
+│   │   ├── audit.py                   # Hạ tầng ghi audit; không lưu nội dung chat riêng tư
+│   │   └── outbox.py                  # OutboxEvent + enqueue chung, transaction do producer sở hữu
 │   ├── modules/                        # Mỗi thư mục là một miền chức năng, KHÔNG phải microservice
 │   │   ├── identity/                  # TV1: username/activation Student, email staff, school context, JWT
 │   │   │   ├── router.py              # Endpoint HTTP của Identity
@@ -31,6 +35,7 @@ services/core/                         # Một service FastAPI; build/chạy/tes
 │   │   │   ├── models.py              # SQLAlchemy ORM thuộc Identity
 │   │   │   ├── service.py             # Đăng nhập/thu hồi phiên; đăng ký email legacy nội bộ, HTTP bị chặn
 │   │   │   ├── repository.py          # Truy vấn và ghi dữ liệu Identity
+│   │   │   ├── maintenance.py         # Identity-owned report/scope mapping và fixture bootstrap dev
 │   │   │   └── public.py              # Giao diện nội bộ được module khác phép gọi
 │   │   ├── classroom/                 # TV2: School, roster, lớp môn học, AUTO/MANUAL, teaching assignment
 │   │   │   ├── router.py
@@ -39,6 +44,7 @@ services/core/                         # Một service FastAPI; build/chạy/tes
 │   │   │   ├── service.py             # Admin sync/chuyển lớp, phân công, archive/restore; transaction
 │   │   │   ├── repository.py
 │   │   │   ├── permissions.py         # Quyền theo lớp, không chỉ dựa trên role toàn hệ thống
+│   │   │   ├── maintenance.py         # School manifest, lịch sử scope và seed qua workflow Classroom
 │   │   │   └── public.py              # Ví dụ: check_class_access(...) cho các module khác
 │   │   ├── social/                    # TV3: chức năng tương tác lớp
 │   │   │   ├── feed/                  # Bài đăng bảng tin, ẩn/xóa theo quyền
@@ -49,11 +55,17 @@ services/core/                         # Một service FastAPI; build/chạy/tes
 │   │   │   ├── schemas.py
 │   │   │   ├── models.py
 │   │   │   ├── service.py
-│   │   │   └── repository.py
+│   │   │   ├── repository.py
+│   │   │   ├── public.py              # Snapshot người nhận qua Classroom public, không commit
+│   │   │   ├── events.py              # Allowlist payload v1, recipient policy và dedup
+│   │   │   └── worker.py              # Process Core xử lý outbox sau commit, retry/SKIP LOCKED
 │   │   └── administration/            # TV4 phối hợp TV1/TV2: quản trị user/role/class, audit can thiệp
 │   │       ├── router.py
 │   │       ├── schemas.py
-│   │       └── service.py             # Gọi public interfaces; tránh sao chép logic Identity/Classroom
+│   │       ├── service.py             # Workflow atomic; gọi public Identity/Classroom, không commit giữa import
+│   │       ├── models.py              # StudentImportBatch, không tạo lại AuditEvent/User/Roster
+│   │       ├── repository.py          # Import drafts/results và audit query theo school/filter
+│   │       └── import_parser.py       # CSV/XLSX có giới hạn, lỗi từng dòng, không lưu raw file/code
 │   └── integrations/                  # Biên giao tiếp với các microservice KHÁC (khi cần)
 │       ├── contracts.py               # DTO/event contract dùng xuyên service; có version
 │       └── events.py                  # Phát/nhận sự kiện, idempotency; chỉ tạo khi triển khai

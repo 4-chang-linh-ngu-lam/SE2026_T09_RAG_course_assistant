@@ -1,4 +1,5 @@
-from typing import Annotated
+import json
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
@@ -6,7 +7,12 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.common.auth_dependencies import CurrentUser, get_current_user, verify_internal_service_key
+from app.common.auth_dependencies import (
+    CurrentUser,
+    get_current_user,
+    require_school_scope,
+    verify_internal_service_key,
+)
 from app.common.db import get_db
 from app.common.errors import AppError, ErrorEnvelope
 from app.common.pagination import Page, Pagination, get_pagination
@@ -33,7 +39,7 @@ from app.modules.classroom.schemas import (
     TransferRequest,
 )
 from app.modules.classroom.service import ClassroomService
-from app.modules.identity.idempotency import Mutation, get_mutation
+from app.modules.identity.public import Mutation, get_mutation
 
 User = Annotated[CurrentUser, Depends(get_current_user)]
 Mutator = Annotated[Mutation, Depends(get_mutation)]
@@ -86,15 +92,39 @@ def _mutate(
     operation,
     *,
     reason_required: bool = False,
+    class_ids: tuple[UUID, ...] = (),
+    homeroom_ids: tuple[UUID, ...] = (),
+    created_resource: Literal["class", "homeroom", "course"] | None = None,
 ) -> Response:
     require_admin(actor)
     if reason_required and not service.reason_supplied:
         raise AppError(400, "X-Admin-Reason is required")
+
+    def validate_cached(response: Response) -> None:
+        require_admin(actor)
+        # Response replay is still a resource read. Recheck current scope for
+        # source AND destination, including endpoints with an empty 204 body.
+        for class_id in class_ids:
+            service._class_for_admin(class_id, actor)
+        for homeroom_id in homeroom_ids:
+            service._homeroom_for_admin(homeroom_id, actor)
+        if created_resource is not None:
+            resource_id = UUID(json.loads(response.body)["id"])
+            if created_resource == "class":
+                service._class_for_admin(resource_id, actor)
+            elif created_resource == "homeroom":
+                service._homeroom_for_admin(resource_id, actor)
+            else:
+                course = service.repository.get_course(resource_id)
+                if course is None:
+                    raise AppError(404)
+                require_school_scope(actor.school_id, course.school_id)
+
     return mutation.run(
         f"{actor.id}:{scope}",
         {**payload, "reason_code": service.reason_code},
         operation,
-        validate_cached=lambda _: require_admin(actor),
+        validate_cached=validate_cached,
     )
 
 
@@ -107,6 +137,7 @@ def create_course(body: CourseCreateRequest, user: User, service: Service, mutat
         "course",
         body.model_dump(mode="json"),
         lambda: _json(service.create_course(user, body), 201),
+        created_resource="course",
     )
 
 
@@ -119,6 +150,7 @@ def create_homeroom(body: HomeroomCreateRequest, user: User, service: Service, m
         "homeroom",
         body.model_dump(mode="json"),
         lambda: _json(service.create_homeroom(user, body), 201),
+        created_resource="homeroom",
     )
 
 
@@ -134,6 +166,7 @@ def set_roster(
         body.model_dump(mode="json"),
         lambda: _json(service.set_roster(user, homeroom_id, body.student_ids)),
         reason_required=True,
+        homeroom_ids=(homeroom_id,),
     )
 
 
@@ -161,6 +194,7 @@ def transfer_homeroom_student(
             )
         ),
         reason_required=True,
+        homeroom_ids=(homeroom_id, body.destination_homeroom_id),
     )
 
 
@@ -173,6 +207,7 @@ def create_class(body: ClassCreateRequest, user: User, service: Service, mutatio
         "class",
         body.model_dump(mode="json"),
         lambda: _json(service.create_class(user, body), 201),
+        created_resource="class",
     )
 
 
@@ -212,6 +247,7 @@ def set_teachers(
         body.model_dump(mode="json"),
         lambda: _json(service.set_teachers(class_id, user, body)),
         reason_required=True,
+        class_ids=(class_id,),
     )
 
 
@@ -239,6 +275,7 @@ def set_enrollment_mode(
         body.model_dump(mode="json"),
         lambda: _json(service.set_enrollment_mode(class_id, user, body)),
         reason_required=True,
+        class_ids=(class_id,),
     )
 
 
@@ -252,6 +289,7 @@ def sync_enrollment(class_id: UUID, user: User, service: Service, mutation: Muta
         {},
         lambda: _json(service.sync_enrollment(class_id, user)),
         reason_required=True,
+        class_ids=(class_id,),
     )
 
 
@@ -269,6 +307,7 @@ def add_member(
         body.model_dump(mode="json"),
         lambda: _json(service.add_member(class_id, user, body.student_id), 201),
         reason_required=True,
+        class_ids=(class_id,),
     )
 
 
@@ -286,6 +325,7 @@ def end_member(class_id: UUID, student_id: UUID, user: User, service: Service, m
         {},
         perform,
         reason_required=True,
+        class_ids=(class_id,),
     )
 
 
@@ -309,6 +349,7 @@ def transfer_member(
         body.model_dump(mode="json"),
         lambda: _json(service.transfer(class_id, body.destination_class_id, student_id, user)),
         reason_required=True,
+        class_ids=(class_id, body.destination_class_id),
     )
 
 
@@ -322,6 +363,7 @@ def archive_class(class_id: UUID, user: User, service: Service, mutation: Mutato
         {},
         lambda: _json(service.set_archived(class_id, user, archived=True)),
         reason_required=True,
+        class_ids=(class_id,),
     )
 
 
@@ -335,6 +377,7 @@ def restore_class(class_id: UUID, user: User, service: Service, mutation: Mutato
         {},
         lambda: _json(service.set_archived(class_id, user, archived=False)),
         reason_required=True,
+        class_ids=(class_id,),
     )
 
 

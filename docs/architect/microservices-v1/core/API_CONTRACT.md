@@ -1,6 +1,6 @@
 # Core API Contract v1
 
-**Trạng thái:** Identity auth/profile/data requests và Student provisioning/activation/recovery **IMPLEMENTED**; public register **BLOCKED — LEGACY**. Classroom/import và các API khác chưa triển khai được đánh dấu **PROPOSED**. Business Rules là nguồn quyết định nghiệp vụ.
+**Trạng thái:** Identity, Student provisioning/activation/recovery, Classroom Admin/access, Social, Notification và Administration backend **IMPLEMENTED**; public register **BLOCKED — LEGACY**. Data-request fulfillment/retention chưa có policy/executor nên giữ IN_REVIEW khi thiếu điều kiện, theo quyết định người dùng 2026-10-18. Business Rules là nguồn quyết định nghiệp vụ.
 
 ## Quy ước
 Health không dùng prefix `/api/v1`: `GET /health/live` → 200 `{status:"live"}`; `GET /health/ready` → 200 `{status:"ready",db:"connected"}` khi DB/schema Core dùng được, hoặc 503 `SERVICE_UNAVAILABLE`. Giá trị live thay `ok` của skeleton theo TASK-016. Health schemas được sinh trong OpenAPI.
@@ -65,9 +65,13 @@ Các mutation quản trị quan trọng yêu cầu `X-Admin-Reason` là một tr
 
 Access action hiện gồm `read_class_content`, `participate_current_class`, `moderate_class_content`, `manage_class_calendar`, `read_own_history`, `read_document_source`, `use_ai_tutor`, `grade_submitted_work`. Đọc lịch sử cá nhân không cấp quyền xem nội dung lớp mới hoặc mở nguồn bị thu hồi; consumer vẫn phải xác minh chủ tài nguyên/Document grant/Learning assignment. Action sai trả validation error; DB/service không xác minh được trả lỗi hạ tầng và consumer fail closed. Khi từ chối, access-check trả thêm `class_status` nếu lớp tồn tại và cùng trường với user (consumer phân biệt lớp archived → 409 với lớp không thấy/khác trường → 404-che); trường hợp không tìm thấy hoặc khác trường vẫn bỏ `class_status`. Consumer ghi dữ liệu có thể yêu cầu khóa chia sẻ hàng lớp (`FOR SHARE`) trong transaction ghi của mình qua tùy chọn lock của check, để mutation Classroom đang giữ `FOR UPDATE` kịp commit trước khi quyết định quyền — không tự sửa bảng Classroom.
 
-**Còn chờ tích hợp:** import CSV/Excel, xử lý pending attempt theo Learning, Notification worker/recipient, policy retention, mapping School cho tài khoản cũ và bảo đảm idempotency bền vững nhiều worker. Những phần này chưa được tính là Core G2 hoàn tất.
+**Còn chờ tích hợp:** xử lý pending attempt theo Learning, policy retention/fulfillment, mapping School cho tài khoản cũ và HTTP idempotency bền vững cho các Classroom mutations ngoài import. Import Student CSV/XLSX đã có preview/confirm bền vững, tùy chọn append roster; Notification worker/recipient đã triển khai tại TASK-012. Những phần còn lại chưa được tính là Core G2 hoàn tất.
 
-## Feed / Comments / Calendar — IMPLEMENTED; Notifications — PROPOSED
+**TASK-015 backend hardening:** replay của cache Classroom vẫn phải kiểm tra Admin hiện hành và school scope của tài nguyên nguồn/đích (kể cả response 204), hoặc course/homeroom/class đã tạo; scope thay đổi hoặc resource không còn hợp lệ trả 404, không phát lại body cũ. Không mở rộng cam kết cache process-local thành idempotency bền vững. Classroom lấy `Mutation/get_mutation` qua Identity public thay vì import nội bộ.
+
+Core HTTP `/api/*` và `/internal/*` có admission queue trước dependency đồng bộ, giữ permit đến khi cleanup session xong. Capacity mỗi process = `max(1, DATABASE_POOL_SIZE + DATABASE_MAX_OVERFLOW - 1)`; pool mặc định 5+10, timeout 3 giây. Chờ quá `DATABASE_POOL_TIMEOUT_SECONDS` trả 503 envelope chuẩn, no-store, `Retry-After:1`. Health/OpenAPI không bị queue này chặn; auth/permission vẫn chạy trên request được nhận. Đây là giới hạn hạ tầng, không cấp thêm quyền hoặc thay rule nghiệp vụ.
+
+## Feed / Comments / Calendar / Notifications — IMPLEMENTED
 | Method | Endpoint | Quyền / Body → Kết quả |
 |---|---|---|
 | GET/POST | /classes/{class_id}/posts | Thành viên hiện hành; GET `{items,next_cursor}`, POST `{body}` → 201 |
@@ -79,36 +83,80 @@ Access action hiện gồm `read_class_content`, `participate_current_class`, `m
 | GET | /classes/{class_id}/calendar | Thành viên hiện hành; `?from=ISO&to=ISO&limit=&cursor=` → `{items,next_cursor}` |
 | POST | /classes/{class_id}/calendar | Giáo viên PRIMARY/ASSISTING hiện hành; `{title,description?,starts_at,ends_at}` → CORE event 201 |
 | PATCH/DELETE | /classes/{class_id}/calendar/{id} | Giáo viên PRIMARY/ASSISTING hiện hành; chỉ CORE-origin event; PATCH → 200, DELETE hard-delete → 204 |
-| GET | /notifications | Authenticated; chỉ của mình, paginated |
-| PATCH | /notifications/{id}/read | Recipient → 200 {read:true} |
+| GET | /notifications | Authenticated; chỉ của mình; `?limit=1..100&cursor=` → `{items,unread_count,next_cursor}` |
+| PATCH | /notifications/{id}/read | Recipient → 200 `{id,read:true}`; idempotent, giữ read_at đầu tiên |
 | POST | /notifications/read-all | Authenticated → 204 |
 
 Social kiểm tra quyền đọc trước khi tra tài nguyên: ngoài quyền/trường/lớp, parent sai scope hoặc đã soft-delete trả 404; thiếu action ghi trả 403; lớp ARCHIVED vẫn đọc nhưng mọi ghi trả 409. Mọi thao tác ghi Social khóa chia sẻ hàng lớp qua access-check trong cùng transaction với mutation. Cursor không hợp lệ hoặc thuộc parent khác trả 400. Body post/comment 1..10.000 và không toàn khoảng trắng; title 1..200; datetime phải có timezone và `starts_at < ends_at`; validation trả 422. LEARNING-origin PATCH/DELETE trả 400. Mọi response Social có `Cache-Control: no-store`; author chỉ gồm `id,display_name`, không lộ email/username. Admin không được đọc Social; Admin cùng trường chỉ đi nhánh moderation DELETE và ghi audit, khác trường trả 404.
 
-Tạo post/comment ghi outbox trong cùng transaction; lỗi ghi outbox làm rollback mutation. Payload không chứa body. Projection deadline Learning chỉ có helper nội bộ chờ contract TASK-019, dedup bằng `external_ref` và bỏ qua version trùng/cũ; không có HTTP sync endpoint. Calendar CORE dùng hard-delete vì DESIGN chưa yêu cầu giữ lịch sử xóa. Notifications ở ba dòng cuối bảng vẫn PROPOSED.
+Tạo post/comment ghi outbox và snapshot người nhận trong cùng transaction; lỗi ghi outbox làm rollback mutation. Payload không chứa body. Projection deadline Learning chỉ có helper nội bộ chờ contract TASK-019, dedup bằng `external_ref` và bỏ qua version trùng/cũ; không có HTTP sync endpoint. Calendar CORE dùng hard-delete vì DESIGN chưa yêu cầu giữ lịch sử xóa.
 
-## Admin còn lại — PROPOSED (Student và Classroom đã triển khai ở mục riêng)
+### Notification inbox và event v1 (TASK-012)
+
+- `NotificationResponse`: `{id:UUID,type,payload_json,read:bool,created_at:UTC datetime}`. `unread_count` tính toàn inbox, không chỉ trang hiện tại. Limit mặc định 20; cursor UUID mã hóa theo Common, tra sequence trong đúng inbox; cursor ngoài inbox trả 400. Sắp theo sequence giao nhận DESC. Bearer/Identity hiện hành bắt buộc; ID không tồn tại hoặc không thuộc recipient trả 404. Tất cả response thành công có `Cache-Control: no-store`; read-all trả 204 không body.
+- Read-all khóa transaction theo recipient và lấy watermark sequence, đánh dấu đúng các hàng đến trước ranh giới khóa. Insert mới sau ranh giới vẫn unread. Mark-read lặp giữ timestamp đầu tiên. Không có endpoint tạo notification cho browser hoặc chọn recipient qua request.
+- Public enqueue thuộc `common.outbox.record_outbox_event`; caller sở hữu transaction, event UUID có ngay khi enqueue. Envelope lưu `id,event_type,aggregate_id,schema_version=1,aggregate_version?,created_at`; worker bổ sung `attempts,available_at,published_at,last_error_code`. `aggregate_version` lấy từ `payload.version` nếu caller không truyền. Không dùng outbox làm nơi lưu credential delivery.
+- Snapshot mới gồm `class_id,school_id,recipient_ids` cùng các ID/phiên bản của event bên dưới. Classroom thêm người vừa mất membership/assignment khi phát thông báo thay đổi. `notification.public.snapshot_audience(session,class_id)` và `classroom.public.get_notification_audience(class_id,*,session=None,homeroom=False)` chỉ trả DTO ID, không cấp quyền tài nguyên; caller không được commit trước snapshot/enqueue. Payload không có body, tên, mã, token hoặc chat/tài liệu. Version-one payload được validate theo allowlist, trường lạ làm event retry với `INVALID_EVENT`.
+
+| Event type | Aggregate / payload đặc thù | Người nhận |
+|---|---|---|
+| CLASS_ENROLLMENT_CHANGED / CLASS_ENROLLMENT_MODE_CHANGED | class_id; version | Snapshot thành viên/giáo viên và người vừa kết thúc enrollment |
+| CLASS_TEACHERS_CHANGED | class_id; version | Snapshot thành viên, giáo viên mới và giáo viên vừa kết thúc assignment |
+| CLASS_STATUS_CHANGED | class_id; version, status ACTIVE/ARCHIVED (status nullable cho event legacy) | Snapshot thành viên/giáo viên |
+| CLASS_STUDENT_TRANSFERRED | source class_id; destination_class_id, student_id, effective_at UTC, version (nullable legacy) | Student chuyển lớp |
+| HOMEROOM_STUDENT_TRANSFERRED | source homeroom ID trong class_id legacy; destination_homeroom_id, student_id, effective_at UTC | Student chuyển lớp hành chính |
+| SOCIAL_POST_CREATED | post_id; class_id, author_id | Snapshot thành viên/giáo viên, trừ tác giả, còn quyền đọc lớp khi giao |
+| SOCIAL_COMMENT_CREATED | comment_id; class_id, post_id, author_id, post_author_id | Tác giả post, khác tác giả comment, trong snapshot và còn quyền đọc |
+| CALENDAR_DEADLINE_CHANGED | calendar event_id; class_id, external_ref, version | Snapshot thành viên/giáo viên còn quyền đọc |
+
+Worker xác minh school hiện hành qua public Identity/Classroom; post đã xóa không tạo thông báo Social mới. Event 0009/0010 thiếu snapshot dùng audience hiện hành làm fallback, không thể tái tạo audience lịch sử. Event thiếu scope nguồn hoặc khác trường được giữ để retry; event type ngoài bảng không bị worker này đánh dấu published.
+
+Inbox payload chỉ chứa ID/phiên bản/trạng thái/thời điểm trong allowlist, thêm `event_id,schema_version`; không trả school_id, recipient_ids, post_author_id hoặc external_ref. Homeroom dùng `homeroom_id` trong inbox. Link từ ID không cấp quyền; mọi API tài nguyên vẫn kiểm tra quyền hiện hành.
+
+Consumer dedup theo SHA-256 của recipient + schema version + type + aggregate/version; event không có aggregate version dùng UUID event. Notification bất biến theo từng sự kiện; xử lý out-of-order không ghi đè phiên bản mới và không mất các event khác phiên bản. Worker giữ khóa outbox `SKIP LOCKED`, insert inbox và đánh dấu published cùng transaction. Lỗi delivery sau commit không rollback nghiệp vụ; retry dùng đồng hồ DB và backoff giới hạn 300 giây. Import Administration đi qua Classroom public để sinh các event enrollment hiện có; không phát event mới hoặc đưa SMTP credential delivery vào allowlist.
+
+## Administration — IMPLEMENTED (TASK-013)
 | Method | Endpoint | Quyền / Body |
 |---|---|---|
-| POST | /admin/users | Admin {email,roles:ADMIN/LECTURER} → 201, gửi link đặt mật khẩu; Student dùng provisioning riêng |
-| PATCH | /admin/users/{id}/status | Admin {status:ACTIVE/LOCKED} + audit |
-| PUT | /admin/users/{id}/roles | Admin {roles:[...]} + audit; không xóa Admin cuối |
-| GET | /admin/audit-events | Admin; paginated redacted audit |
-| GET/PATCH | /admin/data-requests/{id} | Admin; PATCH {status:IN_REVIEW/COMPLETED/REJECTED,resolution_note} |
-| GET | /admin/data-requests | Admin; paginated |
+| POST | /admin/users | Admin; `{email,roles:[ADMIN/LECTURER]}` → 201 UserSummaryDTO; gửi invitation qua SMTP, không trả token |
+| PATCH | /admin/users/{id}/status | Admin cùng trường; `{status:ACTIVE/LOCKED}` → 204, revoke phiên + audit |
+| PUT | /admin/users/{id}/roles | Admin cùng trường; `{roles:[ADMIN/LECTURER/STUDENT]}` → UserSummaryDTO; danh sách không rỗng/trùng; revoke phiên khi đổi |
+| GET | /admin/audit-events | Admin; `limit,cursor,actor_id?,action?,since?,until?` → `{items,next_cursor}`, chỉ audit cùng trường, metadata allowlist |
+| GET/PATCH | /admin/data-requests/{id} | Admin cùng trường với chủ request; GET DataRequestResponse; PATCH body theo quy trình bên dưới |
+| GET | /admin/data-requests | Admin; `limit,cursor` → Page[DataRequestResponse], cùng trường |
+| POST | /admin/students/imports/preview | Admin; `{format:CSV/XLSX,content_base64,homeroom_class_id?}` → `{valid,preview_id?,expires_at?,items,errors}` |
+| POST | /admin/students/imports/confirm | Admin đã tạo preview; `{preview_id}` → `{preview_id,status:COMPLETED,replayed,items}` |
 
-Admin can thiệp lớp có reason_code allowlist và audit theo mục Classroom; không tự có quyền xem chat riêng tư. Lý do tự do cho các workflow Administration khác vẫn cần thiết kế/redact ở TASK-013, không tự ghi nguyên header. Internal API không chấp nhận browser trực tiếp; fail closed.
+Mọi route trên dùng Bearer với role/status hiện hành. Ngoài role ADMIN, Identity public kiểm tra actor ACTIVE, email đã xác minh và school scope trong DB; thiếu scope/khác trường trả 404, Student/Lecturer trả 403, token đã revoke/LOCKED trả 401. Response có `Cache-Control: no-store`. POST user, PATCH status, PUT roles, PATCH data request và confirm import bắt buộc `X-Admin-Reason` thuộc `ADMIN_INTERVENTION`, `POLICY_VIOLATION`, `USER_REQUEST`; thiếu header 422, giá trị lạ 400. Không nhận lý do tự do trong body/header. Audit chỉ lưu code đã kiểm tra và trường cấu trúc, không chép nguyên input.
+
+**Vai trò/trạng thái:** serialize các thay đổi có thể gỡ/khóa Admin bằng advisory transaction lock trước khi khóa user theo UUID. Không gỡ hoặc khóa Admin khi không còn Admin ACTIVE khác, đã verify email và có school scope trong hệ thống (400), kể cả request đồng thời. Staff role yêu cầu email; chuyển sang Student-only cần username/activation hợp lệ, không biến đổi credential âm thầm (409). Mutation role/status thu hồi refresh và session version; ACTIVE không bypass activation. Staff SMTP callback vẫn trước commit theo Identity hiện có: SMTP lỗi rollback user/invitation/audit; DB commit lỗi sau khi gửi có thể làm invitation không dùng được, không coi SMTP là exactly-once.
+
+**Audit:** migration 0012 thêm `AuditEvent.school_id` nullable và index school/time, actor/time, action/time; không tạo bảng audit trùng. Identity/Classroom/Social/Administration ghi scope từ backend. Event legacy chưa có tenant-at-event-time giữ null và không được trả bởi Admin API; không suy scope lịch sử từ actor hiện tại. Cursor phải khớp school và bộ lọc, sắp `occurred_at DESC,id DESC`; sai cursor 400, datetime không timezone hoặc since > until 422. Metadata legacy không qua allowlist được trả `{}`. Audit các mutation và việc đọc audit/data requests, không ghi trùng audit đã do Identity/Classroom public tạo.
+
+**Yêu cầu dữ liệu:** PATCH `{status:IN_REVIEW/COMPLETED/REJECTED,resolution_note,identity_verified?:bool}`. `resolution_note` là code trong `VERIFICATION_IN_PROGRESS`, `POLICY_PENDING`, `OUTSIDE_CORE_SCOPE`, `INSUFFICIENT_VERIFICATION`, `REQUEST_REJECTED`, `DUPLICATE_REQUEST`, không chứa raw chat/token hoặc text tự do. COMPLETED/REJECTED yêu cầu `identity_verified:true` (xác nhận kiểm tra thủ công của Admin, không xác minh tự động); thiếu trả 409. Theo quyết định người dùng 2026-10-18, khi chưa có policy/executor xử lý thật cho ACCESS/EXPORT/CORRECTION/DELETE, yêu cầu COMPLETED trả **trạng thái thực IN_REVIEW**, note `POLICY_PENDING`, audit `DATA_REQUEST_DEFERRED`; không xóa, sửa hay xuất dữ liệu liên service hoặc đọc chat. REJECTED có audit, terminal không được mở lại; retry cùng quyết định không ghi trùng. Audit ghi cờ verification có cấu trúc, không copy reason của chủ request.
+
+### Student import CSV/XLSX
+
+- CSV UTF-8 (có/không BOM) hoặc một worksheet XLSX; header bắt buộc `username`, tùy chọn `display_name,user_id`. Chỉ text, không formula/column lạ/duplicate header. Tối đa 100 dòng dữ liệu, file decoded 2 MB, ZIP XML expanded 10 MB/100 entries; parser có defusedxml và chặn DTD/entity. `user_id` dùng để gán username cho Student legacy cùng trường; không tự mapping School hoặc đổi hash/UUID/trạng thái.
+- Preview chuẩn hóa username theo Identity, kiểm tra dòng lỗi/trùng username/user_id, đối soát username unique. Tài khoản đã có chỉ được dùng nếu cùng trường, Student-only, username/display_name khớp; không tự ghi đè hồ sơ. Kết quả `CREATE/EXISTING/ASSIGN_USERNAME`; lỗi chỉ `{row,code}`, không phản chiếu raw input hoặc danh tính ngoài trường. File lỗi trả 422; row/business errors trả 200 `valid:false,preview_id:null`.
+- Preview hợp lệ lưu draft trong DB, gắn actor + school, hết hạn kỹ thuật sau 30 phút theo đồng hồ DB. Confirm khóa draft và các user liên quan theo UUID, recheck actor/row fingerprints và roster_version; account/roster đổi hoặc hết hạn trả 409, actor khác/cross-school trả 404. Tất cả dòng là một batch atomic: lỗi một dòng/roster/audit/outbox rollback toàn bộ, draft vẫn có thể retry nếu còn hợp lệ.
+- `homeroom_class_id` tùy chọn thêm các Student vào roster qua Classroom public, giữ thành viên có sẵn; AUTO sync/outbox do Classroom sở hữu, không ghi đè MANUAL. Confirm không tự kết thúc roster, không đổi teaching assignment hoặc phục hồi join code. Import phân công/metadata lớp khác dùng API Classroom đã có.
+- `preview_id` là khóa chống lặp bền vững. Confirm đầu trả code một lần chỉ cho Student mới tạo, qua `items[{row,outcome,student,code?,expires_at?}]`. Code không vào draft/results/audit/log/cache. Retry/restart cùng preview trả `replayed:true`, cùng user IDs và `code:null`; mất mã dùng API issue-code hiện có. Re-import file mới dùng EXISTING và không tự cấp/reset code. Sau commit xóa staging rows, chỉ giữ IDs/outcome/fingerprint; hạn preview không được xem là policy retention pháp lý.
+
+**Public boundaries:** Identity `admin_actor`, `admin_update_user_roles`, `admin_check_student_import`, `admin_list_data_requests`, `admin_get_data_request`, `admin_resolve_data_request` trả DTO; hỗ trợ `session=` caller sở hữu. Classroom `admin_preview_roster(...,session,lock=False) -> RosterImportSnapshot` và `admin_append_roster(...,expected_roster_version,actor_id,correlation_id,reason_code,session)` không commit. Administration không import model/repository Identity/Classroom hoặc SQL sang service khác.
 
 Credential nội bộ hiện dùng header `X-Service-Key` so với `INTERNAL_SERVICE_SECRET`, cấp scope `core:check_access`. Không dùng Bearer JWT của người dùng thay service credential; `user_id` chỉ được tin sau khi xác thực service, và endpoint vẫn phải kiểm tra quyền hiện hành/action.
 
 Python public interface Identity cho consumer Core được đặc tả tại [Core README](../../../../services/core/README.md#identity-public-interface-và-data-requests-task-004). Admin mutation bắt buộc actor/correlation ID, trả DTO thay ORM và ghi audit cùng transaction; consumer không import model/repository Identity hoặc ghi audit trùng.
+
+**Offline maintenance TASK-014:** không thêm HTTP route. Coordinator gọi `identity.public.maintenance_identity_report`, `maintenance_assign_school`, `bootstrap_dev_identity` và `classroom.public.maintenance_schools`, `maintenance_user_schools`, `maintenance_provision_schools`, `seed_dev_classroom`; mọi helper dùng explicit `session`, caller commit/rollback, DTO chỉ trường an toàn. School mapping cần manifest + plan_sha256 đã review; thiếu/khác scope hoặc lịch sử Classroom mâu thuẫn bị chặn, chỉ gán scope thiếu, revoke phiên và audit `LEGACY_ASSIGN_SCHOOL`. Metadata allowlist thêm changed_fields `school_id`. Bootstrap dev chỉ được gọi bởi seed coordinator sau kiểm tra database riêng/rỗng và khóa; không dùng cho onboarding ứng dụng. Lệnh/điều kiện và FK pending tại [runbook](../../../../services/core/migrations/README.md).
 
 `UserSummaryDTO` nội bộ có `display_name` nullable, được batch lookup cùng các trường an toàn khác. Khi dùng cho feed/bình luận, Social chỉ chiếu `id` và `display_name` sang author response; email/username đăng nhập không tự động công khai. Admin Student create/issue-code trả cùng DTO này trong response của Admin.
 
 ## Validation / Contract tests
 - **IMPLEMENTED Identity:** email lowercase; username trim/lowercase, 1..200 ký tự, không whitespace hoặc @, unique toàn hệ thống; mật khẩu mới 12..128 ký tự. Student không cần email. Không expose hash; chỉ Admin nhận mã một lần trong response Student create/issue-code có `Cache-Control: no-store`. Post/comment 1..10000, title/name 1..200, starts_at < ends_at là contract các module tương ứng.
 - Test: unauthorized/cross-school/cross-class, LOCKED/ENDED/ARCHIVED, Admin-only mutations, AUTO/MANUAL concurrency, activation replay, JWT replay/revoke, CSRF, post/comment delete, notification dedup, calendar LEARNING read-only, Admin audit, internal auth.
-- FastAPI sinh OpenAPI cho Identity, Classroom và Social đã triển khai; Identity có snapshot, Classroom/Social có contract test kiểm tra đúng tập route. Notification/Admin còn lại vẫn là PROPOSED; CI chạy test liên quan cùng pytest.
+- FastAPI sinh OpenAPI cho Identity, Classroom, Social, Notification và Administration; Identity/Social có snapshot, Classroom/Notification/Administration có contract/security test. Snapshot Identity không bao gồm hai import route do Administration sở hữu; CI chạy test liên quan cùng pytest.
 
 ## Ghi chú tương thích — phạm vi Lumi THCS/THPT chính khóa
 Đối tượng: học sinh khối 6–12 trong lớp chính khóa. Giữ các enum/API role kỹ thuật `ADMIN`, `LECTURER`, `STUDENT` để tương thích code; UI hiển thị Quản trị viên/Giáo viên/Học sinh. Những route hiện được mô tả ở trên là **contract hiện hành hoặc dự kiến**, không phải toàn bộ đã triển khai.
@@ -121,7 +169,7 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 
 
 ## API mục tiêu còn lại (PROPOSED, chưa triển khai)
-- `POST /admin/students/imports/preview` và `POST /admin/students/imports/confirm`: CSV/Excel, phát hiện trùng/lỗi, idempotency và audit; không trả mã kích hoạt trong log.
+- `POST /admin/students/imports/preview` và `POST /admin/students/imports/confirm` đã triển khai ở mục Administration; fulfillment liên service và retention còn chờ chính sách, giữ IN_REVIEW.
 - Classroom routes và quyền đã triển khai theo mục Course / Class / Membership ở trên; các consumer Social/Document/AI/Learning phải dùng public/internal action check, không đọc repository Classroom.
 - Các route `/classes/join-requests*`, `/classes/{id}/co-lecturers/invitations*`, `/classes/{id}/ownership-transfer`, Lecturer `POST /classes`, Lecturer membership mutation, Owner archive/restore, public Student `/auth/register` là **legacy/ngoài phạm vi MVP**; không coi chúng là API được phép phát hành. Không xóa source/migration chỉ vì đổi contract.
 - Learning phải có quyền nháp → duyệt/công bố assessment, chấm được phân công → đề xuất/phê duyệt sửa điểm, attempt transfer cutoff; các service dùng access check theo hành động, không dựa độc nhất membership ACTIVE.
@@ -129,9 +177,9 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 
 ## Phạm vi chuyển đổi Identity hiện tại
 - Migration 0005 bổ sung `CORRECTION` cho yêu cầu xử lý thủ công; không tự sửa dữ liệu.
-- Migration 0006 bổ sung `users.username` unique/lowercase, `school_id`, `activated_at`; email nullable. Không backfill trường/username hoặc tự kích hoạt tài khoản cũ. `school_id` chưa có FK vì entity School thuộc Classroom chưa được triển khai.
+- Migration 0006 bổ sung `users.username` unique/lowercase, `school_id`, `activated_at`; email nullable. Không backfill trường/username hoặc tự kích hoạt tài khoản cũ. School đã có ở 0008; `users.school_id` chưa có FK vì mapping legacy và contract provision School trước Identity còn cần owner duyệt. TASK-014 có CLI report/plan/apply theo manifest, không tự suy mapping; xem [runbook](../../../../services/core/migrations/README.md).
 - Identity lookup lấy school_id từ DB hiện hành, không từ JWT/body. Admin tạo tài khoản qua public helper kế thừa school_id của actor. Các Admin helpers yêu cầu school scope; mutation status che tài khoản ngoài trường hoặc thiếu scope bằng 404, kể cả hai phía đều null. Trước khi sử dụng Admin helpers phải có mapping trường được duyệt cho tài khoản cũ; migration không tự gán trường.
-- Migration 0007 bổ sung purpose STUDENT_ACTIVATION/STUDENT_PASSWORD_RESET, giữ token lịch sử. Student onboarding/recovery đã triển khai theo quyết định kỹ thuật được người dùng duyệt 2026-10-14; bulk import vẫn PROPOSED. Tài khoản Student cũ giữ ID/password/dữ liệu nhưng cần Admin gán username qua public interface trước khi đăng nhập lại; không fallback email cho Student.
+- Migration 0007 bổ sung purpose STUDENT_ACTIVATION/STUDENT_PASSWORD_RESET, giữ token lịch sử. Student onboarding/recovery đã triển khai theo quyết định kỹ thuật được người dùng duyệt 2026-10-14; bulk Student import CSV/XLSX đã triển khai ở TASK-013. Tài khoản Student cũ giữ ID/password/dữ liệu nhưng cần Admin gán username qua public interface/import trước khi đăng nhập lại; không fallback email cho Student.
 
 ## Student provisioning / activation / recovery — IMPLEMENTED
 | Method | Endpoint | Quyền / Body → Kết quả |
@@ -143,4 +191,4 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 - Mã kích hoạt mặc định 24 giờ (`STUDENT_ACTIVATION_EXPIRE_HOURS`); mã reset dùng `PASSWORD_RESET_EXPIRE_MINUTES` (60 phút). Lưu SHA-256; cấp lại vô hiệu hóa mã trước. Không SMTP/mật khẩu mặc định dùng chung. Mã reset sử dụng `/auth/password/reset`, không tự mở tài khoản LOCKED.
 - Admin nhận code trực tiếp một lần, chịu trách nhiệm phân phối an toàn; không có API đọc lại code và không cache code response. Request mất phản hồi: dùng route issue-code để cấp mã mới; tạo lại cùng username trả 409. Ba thao tác create/issue-code/activate từ chối `Idempotency-Key` bằng 400.
 - Admin phải xác minh danh tính trước khi gửi `identity_verified:true` cho recovery; Backend kiểm tra role/trạng thái/trường, ghi audit cấp mã và reset; flag là xác nhận thao tác của Admin, không phải xác minh tự động. Cấp mã reset thu hồi các phiên đang mở; hoàn tất reset tiếp tục thu hồi phiên.
-- `identity.public.admin_assign_student_username` chuyển Student legacy trong cùng trường: username chưa có mới được gán; giữ UUID/email/hash/status. ACTIVE/LOCKED legacy phải đã verify email, ghi activated_at; LOCKED không tự mở. Pending vẫn phải nhận mã và activate. Thu hồi phiên/token cũ, audit cùng transaction. Chưa có HTTP quản lý chuyển đổi/bulk import; consumer Administration dùng public interface.
+- `identity.public.admin_assign_student_username` chuyển Student legacy trong cùng trường: username chưa có mới được gán; giữ UUID/email/hash/status. ACTIVE/LOCKED legacy phải đã verify email, ghi activated_at; LOCKED không tự mở. Pending vẫn phải nhận mã và activate. Thu hồi phiên/token cũ, audit cùng transaction. HTTP import hỗ trợ cột user_id để gọi helper này; không tự chuyển dữ liệu khi migration schema.

@@ -46,6 +46,10 @@ def _comment(post_id, author_id):
 
 @pytest.fixture
 def service(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.social.comments.service.snapshot_audience",
+        lambda *_: {"school_id": str(uuid4()), "recipient_ids": []},
+    )
     session = MagicMock(spec=Session)
     comments = CommentsService(session)
     monkeypatch.setattr(

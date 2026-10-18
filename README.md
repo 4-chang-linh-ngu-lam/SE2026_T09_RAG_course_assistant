@@ -7,13 +7,26 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 **Core stack đã chọn:** Next.js (Web), FastAPI (Core), PostgreSQL, Docker Compose. Các service khác chỉ chốt ranh giới và giao tiếp ở giai đoạn này; không suy diễn stack hay schema riêng.
 
 ## Đọc tài liệu
+
+**Bàn giao backend TV4 (2026-10-19):** [task 001–015, phần đã làm, kiểm thử và toàn bộ vấn đề còn mở](tasks/TV4_BACKEND_HANDOVER.md).
+
 1. [Business Rules](docs/architect/BUSINESS_RULES.md) — nguồn nghiệp vụ.
 2. [ADR](docs/architect/microservices-v1/ADR-001.md), [Architecture](docs/architect/microservices-v1/ARCHITECTURE.md) — kiến trúc.
 3. [Core Design](docs/architect/microservices-v1/core/DESIGN.md), [Core API](docs/architect/microservices-v1/core/API_CONTRACT.md), [Folder Structure](docs/architect/microservices-v1/core/FOLDER_STRUCTURE.md) — triển khai Core.
 4. [Danh mục task](tasks/README.md) — hiện trạng, việc cần sửa và phụ thuộc của TASK-001–020 (rà soát 2026-10-16).
 5. [Roadmap](docs/architect/microservices-v1/IMPLEMENTATION_ROADMAP.md), [Quality Attributes](docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md), [Contributing](docs/CONTRIBUTING.md).
 
-**Trạng thái:** Core đã có Common, Identity, Classroom Admin/access API và hạ tầng Compose/CI; Social, Notification worker và Administration còn thiếu. Xem [Core README](services/core/README.md) để cấu hình, migration và kiểm thử. Sau khi cấu hình môi trường theo `.env.example`, chạy `docker compose up --build -d`; Compose tự chạy migration trước Core. Chưa nghiệm thu toàn Core/G2 hoặc chuyển G3.
+**Trạng thái:** Core đã có Common, Identity, Classroom Admin/access API, Social, Notification inbox/outbox worker và Administration backend (staff/role/status/audit, import Student CSV/XLSX, data-request review). Yêu cầu dữ liệu thiếu policy/executor giữ IN_REVIEW. Xem [Core README](services/core/README.md) để cấu hình, migration và kiểm thử. Sau khi cấu hình môi trường theo `.env.example`, chạy `docker compose up --build -d`; Compose tự chạy migration trước Core và notification worker. Chưa nghiệm thu toàn Core/Web G2 hoặc chuyển G3.
+
+TASK-014 có [runbook migration/seed](services/core/migrations/README.md), guard downgrade
+và CLI report/plan/apply School theo manifest; seed atomic/idempotent chỉ cho database
+dev/test riêng. Local đạt **313 test Core trên PostgreSQL 16**, không skip. Mapping
+School dữ liệu thực và FK users.school_id vẫn cần TV1/TV2 review, không tự backfill.
+
+TASK-015 đã có [bộ kiểm chứng backend](services/core/tests/README.md): **342 test
+đạt PostgreSQL 16**, coverage tổng **91%**, 300 thao tác cạnh tranh, Rule/evidence
+artifacts và backend Compose smoke. Bài đo class-list 10 phút tách backend/client
+latency và ghi rõ giới hạn; Web E2E ngoài scope lần này, full TP-01/G2 chưa nghiệm thu.
 
 ## Phạm vi sản phẩm Lumi
 Lumi phục vụ **học sinh THCS và THPT (khối 6–12)** trong **lớp học chính khóa**. Tiểu học, đại học và lớp học thêm không thuộc phạm vi MVP. Giao diện hướng đến học sinh phổ thông, giữ phong cách sáng, gọn, không game hóa hoặc trang trí quá mức.

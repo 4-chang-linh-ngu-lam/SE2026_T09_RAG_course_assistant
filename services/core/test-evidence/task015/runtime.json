@@ -1,0 +1,23 @@
+{
+  "scope": "Local backend runtime smoke only; Web was neither built nor started",
+  "recorded_date": "2026-10-19",
+  "postgresql": "16.14 (postgres:16-alpine)",
+  "image": "cnpm-tv4-task15-core:20261019",
+  "project": "cnpm-tv4-task15-20261019",
+  "checks": {
+    "fresh_project_and_database_volume": "passed",
+    "migration_completed_before_core_and_notification_worker": "passed",
+    "alembic_check_no_drift": "passed",
+    "runtime_uid_10001": "passed",
+    "installed_wheel_in_site_packages": "passed",
+    "class_list_openapi_and_admission_middleware": "passed",
+    "liveness_and_readiness": "passed",
+    "database_outage_readiness_503": "passed",
+    "database_outage_liveness_independent": "passed",
+    "database_restart_readiness_recovers": "passed",
+    "isolated_compose_resources_removed": "passed"
+  },
+  "remote_ci_executed": false,
+  "user_data_used": false,
+  "credentials_recorded": false
+}

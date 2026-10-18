@@ -8,6 +8,9 @@ __pycache__/
 .coverage
 /services/core/coverage.xml
 /services/core/test-results.xml
+/services/core/rule-evidence.json
+/services/core/maintenance-report.json
+/services/core/core-load.json
 # Next.js
 node_modules/
 .next/

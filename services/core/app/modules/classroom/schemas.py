@@ -175,3 +175,17 @@ class ClassAccessDTO(BaseModel):
 class InternalAccessResponse(ClassAccessDTO):
     user_id: UUID
     action: ClassAccessAction
+
+
+class NotificationAudienceDTO(BaseModel):
+    """Identifiers only; this snapshot never grants access to class content."""
+
+    school_id: UUID
+    recipient_ids: list[UUID]
+
+
+class RosterImportSnapshot(BaseModel):
+    homeroom_class_id: UUID
+    school_id: UUID
+    roster_version: int
+    student_ids: list[UUID]
