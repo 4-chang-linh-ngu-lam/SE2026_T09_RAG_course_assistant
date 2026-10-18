@@ -110,7 +110,7 @@ class ClassroomRepository:
         if for_share:
             # FOR SHARE serializes with Classroom's own FOR UPDATE mutations
             # without blocking other readers.
-            query = query.with_for_update(shared=True)
+            query = query.with_for_update(read=True)
         elif for_update:
             query = query.with_for_update()
         return self.session.scalar(query)

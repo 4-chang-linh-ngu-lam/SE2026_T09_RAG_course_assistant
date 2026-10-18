@@ -213,6 +213,28 @@ def test_class_access_denial_carries_status_and_lock(monkeypatch):
     assert locks["share"] == 2
 
 
+def test_repository_share_lock_compiles_to_for_share():
+    """The real repository must issue FOR SHARE — with_for_update(read=True) —
+    not an unsupported kwarg that raises TypeError before any SQL runs."""
+    from sqlalchemy.dialects import postgresql
+
+    from app.modules.classroom.repository import ClassroomRepository
+
+    class FakeSession:
+        def scalar(self, query):
+            self.compiled = str(query.compile(dialect=postgresql.dialect()))
+
+    session = FakeSession()
+    assert ClassroomRepository(session).get_class(uuid4(), for_share=True) is None
+    assert "FOR SHARE" in session.compiled
+    assert ClassroomRepository(session).get_class(uuid4(), for_update=True) is None
+    assert "FOR UPDATE" in session.compiled
+    assert "FOR SHARE" not in session.compiled
+    # Plain read stays unlocked.
+    ClassroomRepository(session).get_class(uuid4())
+    assert "FOR" not in session.compiled
+
+
 def test_class_access_propagates_database_outage(monkeypatch):
     monkeypatch.setattr(public, "get_user_summary", lambda *args, **kwargs: 1 / 0)
     with pytest.raises(ZeroDivisionError):
