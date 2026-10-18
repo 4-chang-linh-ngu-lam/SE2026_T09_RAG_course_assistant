@@ -9,7 +9,7 @@ from app.common.db import transaction
 from app.common.errors import AppError
 from app.common.outbox import record_outbox_event
 from app.common.pagination import Pagination, encode_cursor
-from app.modules.classroom.schemas import ClassAccessAction
+from app.modules.classroom.public import ClassAccessAction
 from app.modules.identity import public as identity_public
 from app.modules.social.access import get_delete_access, require_read_access, require_write_access
 from app.modules.social.comments.models import PostComment

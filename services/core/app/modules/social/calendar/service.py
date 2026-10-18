@@ -8,7 +8,7 @@ from app.common.db import transaction
 from app.common.errors import AppError
 from app.common.outbox import record_outbox_event
 from app.common.pagination import Pagination, encode_cursor
-from app.modules.classroom.schemas import ClassAccessAction
+from app.modules.classroom.public import ClassAccessAction
 from app.modules.social.access import require_read_access, require_write_access
 from app.modules.social.calendar.models import CalendarEvent, CalendarOrigin
 from app.modules.social.calendar.repository import CalendarRepository

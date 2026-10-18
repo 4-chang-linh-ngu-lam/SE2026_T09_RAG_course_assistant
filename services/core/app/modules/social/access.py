@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.common.auth_dependencies import CurrentUser
 from app.common.errors import AppError
 from app.modules.classroom import public as classroom_public
-from app.modules.classroom.schemas import ClassAccessAction, ClassAccessDTO
+from app.modules.classroom.public import ClassAccessAction, ClassAccessDTO
 
 
 def require_read_access(session: Session, class_id: UUID, user: CurrentUser) -> ClassAccessDTO:
