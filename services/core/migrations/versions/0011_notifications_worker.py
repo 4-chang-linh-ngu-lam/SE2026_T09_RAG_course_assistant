@@ -15,6 +15,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # V1 is reserved for rows inserted before the recipient-snapshot contract.
+    # The current app emits v2 explicitly; the server default also keeps older
+    # app instances safe during a rolling migration.
     op.add_column(
         "outbox_events",
         sa.Column("schema_version", sa.Integer(), nullable=False, server_default="1"),

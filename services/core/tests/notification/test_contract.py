@@ -93,7 +93,7 @@ def test_common_enqueue_assigns_stable_id_and_keeps_transaction_with_caller():
         aggregate_id=uuid4(),
         payload_json={"version": 3},
     )
-    assert event.id is not None and event.schema_version == 1 and event.aggregate_version == 3
+    assert event.id is not None and event.schema_version == 2 and event.aggregate_version == 3
     session.add.assert_called_once_with(event)
     session.commit.assert_not_called()
 
@@ -120,7 +120,7 @@ def delivery(monkeypatch):
         id=uuid4(),
         event_type="CLASS_STATUS_CHANGED",
         aggregate_id=str(klass),
-        schema_version=1,
+        schema_version=2,
         aggregate_version=2,
         payload_json={"class_id": str(klass), "version": 2, "status": "ARCHIVED"},
     )
@@ -136,7 +136,7 @@ def test_dispatch_filters_cross_school_and_excludes_private_fields(delivery):
         "version": 2,
         "status": "ARCHIVED",
         "event_id": str(event.id),
-        "schema_version": 1,
+        "schema_version": 2,
     }
 
 
@@ -152,7 +152,7 @@ def test_dispatch_fails_closed_for_malformed_events(delivery, change):
     elif change == "version":
         event.aggregate_version = 5
     else:
-        event.schema_version = 2
+        event.schema_version = 1
     with pytest.raises((events.InvalidEvent, ValidationError)):
         events.prepare_delivery(MagicMock(), event)
 

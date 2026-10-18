@@ -15,7 +15,7 @@
 
 `ruff check app tests migrations`, `ruff format --check app tests migrations`, `alembic upgrade head`, `alembic check`, worker CLI `--once` và `docker compose config --quiet` đều đạt. Alembic có một head `0011`. Compose được kiểm tra cấu hình; chưa dùng kết quả này để tuyên bố full-stack Web E2E đã chạy.
 
-**Phần liên module cần review trước merge:** TV1/TV2/TV3/TV4 xem `common/outbox.py`, Classroom public DTO/snapshot, Social snapshot, `bootstrap.py`, `migrations/env.py`, migration 0011 và Compose worker. Contract/event v1 đã ghi tại [API Contract](../docs/architect/microservices-v1/core/API_CONTRACT.md#notification-inbox-và-event-v1-task-012). Administration events chờ TASK-013, không tự nhận event hoặc credential delivery chưa có hợp đồng.
+**Phần liên module cần review trước merge:** TV1/TV2/TV3/TV4 xem `common/outbox.py`, Classroom public DTO/snapshot, Social snapshot, `bootstrap.py`, `migrations/env.py`, migration 0011 và Compose worker. Contract/event V2 cùng chính sách bỏ qua event V1 legacy ghi tại [API Contract](../docs/architect/microservices-v1/core/API_CONTRACT.md). Administration events chờ TASK-013, không tự nhận event hoặc credential delivery chưa có hợp đồng.
 
 **Quyết định triển khai:**
 - Thay ví dụ JOIN_REQUEST_* bằng nghiệp vụ Admin enrollment/transfer/assignment/archive và feed/deadline theo contract producer đã duyệt; không khôi phục onboarding bằng mã lớp.
@@ -56,7 +56,7 @@ Các bảng thực tế trong schema `core` (outbox thuộc Common, Notification
   - `payload_json: dict`
   - `created_at: datetime` (UTC)
   - `published_at: Optional[datetime]`
-  - `schema_version: int = 1`, `aggregate_version: Optional[int]`
+  - Event legacy giữ `schema_version=1`; producer Notification hiện hành ghi `schema_version=2` kèm snapshot trường/người nhận. Worker chỉ xử lý V2 để không phát lại backlog cũ bằng audience hiện tại. `aggregate_version: Optional[int]`.
   - `attempts: int = 0`, `available_at: datetime`, `last_error_code: Optional[str]`
   - Index: `Index('idx_outbox_unpublished', published_at, postgresql_where=(published_at == None))`
 

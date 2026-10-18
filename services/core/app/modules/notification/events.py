@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
-from app.common.outbox import OutboxEvent
+from app.common.outbox import OUTBOX_SCHEMA_VERSION, OutboxEvent
 from app.modules.classroom.public import (
     ClassAccessAction,
     check_class_action,
@@ -77,7 +77,7 @@ class InvalidEvent(ValueError):
 
 
 def prepare_delivery(session: Session, event: OutboxEvent) -> tuple[list[UUID], dict]:
-    if event.schema_version != 1:
+    if event.schema_version != OUTBOX_SCHEMA_VERSION:
         raise InvalidEvent("Unsupported envelope")
     payload = EVENT_SCHEMAS[event.event_type].model_validate(event.payload_json)
     aggregate_id = (

@@ -608,17 +608,49 @@ def test_read_all_serializes_with_delivery_and_later_arrival_stays_unread(system
 def test_migration_roundtrip_preserves_legacy_outbox_and_refuses_inbox_data_loss(database):
     # Run the schema round trip before domain fixtures create tenant-scoped audit
     # data; later migrations correctly refuse to discard that scope.
-    with database.factory.begin() as db:
-        legacy_id = record_outbox_event(
-            db, event_type="CLASS_STATUS_CHANGED", aggregate_id=uuid4(), payload_json={"version": 4}
-        ).id
     command.downgrade(database.config, "0010")
+    legacy_id = uuid4()
+    with database.factory.begin() as db:
+        db.execute(
+            text(
+                "INSERT INTO core.outbox_events (id,event_type,aggregate_id,payload_json) "
+                "VALUES (:id,'CLASS_STATUS_CHANGED',:aggregate_id,CAST(:payload AS jsonb))"
+            ),
+            {
+                "id": legacy_id,
+                "aggregate_id": str(uuid4()),
+                "payload": '{"version":4}',
+            },
+        )
     command.upgrade(database.config, "head")
     command.check(database.config)
+    rolling_id = uuid4()
+    with database.factory.begin() as db:
+        # A pre-upgrade app instance still uses the old INSERT column list.
+        db.execute(
+            text(
+                "INSERT INTO core.outbox_events (id,event_type,aggregate_id,payload_json) "
+                "VALUES (:id,'CLASS_STATUS_CHANGED',:aggregate_id,CAST(:payload AS jsonb))"
+            ),
+            {
+                "id": rolling_id,
+                "aggregate_id": str(uuid4()),
+                "payload": '{"version":5}',
+            },
+        )
     with database.factory() as db:
         event = db.get(OutboxEvent, legacy_id)
         assert event.schema_version == 1 and event.attempts == 0
         assert event.payload_json["version"] == 4
+        assert event.published_at is None
+        assert db.get(OutboxEvent, rolling_id).schema_version == 1
+    # Legacy events have no recipient snapshot; the worker must leave them
+    # quarantined rather than deriving recipients from current membership.
+    assert drain_outbox(session_factory=database.factory) == 0
+    with database.factory() as db:
+        for event_id in (legacy_id, rolling_id):
+            event = db.get(OutboxEvent, event_id)
+            assert event.attempts == 0 and event.published_at is None
     with database.factory.begin() as db:
         user = User(username="migration.student", email=None, password_hash="test-only-hash")
         db.add(user)

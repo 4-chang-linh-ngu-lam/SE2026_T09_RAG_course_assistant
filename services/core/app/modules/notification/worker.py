@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.common.db import SessionLocal, transaction
-from app.common.outbox import OutboxEvent
+from app.common.outbox import OUTBOX_SCHEMA_VERSION, OutboxEvent
 from app.modules.notification.events import EVENT_SCHEMAS, InvalidEvent, dedup_key, prepare_delivery
 from app.modules.notification.repository import NotificationRepository
 
@@ -33,6 +33,7 @@ def drain_outbox(*, session_factory=SessionLocal, batch_size: int = 100) -> int:
                     select(OutboxEvent)
                     .where(
                         OutboxEvent.published_at.is_(None),
+                        OutboxEvent.schema_version == OUTBOX_SCHEMA_VERSION,
                         OutboxEvent.available_at <= func.clock_timestamp(),
                         OutboxEvent.event_type.in_(EVENT_SCHEMAS),
                     )
