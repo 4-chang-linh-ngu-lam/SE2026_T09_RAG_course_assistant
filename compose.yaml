@@ -37,6 +37,9 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_course:change-me-local-only@db:5432/rag_course}
       CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}
+      DATABASE_POOL_TIMEOUT_SECONDS: ${DATABASE_POOL_TIMEOUT_SECONDS:-3}
       SECRET_KEY:
       INTERNAL_SERVICE_SECRET:
       COOKIE_SECURE:
@@ -68,6 +71,25 @@ services:
       timeout: 10s
       retries: 5
       start_period: 10s
+  notification-worker:
+    image: ${CORE_IMAGE:-rag-course-core:local}
+    build: ./services/core
+    command: ["python", "-m", "app.modules.notification.worker"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_course:change-me-local-only@db:5432/rag_course}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
   web:
     build:
       context: ./apps/web

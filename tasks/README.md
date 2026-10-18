@@ -1,5 +1,7 @@
 # Danh mục công việc — Lumi / RAG Course Assistant
 
+**Bản tổng hợp backend TV4 mới nhất (2026-10-19):** [Bàn giao task 001–015](TV4_BACKEND_HANDOVER.md) ghi rõ code có sẵn, phần TV4 bổ sung, bằng chứng kiểm thử và các vấn đề còn mở. Các mốc/checklist lịch sử bên dưới không tự thay thế kết quả tích hợp mới hoặc owner approval.
+
 **Rà soát đồng bộ: 2026-10-16.** Cả TASK-001–020 có mục **Rà soát đồng bộ** ghi hiện trạng, việc cần sửa, phụ thuộc và nghiệm thu bổ sung. Đây là kế hoạch theo code trong workspace, không phải xác nhận phần còn thiếu đã triển khai.
 
 ## 1. Nguồn chuẩn và phạm vi
@@ -22,7 +24,7 @@ Lumi phục vụ một trường THCS/THPT, khối 6–12. Giữ ba role ADMIN/L
 | TV4 | Notification, Administration, tích hợp/audit, migration/Compose/CI | Các owner domain; không sở hữu thay user/roster |
 | Chưa phân công cụ thể | Document, AI, Learning, Learner Intelligence | Chốt owner trước triển khai từng giai đoạn |
 
-Repo có Common, Identity, Classroom Admin/access API, health, migration 0001–0009 và Compose/CI. Social/Notification worker/Administration mới có skeleton, trừ hai API Student do Identity đang phục vụ. Bốn service sau Core chưa có triển khai; apps/web hiện là skeleton. UI demo riêng bị gitignore không phải Web nghiệp vụ đã nghiệm thu. Classroom còn cần kiểm chứng PostgreSQL/CI và tích hợp consumer trước khi đóng G2.
+Repo có Common, Identity, Classroom Admin/access API, Social, Notification inbox/worker, Administration backend, health, migration 0001–0012 và Compose/CI. Administration có import Student CSV/XLSX, staff/role/status/audit và data-request review; phần thiếu policy/executor giữ IN_REVIEW theo người dùng. Bốn service sau Core chưa có triển khai; apps/web hiện là skeleton. UI demo riêng bị gitignore không phải Web nghiệp vụ đã nghiệm thu. TASK-012/013 có bằng chứng backend PostgreSQL local ngày 2026-10-18 (toàn Core 290 test đạt); review/CI/Web và các workflow còn lại vẫn cần trước khi đóng toàn Core G2.
 
 ## 3. Ma trận 20 task và phần cần đồng bộ
 
@@ -39,10 +41,10 @@ Repo có Common, Identity, Classroom Admin/access API, health, migration 0001–
 | [009 Feed](TASK-009-social-feed.md) · G1 | Quyền hiện hành, author DTO không buộc email, chốt sort/cursor và parent scope | 004/005/007/008/012; TV3/TV1/TV2 |
 | [010 Comments](TASK-010-social-comments.md) · G1 | Body 1..10.000, class/post/comment checks, Feed public và moderation/outbox | 008/009/012; TV3/TV2/TV4 |
 | [011 Calendar](TASK-011-social-calendar.md) · G1 | PRIMARY/ASSISTING, starts_at < ends_at; Core event và Learning projection riêng | 007/008/012; contract 019 khi tích hợp |
-| [012 Notification/outbox](TASK-012-notification-module.md) · G1 | Enqueue/event ownership, retry/crash/dedup, recipient-only, payload không chứa secret | Producer 006/007/009–011/013 + 014; TV4 |
-| [013 Administration/audit](TASK-013-administration-audit.md) · G1 | Student/staff tách luồng, CSV/Excel preview/confirm/retry, role/lock/resolution có audit | 004/005–008/012/014; TV4/TV1/TV2 |
-| [014 Migrations/seed](TASK-014-core-migrations-db.md) · G2 | Giữ 0001–0007, revision mới theo domain; mapping School, legacy upgrade, seed an toàn | Model/contract 002/004–013; TV4 + owner |
-| [015 Security/integration](TASK-015-core-integration-security-tests.md) · G2 | Thay test legacy bằng Admin enrollment/assignment, current vs historical access, E2E Web | 001–014/016; cả nhóm |
+| [012 Notification/outbox](TASK-012-notification-module.md) · G1 | Đã triển khai API, worker, retry/crash/dedup, recipient-only, snapshot/watermark; 31 test Notification và 251 test Core đạt PostgreSQL local | Review contracts/shared files; Administration event chờ 013; TV4 |
+| [013 Administration/audit](TASK-013-administration-audit.md) · G1 | Đã triển khai staff/status/roles, audit theo trường, CSV/XLSX preview/confirm atomic/retry và review data requests; 38 test Administration đạt PostgreSQL | Review TV1/TV2/shared; fulfillment chưa đủ điều kiện giữ IN_REVIEW theo người dùng |
+| [014 Migrations/seed](TASK-014-core-migrations-db.md) · G2 | Metadata/head 0012, guard downgrade, CLI report/manifest mapping và seed atomic/idempotent; 313 test Core/23 maintenance đạt PostgreSQL 16 | Mapping dữ liệu thực/FK cần TV1/TV2 review; không tự backfill; remote CI chưa chạy |
+| [015 Security/integration](TASK-015-core-integration-security-tests.md) · G2 | Backend-only: 342 test PG16, 300 thao tác cạnh tranh, HTTP journey, boundary/replay guards, Rule artifacts, backend p95 96.51ms trong bài tải 10 phút | Web ngoài scope; client latency cao, full TP-01/service pending; remote CI/review chưa chạy |
 | [016 Compose/health/CI](TASK-016-core-docker-compose-ci.md) · G2 | Có hạ tầng; chạy lại PostgreSQL 16 cho Identity mới, xác nhận CI đúng revision, thêm test module mới | 014/015 và toàn G1; TV4/TV1 |
 | [017 Document](TASK-017-document-service-design-impl.md) · G3 | Thiết kế trước code; grant/version/retry, notes/bookmarks, revoke và O2 | Core G2, 008/012/018 contracts |
 | [018 AI Tutor](TASK-018-ai-service-rag-tutor.md) · G3 | Thiết kế RAG/2 chế độ/chat privacy; hỏi mới–lịch sử, grant hiện hành, đo QAS-06 | Core G2, 008/017; D6 phối hợp 019 |

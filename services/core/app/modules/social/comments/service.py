@@ -11,6 +11,7 @@ from app.common.outbox import record_outbox_event
 from app.common.pagination import Pagination, encode_cursor
 from app.modules.classroom.public import ClassAccessAction
 from app.modules.identity import public as identity_public
+from app.modules.notification.public import snapshot_audience
 from app.modules.social.access import get_delete_access, require_read_access, require_write_access
 from app.modules.social.comments.models import PostComment
 from app.modules.social.comments.repository import CommentsRepository
@@ -110,6 +111,7 @@ class CommentsService:
                     event_type="SOCIAL_COMMENT_CREATED",
                     aggregate_id=comment.id,
                     payload_json={
+                        **snapshot_audience(self.session, class_id),
                         "class_id": str(class_id),
                         "post_id": str(post_id),
                         "comment_id": str(comment.id),
@@ -169,6 +171,7 @@ class CommentsService:
                 record_audit(
                     self.session,
                     actor_id=current_user.id,
+                    school_id=current_user.school_id,
                     action="MODERATE_DELETE_COMMENT",
                     target_type="POST_COMMENT",
                     target_id=comment.id,

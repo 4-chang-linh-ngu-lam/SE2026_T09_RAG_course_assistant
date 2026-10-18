@@ -50,6 +50,10 @@ def _post(class_id, author_id, body="body"):
 
 @pytest.fixture
 def service(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.social.feed.service.snapshot_audience",
+        lambda *_: {"school_id": str(uuid4()), "recipient_ids": []},
+    )
     session = MagicMock(spec=Session)
     result = FeedService(session)
     monkeypatch.setattr(

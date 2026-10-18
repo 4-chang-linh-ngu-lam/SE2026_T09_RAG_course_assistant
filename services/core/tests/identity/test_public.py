@@ -146,6 +146,30 @@ def test_public_errors_propagate_without_fail_open(boundary):
     db.rollback.assert_called_once()
 
 
+def test_admin_reason_codes_forward_to_owner_without_new_transaction(boundary):
+    db, _, service = boundary
+    actor_id, user_id, correlation_id = uuid4(), uuid4(), uuid4()
+    public.admin_create_user(
+        "staff@example.com",
+        ["LECTURER"],
+        actor_id=actor_id,
+        correlation_id=correlation_id,
+        reason_code="USER_REQUEST",
+        session=db,
+    )
+    assert service.admin_create_user.call_args.kwargs["reason_code"] == "USER_REQUEST"
+    public.admin_set_user_status(
+        user_id,
+        "LOCKED",
+        actor_id=actor_id,
+        correlation_id=correlation_id,
+        reason_code="POLICY_VIOLATION",
+        session=db,
+    )
+    assert service.admin_set_user_status.call_args.kwargs["reason_code"] == "POLICY_VIOLATION"
+    db.commit.assert_not_called()
+
+
 @pytest.mark.parametrize("owned", [True, False])
 def test_student_public_helpers_keep_secrets_internal_and_share_transactions(boundary, owned):
     db, _, service = boundary

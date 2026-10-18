@@ -10,6 +10,7 @@ def identity_contract() -> dict:
         path: value
         for path, value in spec["paths"].items()
         if path.startswith(("/api/v1/auth/", "/api/v1/users/me", "/api/v1/admin/students"))
+        and "/imports/" not in path
     }
     needed = set()
 

@@ -48,8 +48,26 @@ Quản lý lịch sử Alembic và dữ liệu mẫu của Core, bảo đảm t�
 
 ## 3. Tiêu chí nghiệm thu
 
-- [ ] PostgreSQL 16 sạch: upgrade head và alembic check đạt, metadata không drift, lịch sử migration một head hợp lệ.
-- [ ] Upgrade từ 0004 và head đang dùng giữ dữ liệu legacy; mapping School/backfill được review, cross-school/FK/unique constraints được kiểm tra thật.
-- [ ] Round trip downgrade/upgrade trên fixture tương thích; fixture không tương thích bị chặn có giải thích, không mất dữ liệu.
-- [ ] Test membership/assignment cạnh tranh và audit/outbox persistence theo schema đã duyệt; không áp dụng tổng số bảng cố định.
-- [ ] Seed lặp không tạo trùng, không ghi secret/log mã, chỉ tác động database test/dev được chỉ định; TASK-016 chạy migration trước startup và CI có bằng chứng.
+- [x] PostgreSQL 16 sạch: upgrade head và alembic check đạt, metadata không drift, lịch sử migration một head hợp lệ.
+- [x] Upgrade từ 0004 và head đang dùng giữ dữ liệu legacy; công cụ mapping report/plan/apply được kiểm thử bằng fixture; cross-school/FK/unique constraints được kiểm tra thật.
+- [ ] Mapping School **dữ liệu thực** được TV1/TV2 review trước backfill/FK: chưa có manifest được duyệt, không tự tạo trường/gán scope hoặc bật users.school_id FK. Công cụ và runbook đã sẵn sàng.
+- [x] Round trip downgrade/upgrade trên fixture tương thích; fixture không tương thích bị chặn có giải thích, không mất dữ liệu.
+- [x] Test membership/assignment cạnh tranh và audit/outbox persistence theo schema đã duyệt; không áp dụng tổng số bảng cố định.
+- [x] Seed lặp không tạo trùng, không ghi secret/log mã, chỉ tác động database test/dev được chỉ định; TASK-016 vẫn chạy migration trước startup. CI bổ sung heads/report artifact, full suite có test maintenance; không tuyên bố remote CI đã chạy.
+
+## 4. Triển khai — 2026-10-19
+
+- Giữ nguyên lịch sử 0001–0012; task này không đổi schema nên không thêm revision placeholder. Registry metadata dùng chung Alembic/maintenance, giới hạn schema Core; single-head và coverage của danh sách bảng được guard có test.
+- Guard downgrade đặt ở env/tooling, lấy transaction lock và khóa writer trước kiểm tra; DDL/guard cùng transaction. Chặn mất bảng có dữ liệu, audit school scope, Student identifiers và outbox envelope/retry. Constraint cũ tiếp tục chặn email-free/purpose/CORRECTION không biểu diễn được; không xóa dữ liệu để ép thành công. SQL downgrade offline bị từ chối; SQL upgrade range được kiểm thử.
+- CLI `python -m app.maintenance`: report legacy; plan/apply School từ manifest + hash review, recheck drift và lịch sử Classroom, chặn remap sang trường khác, giữ UUID/hash/status/request/token history; scope đổi revoke refresh sessions và audit. Không tự kích hoạt/mở LOCKED hoặc suy mapping audit lịch sử.
+- Seed dev/test chính thức: database riêng có prefix và expected-name, initial empty preflight, mật khẩu Admin riêng qua môi trường, random credential riêng cho tài khoản tổng hợp còn lại. Owner fixture bootstrap School/Admin; invitation/activation và Classroom workflows giữ audit/outbox trong transaction chung. Tạo 7 homeroom khối 6–12, 14 lớp AUTO/MANUAL, PRIMARY/ASSISTING, roster khối 9; Student pending để thử cấp mã. Marker bền vững giúp repeat/concurrency không trùng/reset; lỗi rollback cả seed.
+- API HTTP không đổi; Identity/Classroom public thêm maintenance helpers, Common audit allowlist thêm school_id. Shared/owner review cần TV1 (Identity), TV2 (School/Classroom), TV3 (metadata Social) và CI/TASK-016. Không commit/push/deploy trong task.
+- Hướng dẫn lệnh, manifest, rollback và giới hạn: [Core migrations runbook](../services/core/migrations/README.md).
+
+## 5. Bằng chứng local — 2026-10-19
+
+- Python 3.12.14, PostgreSQL 16 container test riêng: `pytest -q -W error -p no:cacheprovider --tb=short` → **313 passed**, không skip (171.34 giây); gồm **23 test maintenance** cùng các test migration/Notification/Administration/Classroom/Identity hiện có.
+- `pytest tests/identity/test_public.py -q -W error -p no:cacheprovider --cov=app.modules.identity.public --cov-branch --cov-fail-under=100` → **17 passed, 100% line/branch**.
+- `ruff check app tests migrations` và `ruff format --check app tests migrations` đạt; **127 file** format đúng. `alembic heads` → **0012 (head)**; upgrade/check/roundtrip được chạy thật trong test, gồm schema khác service không bị tác động.
+- Docker Core build thành công; smoke trong wheel/site-packages với UID 10001: upgrade head/check, seed lần đầu/lặp, report 6 user và check không drift đều đạt. Mật khẩu test sinh riêng trong môi trường, không xuất ra log; tài nguyên Docker test được dọn sau kiểm thử.
+- CI workflow bổ sung `alembic heads --verbose`, read-only maintenance report và artifact; full PostgreSQL suite bao gồm maintenance/CLI. Chưa push nên **chưa có kết quả remote CI**; không coi bằng chứng local là owner approval hoặc nghiệm thu toàn Core G2.

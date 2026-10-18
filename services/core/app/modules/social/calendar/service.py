@@ -9,6 +9,7 @@ from app.common.errors import AppError
 from app.common.outbox import record_outbox_event
 from app.common.pagination import Pagination, encode_cursor
 from app.modules.classroom.public import ClassAccessAction
+from app.modules.notification.public import snapshot_audience
 from app.modules.social.access import require_read_access, require_write_access
 from app.modules.social.calendar.models import CalendarEvent, CalendarOrigin
 from app.modules.social.calendar.repository import CalendarRepository
@@ -190,6 +191,7 @@ def upsert_learning_deadline(
             event_type="CALENDAR_DEADLINE_CHANGED",
             aggregate_id=event.id,
             payload_json={
+                **snapshot_audience(session, class_id),
                 "class_id": str(class_id),
                 "event_id": str(event.id),
                 "external_ref": external_ref,

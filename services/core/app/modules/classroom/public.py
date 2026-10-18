@@ -7,12 +7,106 @@ from sqlalchemy.orm import Session
 
 from app.common.db import SessionLocal
 from app.common.errors import AppError
+from app.modules.classroom.maintenance import (
+    maintenance_provision_schools,
+    maintenance_schools,
+    maintenance_user_schools,
+    seed_dev_classroom,
+)
 from app.modules.classroom.models import ClassStatus
 from app.modules.classroom.repository import ClassroomRepository
-from app.modules.classroom.schemas import ClassAccessAction, ClassAccessDTO
+from app.modules.classroom.schemas import (
+    ClassAccessAction,
+    ClassAccessDTO,
+    NotificationAudienceDTO,
+    RosterImportSnapshot,
+)
 from app.modules.identity.public import get_user_roles, get_user_summary
 
 __all__ = ["ClassAccessAction", "ClassAccessDTO", "check_class_action", "get_class_lecturer_ids"]
+__all__ += ["NotificationAudienceDTO", "get_notification_audience"]
+__all__ += ["RosterImportSnapshot", "admin_append_roster", "admin_preview_roster"]
+__all__ += ["maintenance_provision_schools", "maintenance_schools", "seed_dev_classroom"]
+__all__ += ["maintenance_user_schools"]
+
+
+def admin_preview_roster(
+    homeroom_id: UUID, *, actor_id: UUID, session: Session, lock: bool = False
+) -> RosterImportSnapshot:
+    from app.modules.classroom.service import ClassroomService
+    from app.modules.identity.public import admin_actor
+
+    actor = admin_actor(actor_id, session=session)
+    service = ClassroomService(session)
+    room = service._homeroom_for_admin(homeroom_id, actor, for_update=lock)
+    return RosterImportSnapshot(
+        homeroom_class_id=room.id,
+        school_id=room.school_id,
+        roster_version=room.roster_version,
+        student_ids=sorted(row.student_id for row in service.repository.active_roster(room.id)),
+    )
+
+
+def admin_append_roster(
+    homeroom_id: UUID,
+    student_ids: list[UUID],
+    *,
+    expected_roster_version: int,
+    actor_id: UUID,
+    correlation_id: UUID,
+    reason_code: str,
+    session: Session,
+):
+    """Append without removing roster members; caller commits the complete import."""
+    from app.modules.classroom.service import ClassroomService
+    from app.modules.identity.public import admin_actor
+
+    snapshot = admin_preview_roster(homeroom_id, actor_id=actor_id, session=session, lock=True)
+    if snapshot.roster_version != expected_roster_version:
+        raise AppError(409, "Roster changed; preview the import again")
+    actor = admin_actor(actor_id, session=session)
+    return ClassroomService(
+        session, correlation_id=correlation_id, reason_code=reason_code
+    ).set_roster(
+        actor,
+        homeroom_id,
+        sorted(set(snapshot.student_ids) | set(student_ids)),
+        commit=False,
+    )
+
+
+def get_notification_audience(
+    class_id: UUID, *, session: Session | None = None, homeroom: bool = False
+) -> NotificationAudienceDTO | None:
+    """Current enrollment/assignment IDs, for transactional notification snapshots.
+
+    Caller owns the transaction. Flush producer changes before taking the snapshot;
+    consumers must still check Identity school scope and resource permissions.
+    """
+    with SessionLocal() if session is None else nullcontext(session) as db:
+        repository = ClassroomRepository(db)
+        if homeroom:
+            room = repository.get_homeroom(class_id)
+            return (
+                None
+                if room is None
+                else NotificationAudienceDTO(
+                    school_id=room.school_id,
+                    recipient_ids=sorted(
+                        {row.student_id for row in repository.active_roster(class_id)}
+                    ),
+                )
+            )
+        klass = repository.get_class(class_id)
+        if klass is None:
+            return None
+        return NotificationAudienceDTO(
+            school_id=klass.school_id,
+            recipient_ids=sorted(
+                {row.student_id for row in repository.active_memberships(class_id)}
+                | {row.lecturer_id for row in repository.active_teachers(class_id)}
+            ),
+        )
 
 
 def check_class_action(

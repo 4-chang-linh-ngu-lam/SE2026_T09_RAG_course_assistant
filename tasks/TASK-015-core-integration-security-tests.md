@@ -23,6 +23,12 @@
 
 Kiểm chứng Core theo QAS-04/QAS-05 và Core-01–06 bằng PostgreSQL thực, test HTTP/public interface và E2E Web → Core → DB. Demo cá nhân bị gitignore chỉ hỗ trợ kiểm thử cục bộ; luồng UI chính thức còn phải được tích hợp trong apps/web.
 
+**Scope hiện hành — người dùng chốt 2026-10-19:** task này thực hiện **backend Core**.
+Không triển khai/chỉnh sửa frontend. Luồng xuyên module được kiểm chứng bằng HTTP →
+Core workflows/worker → PostgreSQL và public interfaces thật. E2E Web ở mục tiêu
+gốc được giữ là gate tích hợp riêng, ngoài phạm vi lần này; không dùng backend test
+để đánh dấu Web đã nghiệm thu.
+
 ## 2. Kịch bản bắt buộc
 
 ### 2.1. Quyền và dữ liệu — Core-01/QAS-04
@@ -62,7 +68,30 @@ Kiểm chứng Core theo QAS-04/QAS-05 và Core-01–06 bằng PostgreSQL thực
 
 ## 3. Tiêu chí nghiệm thu
 
-- [ ] Tất cả module G1 có test chạy thật trên PostgreSQL 16; test DB bị skip không được ghi là đã kiểm chứng.
-- [ ] Core-01–06 có ma trận Rule ID → scenario → kết quả và bằng chứng CI/artifact; phần chưa có service được ghi pending.
-- [ ] Chạy luồng Web chính thức đầy đủ, contract/public permission nhất quán; không chỉ dựa vào demo-ui local.
-- [ ] Không phát hiện rò rỉ trong bộ test; báo rõ phạm vi hữu hạn và lỗi còn lại, không khẳng định bảo đảm tuyệt đối.
+- [x] Tất cả module Core hiện có có test chạy thật trên PostgreSQL 16: 342 passed, không skip.
+- [x] Core-01–06 có catalog Rule ID → scenario → kết quả, JUnit/coverage/local artifacts và CI xuất evidence; service chưa có được ghi pending. Core-06 chỉ đạt ngưỡng trong phạm vi backend class-list của bài đo local, không coi là full TP-01.
+- [ ] Web E2E đầy đủ: **ngoài scope backend người dùng chốt 2026-10-19**, không thay đổi apps/web hoặc dùng backend test để nghiệm thu Web.
+- [x] Các ca truy cập trái phép trong phạm vi test bị chặn sau fix; không quan sát rò rỉ trong suite hữu hạn. Pending services, client latency, cache durability và remote review/CI được ghi rõ; không khẳng định bảo đảm tuyệt đối.
+- [ ] Remote CI/reviewer approval: workflow đã cập nhật, chưa push/run; chưa nghiệm thu toàn Core G2 hoặc mixed-service TP-01.
+
+## 4. Triển khai backend — 2026-10-19
+
+- Thêm `tests/security/`: fixture database con PostgreSQL 16, real HTTP authentication/authorization, workflow provisioning → activation → enrollment → feed/comment/calendar → worker notification → moderation/audit → transfer/archive/revoke. Mỗi request vẫn dùng Identity/class access thực, không mock quyền thành allow.
+- Permission matrix kiểm tra role/status/school hiện hành với JWT đã phát hành, scope null/khác trường/lớp, parent-child resource, ID giả, Identity lookup lỗi fail closed, Admin-only và route tự join/leave/register bị chặn. History action của Core có test riêng; chưa coi đó là dữ liệu Learning/AI/Document E2E.
+- Core-02: 100 sync/roster operations, 100 transfer retries và 100 import confirmations cạnh tranh (16 workers mỗi scenario), đối soát membership ACTIVE/history, MANUAL không bị ghi đè. Import restart bằng app/cache mới giữ result IDs và không phát lại code; non-import cache vẫn process-local theo contract.
+- AST architecture guard kiểm tra import public giữa các domain và literal SQL sang service khác, có test detector. Không coi static scan là chứng minh tuyệt đối cho dynamic code.
+- `scenarios.json` + `evidence.py` nối Rule ID → scenario → JUnit/result; missing/skip/failure không được tính đạt. Có mục pending cho service chưa triển khai và Web ngoài scope. CI lưu rule evidence, JUnit/coverage; thêm job đo tải backend 10 phút qua workflow_dispatch.
+- Script `tests/performance/class_list_load.py` tạo database/load fixtures riêng, đo 100 user/10 lớp/50 Student mỗi lớp, 30 giây warmup + 600 giây, cùng HTTP pool và stagger lịch đóng. Báo cáo backend ASGI p95 lẫn client p95, tỷ lệ thành công, scope check và cấu hình máy/DB. Đây là Core subset TP-01, không nghiệm thu toàn mixed-service/RAG.
+- Sửa hai vấn đề phát hiện khi kiểm thử: cached Classroom mutation phải recheck tài nguyên nguồn/đích/created resource theo scope hiện hành; thêm admission queue trước sync dependencies để hạn chế DB pool starvation, giữ permit qua cleanup, timeout trả no-store 503/Retry-After, health bypass. Mặc định pool 5+10; profile đo dùng 15+0 để giữ kết nối, cùng trần tối đa 15.
+- Shared/owner review: TV1 Identity/public/Common, TV2 Classroom/replay, TV3/TV4 test matrix và CI. Không đổi schema/Business Rules, không thêm HTTP nghiệp vụ, không push/commit/deploy; `apps/web` không có thay đổi.
+- Hướng dẫn, giới hạn và lệnh: [backend test guide](../services/core/tests/README.md). Bằng chứng local hoàn tất được ghi dưới đây; remote CI chỉ có khi thực sự chạy.
+
+## 5. Bằng chứng local — 2026-10-19
+
+- PostgreSQL **16.14**, Python **3.12.14**: full suite với `-W error --cov=app --cov-branch --junitxml=test-results.xml` đạt **342 passed / 0 failed / 0 skipped**, 651.17 giây; gồm **29 ca mới** của TASK-015. Coverage tổng **90.80% (làm tròn 91%)**, line **93.51%**, branch **78.28%**. Gate Identity public riêng **17 passed, 100% line/branch**; không coi coverage tổng là 100%.
+- `ruff check` và `ruff format --check` đạt **139 file**; `git diff --check` đạt. CI YAML được parse/kiểm tra cấu trúc; không có remote CI run.
+- Core-02 gồm **100 thao tác/scenario** × sync/transfer/import, 16 workers; đối soát membership/history, toàn bộ danh sách MANUAL, durable confirm sau restart. Hai ca delivery có fixture event đã due rõ ràng, không thay production worker/clock hoặc test retry/backoff. Lượt full đầu chạy cùng load có 2 failure ở assertions delivery; rerun riêng hai ca đạt, sau precondition fixture lượt full độc lập đạt toàn bộ.
+- Backend Compose từ volume sạch: migrate hoàn tất trước Core/worker, UID **10001**, app wheel trong site-packages, OpenAPI/admission, Alembic check, live/ready; dừng DB → ready **503**, live vẫn **200**, restart DB → ready phục hồi. Chỉ chạy db/migrate/core/notification-worker, không build/start Web; project/volume test đã dọn.
+- Core-06: 100 user, 10 lớp × 50 Student, warmup 30 giây + cấu hình 600 giây, completion 604.91 giây; **11.416 request**, **11.415 HTTP 200**, **1 transport/contract error**. Backend ASGI p95 **96.51 ms**, success **99.9912%**, scope mismatch **0**. Máy Windows 12 logical CPU/RAM ~16.9 GB, PostgreSQL Docker loopback, pool **15+0**.
+- **Giới hạn hiệu năng:** client p95 **15.58 giây**, max **45.72 giây** trong lượt đo dùng chung máy với coverage/build. Backend samples 11.415 tương ứng các request đến ASGI; lỗi phía client vẫn tính vào mẫu success. Đây là closed-loop traffic, không phải cam kết 100 request/giây, không chứng minh độ trễ người dùng tốt hoặc full TP-01. Không có Document/Learning/AI/intelligence traffic; cần benchmark môi trường riêng trước nghiệm thu toàn hệ thống.
+- Safe aggregate artifacts: [verification](../services/core/test-evidence/task015/verification.json), [Rule results](../services/core/test-evidence/task015/rule-results.json), [load](../services/core/test-evidence/task015/core-load-2026-10-19.json), [runtime](../services/core/test-evidence/task015/runtime.json). JUnit/coverage raw nằm ở output test bị gitignore hoặc CI artifact; không đưa credential/header/code vào báo cáo tổng hợp.

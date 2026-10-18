@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -22,6 +23,7 @@ from app.modules.classroom.models import (
     TeachingRole,
 )
 from app.modules.classroom.permissions import require_admin, require_class_read
+from app.modules.classroom.public import get_notification_audience
 from app.modules.classroom.repository import ClassroomRepository
 from app.modules.classroom.schemas import (
     ClassCreateRequest,
@@ -69,9 +71,11 @@ class ClassroomService:
     def _audit(
         self, actor_id: UUID, action: str, target_id: UUID, *, target_type: str = "CLASS"
     ) -> None:
+        actor = get_user_summary(actor_id, session=self.session)
         record_audit(
             self.session,
             actor_id=actor_id,
+            school_id=actor.school_id if actor is not None else None,
             action=action,
             target_type=target_type,
             target_id=target_id,
@@ -79,13 +83,32 @@ class ClassroomService:
             metadata_json=AuditMetadata(reason_code=self.reason_code),
         )
 
-    def _event(self, event_type: str, class_id: UUID, **payload) -> None:
+    def _event(self, event_type: str, class_id: UUID, *, extra_recipients=(), **payload) -> None:
+        self.session.flush()
+        if event_type == "HOMEROOM_STUDENT_TRANSFERRED":
+            homeroom = self.repository.get_homeroom(class_id)
+            scope = {
+                "school_id": str(homeroom.school_id),
+                "recipient_ids": [str(payload["student_id"])],
+            }
+        else:
+            audience = get_notification_audience(class_id, session=self.session)
+            if audience is None:
+                raise AppError(503, "Notification audience unavailable")
+            scope = {
+                "school_id": str(audience.school_id),
+                "recipient_ids": [
+                    str(value)
+                    for value in sorted(set(audience.recipient_ids) | set(extra_recipients))
+                ],
+            }
         record_outbox_event(
             self.session,
             event_type=event_type,
             aggregate_id=class_id,
             payload_json={
                 "class_id": str(class_id),
+                **scope,
                 **{k: str(v) if isinstance(v, (UUID, datetime)) else v for k, v in payload.items()},
             },
         )
@@ -133,10 +156,12 @@ class ClassroomService:
         if klass.status != ClassStatus.ACTIVE:
             raise AppError(409, "Archived classes are read-only")
 
-    def create_course(self, actor: CurrentUser, request: CourseCreateRequest) -> CourseResponse:
+    def create_course(
+        self, actor: CurrentUser, request: CourseCreateRequest, *, commit: bool = True
+    ) -> CourseResponse:
         school_id = require_admin(actor)
         try:
-            with transaction(self.session):
+            with transaction(self.session) if commit else nullcontext(self.session):
                 self.repository.ensure_school(school_id)
                 if self.repository.get_course_by_code(school_id, request.code):
                     raise AppError(409, "Course code already exists")
@@ -149,11 +174,11 @@ class ClassroomService:
             raise AppError(409, "Course code already exists") from exc
 
     def create_homeroom(
-        self, actor: CurrentUser, request: HomeroomCreateRequest
+        self, actor: CurrentUser, request: HomeroomCreateRequest, *, commit: bool = True
     ) -> HomeroomResponse:
         school_id = require_admin(actor)
         try:
-            with transaction(self.session):
+            with transaction(self.session) if commit else nullcontext(self.session):
                 self.repository.ensure_school(school_id)
                 year = self.repository.ensure_academic_year(school_id, request.academic_year)
                 if self.repository.get_homeroom_by_name(school_id, year.id, request.name):
@@ -172,9 +197,9 @@ class ClassroomService:
             raise AppError(409, "Homeroom already exists") from exc
 
     def set_roster(
-        self, actor: CurrentUser, homeroom_id: UUID, student_ids: list[UUID]
+        self, actor: CurrentUser, homeroom_id: UUID, student_ids: list[UUID], *, commit: bool = True
     ) -> RosterResponse:
-        with transaction(self.session):
+        with transaction(self.session) if commit else nullcontext(self.session):
             homeroom = self._homeroom_for_admin(homeroom_id, actor, for_update=True)
             for student_id in sorted(student_ids):
                 self._student(student_id, homeroom.school_id)
@@ -265,10 +290,12 @@ class ClassroomService:
                 roster_version=destination.roster_version,
             )
 
-    def create_class(self, actor: CurrentUser, request: ClassCreateRequest) -> ClassResponse:
+    def create_class(
+        self, actor: CurrentUser, request: ClassCreateRequest, *, commit: bool = True
+    ) -> ClassResponse:
         school_id = require_admin(actor)
         try:
-            with transaction(self.session):
+            with transaction(self.session) if commit else nullcontext(self.session):
                 self._lecturer(request.primary_lecturer_id, school_id)
                 self.repository.ensure_school(school_id)
                 course = self.repository.get_course(request.course_id)
@@ -343,9 +370,14 @@ class ClassroomService:
         ]
 
     def set_teachers(
-        self, class_id: UUID, actor: CurrentUser, request: TeachingAssignmentsRequest
+        self,
+        class_id: UUID,
+        actor: CurrentUser,
+        request: TeachingAssignmentsRequest,
+        *,
+        commit: bool = True,
     ) -> list[TeachingAssignmentResponse]:
-        with transaction(self.session):
+        with transaction(self.session) if commit else nullcontext(self.session):
             klass = self._class_for_admin(class_id, actor, for_update=True)
             self._active(klass)
             desired = {request.primary_lecturer_id: TeachingRole.PRIMARY}
@@ -372,7 +404,9 @@ class ClassroomService:
                 )
             klass.version += 1
             self._audit(actor.id, "ADMIN_SET_TEACHERS", class_id)
-            self._event("CLASS_TEACHERS_CHANGED", class_id, version=klass.version)
+            self._event(
+                "CLASS_TEACHERS_CHANGED", class_id, version=klass.version, extra_recipients=current
+            )
             return [
                 TeachingAssignmentResponse.model_validate(row)
                 for row in self.repository.active_teachers(class_id)
@@ -398,7 +432,9 @@ class ClassroomService:
             )
         if bump_version:
             klass.version += 1
-        self._event("CLASS_ENROLLMENT_CHANGED", klass.id, version=klass.version)
+        self._event(
+            "CLASS_ENROLLMENT_CHANGED", klass.id, version=klass.version, extra_recipients=current
+        )
         return True
 
     def preview_auto(self, class_id: UUID, actor: CurrentUser) -> EnrollmentPreviewResponse:
@@ -459,9 +495,9 @@ class ClassroomService:
             return ClassResponse.model_validate(klass)
 
     def add_member(
-        self, class_id: UUID, actor: CurrentUser, student_id: UUID
+        self, class_id: UUID, actor: CurrentUser, student_id: UUID, *, commit: bool = True
     ) -> MembershipResponse:
-        with transaction(self.session):
+        with transaction(self.session) if commit else nullcontext(self.session):
             klass = self._class_for_admin(class_id, actor, for_update=True)
             self._active(klass)
             if klass.enrollment_mode != EnrollmentMode.MANUAL:
@@ -498,7 +534,12 @@ class ClassroomService:
             member.ended_at = _now()
             klass.version += 1
             self._audit(actor.id, "ADMIN_END_ENROLLMENT", class_id)
-            self._event("CLASS_ENROLLMENT_CHANGED", class_id, version=klass.version)
+            self._event(
+                "CLASS_ENROLLMENT_CHANGED",
+                class_id,
+                version=klass.version,
+                extra_recipients=[student_id],
+            )
 
     def transfer(
         self, source_id: UUID, destination_id: UUID, student_id: UUID, actor: CurrentUser
@@ -549,6 +590,8 @@ class ClassroomService:
             self._event(
                 "CLASS_STUDENT_TRANSFERRED",
                 source_id,
+                extra_recipients=[student_id],
+                version=source.version,
                 destination_class_id=destination_id,
                 student_id=student_id,
                 effective_at=now.isoformat(),
@@ -567,5 +610,7 @@ class ClassroomService:
                     "ADMIN_ARCHIVE_CLASS" if archived else "ADMIN_RESTORE_CLASS",
                     class_id,
                 )
-                self._event("CLASS_STATUS_CHANGED", class_id, version=klass.version)
+                self._event(
+                    "CLASS_STATUS_CHANGED", class_id, version=klass.version, status=target.value
+                )
             return ClassResponse.model_validate(klass)
