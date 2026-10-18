@@ -7,18 +7,20 @@ from app.common.audit import AuditMetadata, record_audit
 from app.common.auth_dependencies import CurrentUser
 from app.common.db import transaction
 from app.common.errors import AppError
+from app.common.outbox import record_outbox_event
 from app.common.pagination import Pagination, encode_cursor
-from app.modules.classroom import public as classroom_public
+from app.modules.classroom.schemas import ClassAccessAction
 from app.modules.identity import public as identity_public
+from app.modules.social.access import get_delete_access, require_read_access, require_write_access
 from app.modules.social.feed.models import ClassPost
 from app.modules.social.feed.repository import FeedRepository
 from app.modules.social.feed.schemas import (
-    PostAuthorSummary,
     PostCreateRequest,
     PostListResponse,
     PostResponse,
     PostUpdateRequest,
 )
+from app.modules.social.schemas import AuthorSummary
 
 __all__ = ["FeedService"]
 
@@ -28,102 +30,78 @@ class FeedService:
         self.session = session
         self.repository = FeedRepository(session)
 
-    def _resolve_author_summary(
-        self, author_id: UUID, summaries: dict[UUID, identity_public.UserSummaryDTO] | None = None
-    ) -> PostAuthorSummary:
-        if summaries and author_id in summaries:
-            user = summaries[author_id]
-            return PostAuthorSummary(
-                id=user.id,
-                display_name=getattr(user, "display_name", None),
-                email=user.email,
-            )
-        user = identity_public.get_user_summary(author_id, session=self.session)
-        if user is not None:
-            return PostAuthorSummary(
-                id=user.id,
-                display_name=getattr(user, "display_name", None),
-                email=user.email,
-            )
-        return PostAuthorSummary(id=author_id, display_name=None, email="")
+    @staticmethod
+    def _author(
+        author_id: UUID, summaries: dict[UUID, identity_public.UserSummaryDTO]
+    ) -> AuthorSummary:
+        user = summaries.get(author_id)
+        return AuthorSummary(
+            id=author_id,
+            display_name=user.display_name if user is not None else None,
+        )
+
+    def _response(
+        self,
+        post: ClassPost,
+        summaries: dict[UUID, identity_public.UserSummaryDTO] | None = None,
+    ) -> PostResponse:
+        if summaries is None:
+            summaries = identity_public.get_users_summaries([post.author_id], session=self.session)
+        return PostResponse(
+            id=post.id,
+            class_id=post.class_id,
+            author=self._author(post.author_id, summaries),
+            body=post.body,
+            created_at=post.created_at,
+            updated_at=post.updated_at,
+        )
 
     def create_post(
-        self,
-        class_id: UUID,
-        request: PostCreateRequest,
-        current_user: CurrentUser,
+        self, class_id: UUID, request: PostCreateRequest, current_user: CurrentUser
     ) -> PostResponse:
-        # Rule G1: Phải là thành viên ACTIVE của lớp
-        is_member = classroom_public.is_active_member(
-            class_id, current_user.id, session=self.session
+        require_write_access(
+            self.session,
+            class_id,
+            current_user,
+            ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
         )
-        if not is_member and "ADMIN" not in current_user.roles:
-            raise AppError(403, "Chỉ thành viên hoạt động mới có quyền đăng bài")
-
-        # Rule H5: Lớp ARCHIVED không cho đăng bài mới
-        class_status = classroom_public.get_class_status(class_id, session=self.session)
-        if class_status == "ARCHIVED":
-            raise AppError(400, "Lớp học đã lưu trữ, không thể đăng bài mới")
-
         with transaction(self.session):
-            post = ClassPost(
-                class_id=class_id,
-                author_id=current_user.id,
-                body=request.body,
+            post = self.repository.create_post(
+                ClassPost(class_id=class_id, author_id=current_user.id, body=request.body)
             )
-            created = self.repository.create_post(post)
-            author_summary = self._resolve_author_summary(current_user.id)
-            return PostResponse(
-                id=created.id,
-                class_id=created.class_id,
-                author=author_summary,
-                body=created.body,
-                created_at=created.created_at,
-                updated_at=created.updated_at,
+            record_outbox_event(
+                self.session,
+                event_type="SOCIAL_POST_CREATED",
+                aggregate_id=post.id,
+                payload_json={
+                    "class_id": str(class_id),
+                    "post_id": str(post.id),
+                    "author_id": str(current_user.id),
+                },
             )
+            return self._response(post)
 
     def list_posts(
-        self,
-        class_id: UUID,
-        pagination: Pagination,
-        current_user: CurrentUser,
+        self, class_id: UUID, pagination: Pagination, current_user: CurrentUser
     ) -> PostListResponse:
-        # Rule G1 / Fail-closed: Kiểm tra quyền xem bảng tin
-        is_member = classroom_public.is_active_member(
-            class_id, current_user.id, session=self.session
-        )
-        if not is_member and "ADMIN" not in current_user.roles:
-            raise AppError(403, "Không có quyền truy cập lớp học này")
-
+        require_read_access(self.session, class_id, current_user)
         rows = self.repository.list_posts_by_class(
             class_id, limit=pagination.limit, cursor=pagination.cursor
         )
         items = rows[: pagination.limit]
-
-        # Batch lookup thông tin tác giả từ identity.public
-        author_ids = list({post.author_id for post in items})
         summaries = (
-            identity_public.get_users_summaries(author_ids, session=self.session)
-            if author_ids
+            identity_public.get_users_summaries(
+                list({post.author_id for post in items}), session=self.session
+            )
+            if items
             else {}
         )
-
-        response_items = [
-            PostResponse(
-                id=post.id,
-                class_id=post.class_id,
-                author=self._resolve_author_summary(post.author_id, summaries),
-                body=post.body,
-                created_at=post.created_at,
-                updated_at=post.updated_at,
-            )
-            for post in items
-        ]
-
-        next_cursor = (
-            encode_cursor(items[-1].id) if len(rows) > pagination.limit and items else None
+        return PostListResponse(
+            items=[self._response(post, summaries) for post in items],
+            next_cursor=(
+                encode_cursor(items[-1].id) if len(rows) > pagination.limit and items else None
+            ),
         )
-        return PostListResponse(items=response_items, next_cursor=next_cursor)
 
     def update_post(
         self,
@@ -132,32 +110,21 @@ class FeedService:
         request: PostUpdateRequest,
         current_user: CurrentUser,
     ) -> PostResponse:
+        require_write_access(
+            self.session,
+            class_id,
+            current_user,
+            ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
+        )
         with transaction(self.session):
             post = self.repository.get_post_by_id(post_id, for_update=True)
             if post is None or post.class_id != class_id:
-                raise AppError(404, "Bài viết không tồn tại")
-
-            # Rule G1: Chỉ chính tác giả mới được sửa bài
+                raise AppError(404)
             if post.author_id != current_user.id:
-                raise AppError(403, "Chỉ tác giả mới có quyền chỉnh sửa bài viết")
-
-            # Rule H5: Lớp ARCHIVED từ chối hoạt động ghi
-            class_status = classroom_public.get_class_status(class_id, session=self.session)
-            if class_status == "ARCHIVED":
-                raise AppError(400, "Lớp học đã lưu trữ, không thể chỉnh sửa bài viết")
-
+                raise AppError(403)
             post.body = request.body
             self.session.flush()
-
-            author_summary = self._resolve_author_summary(post.author_id)
-            return PostResponse(
-                id=post.id,
-                class_id=post.class_id,
-                author=author_summary,
-                body=post.body,
-                created_at=post.created_at,
-                updated_at=post.updated_at,
-            )
+            return self._response(post)
 
     def delete_post(
         self,
@@ -166,40 +133,25 @@ class FeedService:
         current_user: CurrentUser,
         correlation_id: UUID,
     ) -> None:
+        access = get_delete_access(self.session, class_id, current_user)
         with transaction(self.session):
             post = self.repository.get_post_by_id(post_id, for_update=True)
             if post is None or post.class_id != class_id:
-                raise AppError(404, "Bài viết không tồn tại")
-
-            now = datetime.now(UTC)
-
-            # Trường hợp 1: Tác giả tự xóa bài viết
-            if post.author_id == current_user.id:
-                post.deleted_at = now
-                self.session.flush()
-                return
-
-            # Trường hợp 2: Giảng viên hoặc Admin kiểm duyệt xóa (Rule L5)
-            is_lecturer = classroom_public.is_class_lecturer(
-                class_id, current_user.id, session=self.session
-            )
-            is_admin = "ADMIN" in current_user.roles
-
-            if not is_lecturer and not is_admin:
-                raise AppError(403, "Không có quyền xóa bài viết này")
-
-            # Soft delete và ghi audit log bắt buộc theo Rule L5
-            post.deleted_at = now
+                raise AppError(404)
+            self_delete = post.author_id == current_user.id
+            if self_delete and not access.can_participate:
+                raise AppError(403)
+            if not self_delete and not access.can_moderate:
+                raise AppError(403)
+            post.deleted_at = datetime.now(UTC)
             self.session.flush()
-
-            record_audit(
-                self.session,
-                actor_id=current_user.id,
-                action="MODERATE_DELETE_POST",
-                target_type="CLASS_POST",
-                target_id=post.id,
-                correlation_id=correlation_id,
-                metadata_json=AuditMetadata(
-                    reason_code="POLICY_VIOLATION",
-                ),
-            )
+            if not self_delete:
+                record_audit(
+                    self.session,
+                    actor_id=current_user.id,
+                    action="MODERATE_DELETE_POST",
+                    target_type="CLASS_POST",
+                    target_id=post.id,
+                    correlation_id=correlation_id,
+                    metadata_json=AuditMetadata(reason_code="POLICY_VIOLATION"),
+                )

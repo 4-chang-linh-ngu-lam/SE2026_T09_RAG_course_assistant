@@ -4,22 +4,14 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.common.pagination import Page
+from app.modules.social.schemas import AuthorSummary
 
 __all__ = [
-    "PostAuthorSummary",
     "PostCreateRequest",
     "PostListResponse",
     "PostResponse",
     "PostUpdateRequest",
 ]
-
-
-class PostAuthorSummary(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    id: UUID
-    display_name: str | None = None
-    email: str
 
 
 class PostCreateRequest(BaseModel):
@@ -53,7 +45,7 @@ class PostResponse(BaseModel):
 
     id: UUID
     class_id: UUID
-    author: PostAuthorSummary
+    author: AuthorSummary
     body: str
     created_at: datetime
     updated_at: datetime

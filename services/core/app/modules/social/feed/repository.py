@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
+from app.common.errors import AppError
 from app.modules.social.feed.models import ClassPost
 
 __all__ = ["FeedRepository"]
@@ -43,16 +44,22 @@ class FeedRepository:
             ClassPost.deleted_at.is_(None),
         )
         if cursor is not None:
-            cursor_post = self.get_post_by_id(cursor, include_deleted=True)
-            if cursor_post is not None:
-                query = query.where(
-                    or_(
-                        ClassPost.created_at < cursor_post.created_at,
-                        and_(
-                            ClassPost.created_at == cursor_post.created_at,
-                            ClassPost.id < cursor_post.id,
-                        ),
-                    )
+            cursor_post = self.session.scalar(
+                select(ClassPost).where(
+                    ClassPost.id == cursor,
+                    ClassPost.class_id == class_id,
                 )
+            )
+            if cursor_post is None:
+                raise AppError(400, "Invalid cursor")
+            query = query.where(
+                or_(
+                    ClassPost.created_at < cursor_post.created_at,
+                    and_(
+                        ClassPost.created_at == cursor_post.created_at,
+                        ClassPost.id < cursor_post.id,
+                    ),
+                )
+            )
         query = query.order_by(ClassPost.created_at.desc(), ClassPost.id.desc()).limit(limit + 1)
         return list(self.session.scalars(query))

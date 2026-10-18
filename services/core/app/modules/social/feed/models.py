@@ -1,14 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import (
-    CheckConstraint,
-    DateTime,
-    ForeignKey,
-    Index,
-    String,
-    Uuid,
-)
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.db import Base
@@ -26,7 +19,6 @@ class ClassPost(Base):
 
     __tablename__ = "class_posts"
     __table_args__ = (
-        Index("idx_posts_class_created", "class_id", "created_at"),
         CheckConstraint(
             "length(body) >= 1 AND length(body) <= 10000",
             name="ck_posts_body_length",
@@ -34,7 +26,7 @@ class ClassPost(Base):
     )
 
     class_id: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("classes.id", ondelete="CASCADE"), index=True
+        Uuid, ForeignKey("core.subject_classes.id", ondelete="CASCADE"), index=True
     )
     author_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="RESTRICT"), index=True
@@ -43,3 +35,11 @@ class ClassPost(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
     )
+
+
+Index(
+    "idx_posts_class_created",
+    ClassPost.class_id,
+    ClassPost.created_at.desc(),
+    ClassPost.id.desc(),
+)

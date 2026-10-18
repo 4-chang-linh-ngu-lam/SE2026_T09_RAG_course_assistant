@@ -1,5 +1,5 @@
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse
@@ -54,19 +54,7 @@ def _empty() -> Response:
 
 
 def _correlation_id(request: Request) -> UUID:
-    raw = getattr(request.state, "correlation_id", None)
-    if raw:
-        try:
-            return UUID(str(raw))
-        except (ValueError, TypeError):
-            pass
-    header_val = request.headers.get("X-Correlation-ID")
-    if header_val:
-        try:
-            return UUID(header_val)
-        except (ValueError, TypeError):
-            pass
-    return uuid4()
+    return UUID(str(request.state.correlation_id))
 
 
 @router.get("/classes/{class_id}/posts", response_model=PostListResponse)
