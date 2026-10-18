@@ -344,3 +344,26 @@ def test_learning_deadline_upsert_handles_row_created_by_another_worker(social):
         )
     ).all()
     assert len(events) == 1
+
+
+def test_archived_class_rejects_admin_moderation_without_exposing_other_school(social):
+    _session, classroom, class_id, users = social
+    feed = FeedService(_session)
+    comments = CommentsService(_session)
+    post = feed.create_post(class_id, PostCreateRequest(body="post"), users["student"])
+    comment = comments.create_comment(
+        class_id, post.id, CommentCreateRequest(body="comment"), users["student2"]
+    )
+    classroom.set_archived(class_id, users["admin"], archived=True)
+
+    for delete in (
+        lambda user: feed.delete_post(class_id, post.id, user, uuid4()),
+        lambda user: comments.delete_comment(class_id, post.id, comment.id, user, uuid4()),
+    ):
+        with pytest.raises(AppError) as archived:
+            delete(users["admin"])
+        assert archived.value.status_code == 409
+
+        with pytest.raises(AppError) as hidden:
+            delete(users["other_admin"])
+        assert hidden.value.status_code == 404

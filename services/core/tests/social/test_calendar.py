@@ -25,7 +25,7 @@ def _user(role="LECTURER"):
 
 
 def _access(monkeypatch, *, read=True, write=True, archived=False):
-    def check(_class_id, _user_id, action, *, session):
+    def check(_class_id, _user_id, action, *, session, lock=False):
         return SimpleNamespace(
             allowed=read if str(action) == "read_class_content" else write,
             class_status="ARCHIVED"

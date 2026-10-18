@@ -59,13 +59,13 @@ class FeedService:
     def create_post(
         self, class_id: UUID, request: PostCreateRequest, current_user: CurrentUser
     ) -> PostResponse:
-        require_write_access(
-            self.session,
-            class_id,
-            current_user,
-            ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
-        )
         with transaction(self.session):
+            require_write_access(
+                self.session,
+                class_id,
+                current_user,
+                ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
+            )
             post = self.repository.create_post(
                 ClassPost(class_id=class_id, author_id=current_user.id, body=request.body)
             )
@@ -110,13 +110,13 @@ class FeedService:
         request: PostUpdateRequest,
         current_user: CurrentUser,
     ) -> PostResponse:
-        require_write_access(
-            self.session,
-            class_id,
-            current_user,
-            ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
-        )
         with transaction(self.session):
+            require_write_access(
+                self.session,
+                class_id,
+                current_user,
+                ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
+            )
             post = self.repository.get_post_by_id(post_id, for_update=True)
             if post is None or post.class_id != class_id:
                 raise AppError(404)
@@ -133,8 +133,8 @@ class FeedService:
         current_user: CurrentUser,
         correlation_id: UUID,
     ) -> None:
-        access = get_delete_access(self.session, class_id, current_user)
         with transaction(self.session):
+            access = get_delete_access(self.session, class_id, current_user)
             post = self.repository.get_post_by_id(post_id, for_update=True)
             if post is None or post.class_id != class_id:
                 raise AppError(404)

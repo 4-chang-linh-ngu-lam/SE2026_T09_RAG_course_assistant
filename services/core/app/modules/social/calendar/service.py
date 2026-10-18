@@ -79,13 +79,13 @@ class CalendarService:
         request: CalendarEventCreateRequest,
         current_user: CurrentUser,
     ) -> CalendarEventResponse:
-        require_write_access(
-            self.session,
-            class_id,
-            current_user,
-            ClassAccessAction.MANAGE_CLASS_CALENDAR,
-        )
         with transaction(self.session):
+            require_write_access(
+                self.session,
+                class_id,
+                current_user,
+                ClassAccessAction.MANAGE_CLASS_CALENDAR,
+            )
             event = self.repository.create(
                 CalendarEvent(
                     class_id=class_id,
@@ -107,13 +107,13 @@ class CalendarService:
         request: CalendarEventUpdateRequest,
         current_user: CurrentUser,
     ) -> CalendarEventResponse:
-        require_write_access(
-            self.session,
-            class_id,
-            current_user,
-            ClassAccessAction.MANAGE_CLASS_CALENDAR,
-        )
         with transaction(self.session):
+            require_write_access(
+                self.session,
+                class_id,
+                current_user,
+                ClassAccessAction.MANAGE_CLASS_CALENDAR,
+            )
             event = self.repository.get(event_id, for_update=True)
             if event is None or event.class_id != class_id:
                 raise AppError(404)
@@ -134,13 +134,13 @@ class CalendarService:
         event_id: UUID,
         current_user: CurrentUser,
     ) -> None:
-        require_write_access(
-            self.session,
-            class_id,
-            current_user,
-            ClassAccessAction.MANAGE_CLASS_CALENDAR,
-        )
         with transaction(self.session):
+            require_write_access(
+                self.session,
+                class_id,
+                current_user,
+                ClassAccessAction.MANAGE_CLASS_CALENDAR,
+            )
             event = self.repository.get(event_id, for_update=True)
             if event is None or event.class_id != class_id:
                 raise AppError(404)

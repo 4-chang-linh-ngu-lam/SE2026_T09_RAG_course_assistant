@@ -27,14 +27,14 @@ def _user(user_id=None, role="STUDENT"):
 
 
 def _access(monkeypatch, *, read=True, write=True, moderate=False, archived=False):
-    def check(_class_id, _user_id, action, *, session):
+    def check(_class_id, _user_id, action, *, session, lock=False):
         action = str(action)
         allowed = read if action == "read_class_content" else write
         if action == "moderate_class_content":
             allowed = moderate
         return SimpleNamespace(
             allowed=allowed,
-            class_status="ARCHIVED" if archived and read else "ACTIVE",
+            class_status="ARCHIVED" if archived else "ACTIVE",
         )
 
     monkeypatch.setattr(classroom_public, "check_class_action", check)

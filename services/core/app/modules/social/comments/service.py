@@ -93,13 +93,13 @@ class CommentsService:
         request: CommentCreateRequest,
         current_user: CurrentUser,
     ) -> CommentResponse:
-        require_write_access(
-            self.session,
-            class_id,
-            current_user,
-            ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
-        )
         with transaction(self.session):
+            require_write_access(
+                self.session,
+                class_id,
+                current_user,
+                ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
+            )
             post = self._post(class_id, post_id, for_update=True)
             comment = self.repository.create(
                 PostComment(post_id=post_id, author_id=current_user.id, body=request.body)
@@ -127,13 +127,13 @@ class CommentsService:
         request: CommentUpdateRequest,
         current_user: CurrentUser,
     ) -> CommentResponse:
-        require_write_access(
-            self.session,
-            class_id,
-            current_user,
-            ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
-        )
         with transaction(self.session):
+            require_write_access(
+                self.session,
+                class_id,
+                current_user,
+                ClassAccessAction.PARTICIPATE_CURRENT_CLASS,
+            )
             self._post(class_id, post_id, for_update=True)
             comment = self.repository.get(comment_id, for_update=True)
             if comment is None or comment.post_id != post_id:
@@ -152,8 +152,8 @@ class CommentsService:
         current_user: CurrentUser,
         correlation_id: UUID,
     ) -> None:
-        access = get_delete_access(self.session, class_id, current_user)
         with transaction(self.session):
+            access = get_delete_access(self.session, class_id, current_user)
             self._post(class_id, post_id, for_update=True)
             comment = self.repository.get(comment_id, for_update=True)
             if comment is None or comment.post_id != post_id:
