@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getRoute, homeFor, type RouteId } from '@/config/routes';
 import { adapter } from '@/lib/data';
-import { canOpenRoute } from '@/lib/navigation';
+import { canOpenRoute, SAFE_ROUTE_QUERY_KEYS, withSafeRouteQuery } from '@/lib/navigation';
 import type { Role, RouteParams, WorkspaceData } from '@/lib/domain';
 import { errorMessage } from '@/lib/api/errors';
 import { useSession } from './session-provider';
@@ -13,7 +13,6 @@ import { PageShell } from './shell';
 import { AuthView } from '@/features/identity/auth-view';
 import { FeatureEntry } from '@/features';
 
-const SAFE_QUERY_KEYS = new Set(['version', 'page', 'locator', 'section', 'conversationId', 'mode', 'format', 'search', 'sort', 'question', 'compose']);
 
 function RouteScreenInner({ routeId, params }: { routeId: RouteId; params: RouteParams }) {
   const session = useSession(), route = getRoute(routeId);
@@ -21,7 +20,7 @@ function RouteScreenInner({ routeId, params }: { routeId: RouteId; params: Route
   const queryParams: Record<string, string> = {};
   if (searchParams) {
     searchParams.forEach((val, key) => {
-      if (SAFE_QUERY_KEYS.has(key)) {
+      if (SAFE_ROUTE_QUERY_KEYS.has(key)) {
         queryParams[key] = val;
       }
     });
@@ -68,7 +67,7 @@ function RouteScreenInner({ routeId, params }: { routeId: RouteId; params: Route
   const pathRole: Role | null = route.path.startsWith('/teacher') ? 'LECTURER' : route.path.startsWith('/admin') ? 'ADMIN' : route.path.startsWith('/student') ? 'STUDENT' : null;
   const role = pathRole && session.user.roles.includes(pathRole) ? pathRole : session.user.roles.includes('ADMIN') ? 'ADMIN' : session.user.roles.includes('LECTURER') ? 'LECTURER' : 'STUDENT';
   const data = snapshot?.key === snapshotKey ? snapshot.data : null;
-  const ownsHeading = ['s.progress','t.analytics','t.studentAnalytics','a.dataRequests','a.audit','a.reports','a.exports','s.reader','s.tutor','s.assessments','s.assessment','s.examAttempt','s.receipt','s.examResult','t.assessmentEditor','t.assessmentApproval','t.examGrading','s.assignments','s.assignment','s.historyResult','t.assignmentEditor','t.gradingQueue','t.assignmentGrading','t.correction','t.correctionApproval','t.activities','t.practiceEditor'].includes(routeId);
+  const ownsHeading = ['t.libraryDocument','s.progress','t.analytics','t.studentAnalytics','a.dataRequests','a.audit','a.reports','a.exports','s.reader','s.tutor','s.assessments','s.assessment','s.examAttempt','s.receipt','s.examResult','t.assessmentEditor','t.assessmentApproval','t.examGrading','s.assignments','s.assignment','s.historyResult','t.assignmentEditor','t.gradingQueue','t.assignmentGrading','t.correction','t.correctionApproval','t.activities','t.practiceEditor'].includes(routeId);
 
   return (
     <PageShell route={route} params={effectiveParams} role={role} user={session.user} summary={data?.kind === 'ready' ? data.classSummary : undefined} resourceTitle={data?.kind === 'ready' ? data.readerModel?.document.title : undefined}>
@@ -77,7 +76,7 @@ function RouteScreenInner({ routeId, params }: { routeId: RouteId; params: Route
           <h1>{route.title}</h1>
           {routeId.endsWith('home') && <p className="muted">Chào {session.user.display_name ?? session.user.username ?? 'bạn'}, chúc bạn một ngày học tập hiệu quả.</p>}
         </div>
-        {routeId === 'a.accounts' && <Link className="button primary" href="/admin/accounts/students/new">Cấp tài khoản học sinh</Link>}
+
       </div>}
       <FeatureEntry key={featureKey} route={route} params={effectiveParams} data={data} role={role} user={session.user} reload={() => setRevision(x => x + 1)}/>
     </PageShell>
@@ -93,5 +92,5 @@ export function RouteScreen({ routeId, params }: { routeId: RouteId; params: Rou
 }
 
 function windowPath(path: string, params: RouteParams) {
-  return path.replace(/:(\w+)/g, (_, key: string) => encodeURIComponent(params[key] ?? ''));
+  return withSafeRouteQuery(path.replace(/:(\w+)/g, (_, key: string) => encodeURIComponent(params[key] ?? '')), params);
 }

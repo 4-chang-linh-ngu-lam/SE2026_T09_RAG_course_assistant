@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useRef,useState,useTransition,type CSSProperties,type FormEvent} from 'react';
+import {useEffect,useRef,useState,type CSSProperties,type FormEvent} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import type {RouteDefinition} from '@/config/routes';
@@ -15,14 +15,23 @@ import {createReaderOperationScope,settleReaderOperation} from '../reader-operat
 
 type Props={route:RouteDefinition;data:WorkspaceData|null;params:RouteParams;reload():void};
 export function StudentReaderView({data,params,reload}:Props){
- const router=useRouter();const {user}=useSession();const model=data?.kind==='ready'?data.readerModel:undefined;const doc=model?.document;const docId=doc?.id??params.documentId??'';const viewingVer=model?.viewingVersion??model?.servingVersion??Number(params.version??1);
- const [currentPage,setCurrentPage]=useState(1);const [newNoteText,setNewNoteText]=useState('');const [editingNote,setEditingNote]=useState<PersonalNoteItem|null>(null);const [editingText,setEditingText]=useState('');const [deleteNote,setDeleteNote]=useState<PersonalNoteItem|null>(null);const [outlineOpen,setOutlineOpen]=useState(false);const [notesOpen,setNotesOpen]=useState(false);const [actionError,setActionError]=useState<string|null>(null);const [isPending,startTransition]=useTransition();const [zoom,setZoom]=useState(100);const [fullscreen,setFullscreen]=useState(false);const root=useRef<HTMLDivElement>(null);const operationScope=useRef(createReaderOperationScope()).current;const noteInput=useRef<HTMLTextAreaElement>(null);const notesTrigger=useRef<HTMLButtonElement>(null);const outlineTrigger=useRef<HTMLButtonElement>(null);
+ const router=useRouter();const {user}=useSession();const model=data?.kind==='ready'?data.readerModel:undefined;const doc=model?.document;const docId=doc?.id??params.documentId??'';const lastResolvedVersion=useRef(Number(params.version??1));const viewingVer=model?.viewingVersion??model?.servingVersion??lastResolvedVersion.current;if(model)lastResolvedVersion.current=viewingVer;const pageSync=useRef<{context:string;query:string|undefined}|null>(null);
+ const [currentPage,setCurrentPage]=useState(1);const [newNoteText,setNewNoteText]=useState('');const [editingNote,setEditingNote]=useState<PersonalNoteItem|null>(null);const [editingText,setEditingText]=useState('');const [deleteNote,setDeleteNote]=useState<PersonalNoteItem|null>(null);const [outlineOpen,setOutlineOpen]=useState(false);const [notesOpen,setNotesOpen]=useState(false);const [actionError,setActionError]=useState<string|null>(null);const pendingKeys=useRef(new Set<string>());const [pendingSnapshot,setPendingSnapshot]=useState<ReadonlySet<string>>(()=>new Set());const [zoom,setZoom]=useState(100);const [fullscreen,setFullscreen]=useState(false);const root=useRef<HTMLDivElement>(null);const operationScope=useRef(createReaderOperationScope()).current;const noteInput=useRef<HTMLTextAreaElement>(null);const notesTrigger=useRef<HTMLButtonElement>(null);const outlineTrigger=useRef<HTMLButtonElement>(null);
  const draftKey=`${user?.id??'anon'}:reader-note:${params.classId}:${docId}:${viewingVer}:${currentPage}`;
  const operationIdentity={actorId:user?.id??'anon',classId:params.classId,documentId:docId,version:viewingVer,page:currentPage};
  const operationKey=JSON.stringify(operationIdentity);
+ const isPending=pendingSnapshot.has(operationKey);
  operationScope.enter(operationIdentity);
  useEffect(()=>{const token=operationScope.enter(operationIdentity);setActionError(null);setEditingNote(null);setDeleteNote(null);return()=>operationScope.invalidate(token);},[operationKey,operationScope]);
- useEffect(()=>{const requested=Number(params.page);const desired=Number.isInteger(requested)&&requested>0?requested:model?.currentPage??1;if(model)setCurrentPage(Math.max(1,Math.min(desired,model.totalPages||1)));},[params.page,docId,viewingVer,model?.currentPage,model?.totalPages]);
+ useEffect(()=>{
+  if(!model)return;
+  const context=JSON.stringify([params.classId,docId,viewingVer]);
+  const previous=pageSync.current;
+  if(!previous||previous.context!==context||previous.query!==params.page){
+   const requested=Number(params.page);const desired=Number.isInteger(requested)&&requested>0?requested:model.currentPage??1;
+   setCurrentPage(Math.max(1,Math.min(desired,model.totalPages||1)));pageSync.current={context,query:params.page};
+  }else setCurrentPage(current=>Math.max(1,Math.min(current,model.totalPages||1)));
+ },[params.page,params.classId,docId,viewingVer,model?.currentPage,model?.totalPages]);
  useEffect(()=>{setNewNoteText(draftStore.get<string>(draftKey)??'');},[draftKey]);
  useEffect(()=>{const changed=()=>setFullscreen(document.fullscreenElement===root.current);document.addEventListener('fullscreenchange',changed);return()=>document.removeEventListener('fullscreenchange',changed);},[]);
  if(!data)return <StatePanel busy title="Đang mở tài liệu học tập…"/>;
@@ -30,7 +39,16 @@ export function StudentReaderView({data,params,reload}:Props){
  if(data.kind==='empty'||!model||!doc)return <StatePanel title="Tài liệu không khả dụng" message={data.kind==='empty'?data.message:'Không tìm thấy dữ liệu xem tài liệu.'}/>;
  const isAccessible=model.isSourceAccessible;const totalPages=model.totalPages;const page=model.pageContents?.find(p=>p.pageNumber===currentPage);const backHref=routeHref('s.documents',{classId:params.classId})??'/student/classes';const currentNotes=model.notes.filter(n=>n.pageNumber===currentPage||n.locator===`Trang ${currentPage}`);
  function changePage(value:number){if(value<1||value>totalPages||value===currentPage)return;operationScope.invalidate();operationScope.enter({...operationIdentity,page:value});setCurrentPage(value);setActionError(null);const query=new URLSearchParams(window.location.search);query.set('page',String(value));query.set('version',String(viewingVer));router.replace(`?${query.toString()}`,{scroll:false});}
- function action<T>(work:()=>Promise<T>,confirmed?:(result:T)=>void){const token=operationScope.enter(operationIdentity);setActionError(null);startTransition(async()=>{await settleReaderOperation({scope:operationScope,token,work,confirmed:result=>{confirmed?.(result);if(operationScope.isCurrent(token))reload();},failed:error=>setActionError(error instanceof Error?error.message:'Chưa thể hoàn tất yêu cầu.')});});}
+ function action<T>(work:()=>Promise<T>,confirmed?:(result:T)=>void){
+  const key=operationKey;
+  if(pendingKeys.current.has(key))return;
+  const token=operationScope.enter(operationIdentity);
+  pendingKeys.current.add(key);setPendingSnapshot(new Set(pendingKeys.current));setActionError(null);
+  // File mutations are independent of Next navigation transitions. A delayed save
+  // on one page must not hold the router or another page's composer pending.
+  void settleReaderOperation({scope:operationScope,token,work,confirmed:result=>{confirmed?.(result);if(operationScope.isCurrent(token))reload();},failed:error=>setActionError(error instanceof Error?error.message:'Chưa thể hoàn tất yêu cầu.')})
+   .finally(()=>{pendingKeys.current.delete(key);setPendingSnapshot(new Set(pendingKeys.current));});
+ }
  function saveNote(event:FormEvent){event.preventDefault();if(!newNoteText.trim()||!isAccessible)return;const submitted=newNoteText;const capturedKey=draftKey;const input={documentId:doc!.id,classId:params.classId,locator:`Trang ${currentPage}`,pageNumber:currentPage,version:viewingVer,noteText:submitted.trim()};action(()=>adapter.document.saveNote(input),()=>{if(draftStore.get<string>(capturedKey)===submitted){draftStore.remove(capturedKey);setNewNoteText('');}});}
  function updateNote(event:FormEvent){event.preventDefault();if(!editingNote||!editingText.trim())return;const note=editingNote,text=editingText;const capturedKey=`${user?.id}:reader-note-edit:${note.id}`;const input={id:note.id,documentId:note.documentId,classId:note.classId,locator:note.locator,pageNumber:note.pageNumber,version:note.version,noteText:text.trim()};action(()=>adapter.document.saveNote(input),()=>{if(draftStore.get<string>(capturedKey)===text)draftStore.remove(capturedKey);setEditingNote(null);setEditingText('');});}
  async function toggleFullscreen(){setActionError(null);try{if(document.fullscreenElement===root.current)await document.exitFullscreen();else if(root.current?.requestFullscreen)await root.current.requestFullscreen();else throw new Error('Trình duyệt chưa hỗ trợ chế độ toàn màn hình.');}catch(e){setActionError(e instanceof Error?e.message:'Chưa thể mở toàn màn hình.');}}

@@ -10,6 +10,8 @@
   flex-direction: column;
   gap: 16px;
   color: #0f172a;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .lumi-source-summary-main {
@@ -18,11 +20,12 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
+  min-width: 0;
 }
 
 .lumi-source-summary-info {
-  flex: 1;
-  min-width: min(100%, 320px);
+  flex: 1 1 320px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -33,6 +36,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
 }
 
 .lumi-source-title {
@@ -43,6 +47,7 @@
   color: #0f172a;
   margin: 0;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .lumi-source-meta-row {
@@ -53,6 +58,8 @@
   font-size: 13px;
   color: #64748b;
   line-height: 1.5;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .lumi-source-meta-divider {
@@ -64,6 +71,8 @@
   line-height: 1.6;
   color: #334155;
   margin: 4px 0 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .lumi-source-actions {
@@ -214,6 +223,8 @@
   justify-content: space-between;
   gap: 16px;
   color: #991b1b;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .lumi-source-failure-main {
@@ -221,6 +232,7 @@
   align-items: flex-start;
   gap: 14px;
   flex: 1;
+  min-width: 0;
 }
 
 .lumi-source-failure-icon {
@@ -236,6 +248,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
+  min-width: 0;
 }
 
 .lumi-source-failure-title {
@@ -244,6 +258,8 @@
   color: #7f1d1d;
   margin: 0;
   line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .lumi-source-failure-text {
@@ -251,6 +267,8 @@
   color: #991b1b;
   margin: 0;
   line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .lumi-source-failure-detail {
@@ -258,6 +276,8 @@
   color: #b91c1c;
   margin: 4px 0 0;
   line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .lumi-source-failure-action {
@@ -297,6 +317,8 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .lumi-source-grants-header {
@@ -305,6 +327,7 @@
   gap: 4px;
   padding-bottom: 12px;
   border-bottom: 1px solid #f1f5f9;
+  min-width: 0;
 }
 
 .lumi-source-section-title {
@@ -313,18 +336,23 @@
   color: #0f172a;
   margin: 0;
   line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .lumi-source-section-subtitle {
   font-size: 13px;
   color: #64748b;
   margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .lumi-source-grants-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
 }
 
 .lumi-source-grant-item {
@@ -337,6 +365,7 @@
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   transition: background-color 0.15s ease;
+  min-width: 0;
 }
 
 .lumi-source-grant-item:hover {
@@ -347,6 +376,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
+  min-width: 0;
 }
 
 .lumi-source-grant-title-line {
@@ -354,18 +385,22 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .lumi-source-grant-name {
   font-size: 14px;
   font-weight: 600;
   color: #0f172a;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .lumi-source-grant-code {
   font-size: 12px;
   font-weight: 500;
   color: #64748b;
+  word-break: break-all;
 }
 
 .lumi-source-grant-meta {
@@ -375,6 +410,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+  min-width: 0;
 }
 
 .lumi-source-btn-revoke {
@@ -430,6 +466,8 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .lumi-source-history-header {
@@ -440,6 +478,7 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .lumi-source-history-count {
@@ -493,7 +532,11 @@
 }
 
 .lumi-source-table tr.is-serving td {
-  background: #eff6ff/30;
+  background: #eff6ff;
+}
+
+.lumi-source-table tr.is-serving:hover td {
+  background: #e0edfe;
 }
 
 .lumi-source-table-version-cell {
@@ -584,6 +627,12 @@
     align-items: flex-start;
     gap: 12px;
     padding: 12px 14px;
+    min-width: 0;
+  }
+
+  .lumi-source-grant-info {
+    width: 100%;
+    min-width: 0;
   }
 
   .lumi-source-btn-revoke {

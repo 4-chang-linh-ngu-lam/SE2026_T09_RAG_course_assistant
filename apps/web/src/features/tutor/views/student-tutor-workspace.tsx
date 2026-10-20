@@ -40,6 +40,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
     controller: AbortController;
   } | null>(null);
   const generationRef = useRef(0);
+  const synchronizedUrlRef = useRef<string | null>(null);
 
   const tutorData: StudentTutorWorkspaceData | undefined = data?.kind === 'ready' ? data.tutorWorkspace : undefined;
   const activeClassId = params.classId ?? tutorData?.classSummary.id ?? '';
@@ -54,19 +55,25 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
   );
 
   useEffect(() => {
-    if (params.compose === 'new') {
-      setSelectedConvId(null);
-      return;
-    }
-    if (tutorData?.conversations) {
-      if (params.conversationId) {
-        // Unknown explicit conversation IDs never fallback to first
-        setSelectedConvId(params.conversationId);
-      } else if (!selectedConvId && tutorData.conversations.length > 0) {
-        setSelectedConvId(tutorData.activeConversationId ?? tutorData.conversations[0].id);
+    const selection = JSON.stringify([userId, activeClassId, params.compose === 'new', params.conversationId ?? null]);
+    const previous = synchronizedUrlRef.current;
+    if (previous !== selection) {
+      synchronizedUrlRef.current = selection;
+      const stream = activeStreamRef.current;
+      // A freshly created conversation updates its own URL. This ACK must not be
+      // mistaken for the user's Back/Forward or another conversation selection.
+      const ownCreation = params.compose !== 'new' && !!params.conversationId && stream?.convId === params.conversationId;
+      if (previous !== null && stream && !ownCreation) {
+        generationRef.current++; stream.controller.abort(); activeStreamRef.current = null;
+        setIsStreaming(false); setStreamingContent(null);
       }
+      if (params.compose === 'new') setSelectedConvId(null);
+      else if (params.conversationId) setSelectedConvId(params.conversationId);
+      else setSelectedConvId(tutorData?.activeConversationId ?? tutorData?.conversations[0]?.id ?? null);
+    } else if (params.compose !== 'new' && !params.conversationId && tutorData?.conversations.length) {
+      setSelectedConvId(current => current ?? tutorData.activeConversationId ?? tutorData.conversations[0].id);
     }
-  }, [tutorData, selectedConvId, params.conversationId, params.compose]);
+  }, [userId, activeClassId, params.compose, params.conversationId, tutorData]);
 
   // Handle switching conversations with its own draft or empty, no carry-over
   const handleSelectConv = (convId: string) => {

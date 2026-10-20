@@ -17,6 +17,7 @@ export interface SourceDocumentSummaryProps {
   servingVersion: DocumentVersion | null;
   busy: boolean;
   canShare: boolean;
+  shareUnavailableReason?: string;
   onShare(): void;
   onUploadVersion(): void;
   onDelete(): void;
@@ -27,6 +28,7 @@ export function SourceDocumentSummary({
   servingVersion,
   busy,
   canShare,
+  shareUnavailableReason,
   onShare,
   onUploadVersion,
   onDelete,
@@ -89,7 +91,7 @@ export function SourceDocumentSummary({
             className="button lumi-source-btn lumi-source-btn-outline"
             onClick={onShare}
             disabled={busy || !canShare}
-            title={!canShare ? 'Không có quyền chia sẻ tài liệu này' : undefined}
+            title={!canShare ? shareUnavailableReason : undefined}
           >
             <Icon name="plus" />
             <span>Chia sẻ</span>
@@ -135,7 +137,9 @@ export function SourceFailureNotice({
   busy,
   onRetry,
 }: SourceFailureNoticeProps) {
-  const failureMessage = version.errorMessage || 'Tệp tin xử lý thất bại do lỗi phân tích nội dung.';
+  const failureMessage =
+    version.errorMessage?.trim() ||
+    'Quá trình xử lý phiên bản thất bại do lỗi chưa xác định. Vui lòng thử lại.';
 
   return (
     <section className="lumi-source-failure-card" role="alert" aria-live="polite">
@@ -149,8 +153,8 @@ export function SourceFailureNotice({
           </h2>
           <p className="lumi-source-failure-text">
             {servingVersion
-              ? `Các lớp được chia sẻ tiếp tục sử dụng phiên bản phục vụ v${servingVersion.versionNumber} đã sẵn sàng trong khi phiên bản thay thế đang được khắc phục.`
-              : 'Hiện tại chưa có phiên bản nào sẵn sàng để phục vụ cho các lớp học.'}
+              ? 'Các lớp được chia sẻ tiếp tục giữ nguyên phiên bản đã cấp hiện hành của từng lớp (chi tiết theo từng lớp ở danh mục bên dưới) trong khi phiên bản này đang được khắc phục.'
+              : 'Hiện tại tài liệu chưa có phiên bản phục vụ nào khả dụng cho các lớp học.'}
           </p>
           <p className="lumi-source-failure-detail">{failureMessage}</p>
         </div>
@@ -316,7 +320,7 @@ export function SourceVersionHistory({
                     <td className="lumi-source-table-actions">
                       {v.status === 'FAILED' ? (
                         <button
-                          id={`ux-doc-retry-v${v.versionNumber}`}
+                          id={`ux-doc-table-retry-v${v.versionNumber}`}
                           type="button"
                           className="lumi-source-btn-retry"
                           onClick={() => onRetry(v.versionNumber)}

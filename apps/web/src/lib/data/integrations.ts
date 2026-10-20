@@ -2,7 +2,7 @@
 export const integrations = {
   identity: { status: 'contracted', owner: 'Core.Identity' },
   studentProvisioning: { status: 'contracted', owner: 'Core.Identity' },
-  personalData: { status: 'contracted', owner: 'Core.Identity' },
+  personalData: { status: 'contracted', owner: 'Core.Identity', operations: { listSelfRequests: 'contracted', createSelfRequest: 'contracted', downloadCopy: 'pending-contract', reviewRequests: 'pending-contract', processCopy: 'pending-contract' } },
   classroom: { status: 'pending-contract', owner: 'Core.Classroom' },
   social: { status: 'pending-contract', owner: 'Core.Social' },
   calendar: { status: 'pending-contract', owner: 'Core.Social' },

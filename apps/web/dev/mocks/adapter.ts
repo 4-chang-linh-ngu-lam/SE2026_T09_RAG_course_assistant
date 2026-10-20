@@ -1918,7 +1918,6 @@ export const adapter: DataAdapter = {
       }
       for (const q of editor.questions) {
         validateQuestionForPublication(q);
-        if (q.sourceRef && !previewContext.sourceAccessible(user.id, input.classId, q.sourceRef.documentId, q.sourceRef.versionNumber)) throw new ApiError('FORBIDDEN', 'Nguồn của câu hỏi không còn khả dụng. Hãy kiểm tra lại trước khi công bố.', 403);
       }
       if (!editor.questions.every(q => q.isReviewed)) {
         throw new ApiError('VALIDATION_ERROR', 'Tất cả câu hỏi phải được giáo viên duyệt trước khi xuất bản.', 400);

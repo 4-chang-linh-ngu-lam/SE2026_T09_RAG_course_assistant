@@ -113,6 +113,10 @@ export function createNotificationReadController(deps: NotificationReadDependenc
           message: 'Chưa ghi nhận đầy đủ trạng thái đã đọc. Bạn có thể kiểm tra nội dung và thử lại.' }) : null;
       }
     }
+    if (issue?.outcome === 'rejected') {
+      const ids = issue.target.kind === 'one' ? [issue.target.id] : issue.target.ids;
+      if (!incoming.some(item => ids.includes(item.id) && !item.isRead && !acknowledged.has(item.id))) issue = null;
+    }
     emit();
     return true;
   }

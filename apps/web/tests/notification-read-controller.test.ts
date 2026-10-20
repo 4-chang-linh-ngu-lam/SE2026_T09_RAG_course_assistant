@@ -206,3 +206,27 @@ test('refresh rejection after confirmed ACK reports snapshot error without rever
   assert.equal(h.controller.getState().issue, null);
   assert.ok(h.controller.getState().snapshotError);
 });
+
+
+test('fresh snapshot clears a rejected read when the real target is now read, without another mutation', async () => {
+ const h=harness();const pending=h.controller.markOne('one');
+ h.gate().reject(new ApiError('REJECTED','Refused',422));await pending;
+ h.controller.receiveSnapshot([item('one',true),item('two')]);
+ assert.equal(h.controller.getState().issue,null);
+ assert.equal(h.controller.getState().unreadCount,1);
+ assert.equal(await h.controller.retry(),'ignored');
+ assert.deepEqual(h.calls,['one']);
+});
+
+test('removed rejected targets release stale retry, while still-unread targets retain it', async () => {
+ const h=harness();const pending=h.controller.markAll();
+ h.gate().reject(new ApiError('REJECTED','Refused',422));await pending;
+ h.controller.receiveSnapshot([item('one',true),item('two'),item('new')]);
+ assert.equal(h.controller.getState().issue?.outcome,'rejected');
+ h.controller.receiveSnapshot([item('one',true),item('new')]);
+ assert.equal(h.controller.getState().issue,null);
+ assert.equal(h.controller.getState().unreadCount,1);
+ assert.equal(h.controller.getState().items.find(row=>row.id==='new')?.isRead,false);
+ assert.equal(await h.controller.retry(),'ignored');
+ assert.deepEqual(h.calls,['all']);
+});
