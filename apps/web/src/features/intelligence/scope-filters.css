@@ -309,3 +309,15 @@
     width: 100%;
   }
 }
+
+/* Explicit selection mode controls; scoped to the analytics filter. */
+.lumi-scope-activities-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+.lumi-scope-mode-summary{min-width:0;flex:1 1 180px;overflow-wrap:anywhere;font-size:13px;line-height:1.5}
+.lumi-scope-mode-value{font-weight:600;color:var(--ink,#0f172a)}
+.lumi-scope-mode-empty-hint,.lumi-scope-all-hint{color:var(--muted,#64748b)}
+.lumi-scope-button-group{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.lumi-scope-button-group .button{white-space:normal;min-height:44px}
+.lumi-scope-all-hint{margin:8px 0;font-size:13px}
+.lumi-scope-applied-container{width:100%;min-width:0}
+.lumi-scope-applied-label{font-weight:600;font-size:12px}
+@media(max-width:390px){.lumi-scope-button-group{width:100%}.lumi-scope-button-group .button{flex:1 1 100%;width:100%}}

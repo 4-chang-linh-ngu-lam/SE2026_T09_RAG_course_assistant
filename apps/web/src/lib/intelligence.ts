@@ -1,7 +1,8 @@
+import type {ResourceSelectionMode} from './activity-selection';
 import type { ClassSummary, DataRequest, RouteParams } from './domain';
 import type { LearningEvidence } from './learning-evidence';
 // Frontend-only projections; these are not proposed Intelligence/Core wire DTOs.
-export type IntelligenceFilter = { asOf?: string; from?: string; resourceIds?: string[] };
+export type IntelligenceFilter = { asOf?: string; from?: string; resourceIds?: string[]; resourceSelectionMode?: ResourceSelectionMode };
 export type TopicEvidence = { topic: string; count: number; independentResourceCount: number; conclusion: 'INSUFFICIENT_DATA' };
 export type TutorTopicAggregate = { topic: string; participantCount: number | null; suppressed: boolean; reason: string | null };
 export type TutorAggregateView = { available: boolean; minimumParticipants: number; totalParticipants: number | null; topics: TutorTopicAggregate[]; message: string };
@@ -12,13 +13,13 @@ export type AdminDataRequest = DataRequest & { requesterName: string; processing
 export type DataRequestUpdate = { id:string;expectedRevision:number;status:'IN_REVIEW'|'COMPLETED'|'REJECTED';identityVerified:boolean;resolution:string;classifications:DataClassification[] };
 export type DataRequestProcess = {id:string;expectedRevision:number;verificationNote:string;classifications:DataClassification[]};
 export type IntelligenceAuditRecord = { id:string;actorId:string;actorName:string;action:string;resourceType:string;resourceId:string;classId?:string;reason:string;at:string };
-export type ReportScope = {classIds:string[];from:string;asOf:string;resourceIds:string[];includePractice:boolean};
+export type ReportScope = {classIds:string[];from:string;asOf:string;resourceIds:string[];resourceSelectionMode?:ResourceSelectionMode;includePractice:boolean};
 export type ReportClassSummary = {classId:string;name:string;rosterCount:number;officialResultCount:number;practiceAttemptCount:number;activities:ActivityAggregate[]};
 export type ReportPreview = {id:string;scope:ReportScope;classes:ReportClassSummary[];createdAt:string;notice:string};
 export type ExportJob = {id:string;ownerId:string;title:string;format:'PDF'|'XLSX';status:'QUEUED'|'PROCESSING'|'READY'|'FAILED';scope:ReportScope;classNames:string[];createdAt:string;completedAt:string|null;error:string|null;fileName:string|null;size:number|null};
 export type IntelligencePage =
- | {kind:'student';classSummary:ClassSummary;studentId:string;studentName:string;asOf:string;from:string;limitedHistory:boolean;evidence:LearningEvidence[];topics:TopicEvidence[];availableActivities:ActivityOption[];selectedResourceIds:string[]}
- | {kind:'class';classSummary:ClassSummary;asOf:string;from:string;rosterCount:number;activities:ActivityAggregate[];availableActivities:ActivityOption[];selectedResourceIds:string[];topics:TopicEvidence[];students:{id:string;name:string;officialResults:number;practiceAttempts:number}[];tutor:TutorAggregateView}
+ | {kind:'student';classSummary:ClassSummary;studentId:string;studentName:string;asOf:string;from:string;limitedHistory:boolean;evidence:LearningEvidence[];topics:TopicEvidence[];availableActivities:ActivityOption[];selectedResourceIds:string[];resourceSelectionMode:ResourceSelectionMode}
+ | {kind:'class';classSummary:ClassSummary;asOf:string;from:string;rosterCount:number;activities:ActivityAggregate[];availableActivities:ActivityOption[];selectedResourceIds:string[];resourceSelectionMode:ResourceSelectionMode;topics:TopicEvidence[];students:{id:string;name:string;officialResults:number;practiceAttempts:number}[];tutor:TutorAggregateView}
  | {kind:'requests';items:AdminDataRequest[];unavailableReason?:string}
  | {kind:'audit';items:IntelligenceAuditRecord[];unavailableReason?:string}
  | {kind:'reports';classes:ClassSummary[];asOf:string;from:string;unavailableReason?:string}

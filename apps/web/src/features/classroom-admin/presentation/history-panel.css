@@ -211,7 +211,7 @@
 }
 
 .lumi-admin-history-actor-label {
-  color: #94a3b8;
+  color: #64748b;
 }
 
 .lumi-admin-history-actor-name {
@@ -290,4 +290,8 @@
     justify-content: flex-start;
     min-width: 0;
   }
+}
+
+@media(max-width:480px){
+ .lumi-admin-history-time,.lumi-admin-history-status-badge{white-space:normal;overflow-wrap:anywhere;max-width:100%}
 }

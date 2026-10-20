@@ -1,4 +1,7 @@
 'use client';
+import {useSession} from '@/components/session-provider';
+import {useVolatileDraft} from '@/components/volatile-draft';
+import {draftStore} from '@/lib/draft-store';
 import { useState, useTransition, useEffect } from 'react';
 import type { RouteDefinition } from '@/config/routes';
 import type { RouteParams, TeacherTutorInstructionConfig, WorkspaceData } from '@/lib/domain';
@@ -15,7 +18,9 @@ type Props = {
 export function TeacherTutorConfigView({ data, params, reload }: Props) {
   const config = data && data.kind === 'ready' ? data.teacherTutorConfig : undefined;
   const initialText = config?.instructions ?? '';
-  const [instructions, setInstructions] = useState(initialText);
+  const {user}=useSession();
+  const draftKey=`${user?.id}:tutor-config:${params.classId}`;
+  const [instructions, setInstructions] = useVolatileDraft(draftKey, initialText);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -23,9 +28,9 @@ export function TeacherTutorConfigView({ data, params, reload }: Props) {
   // Synchronize when config data loads
   useEffect(() => {
     if (config?.instructions !== undefined) {
-      setInstructions(config.instructions);
+      setInstructions(draftStore.get<string>(draftKey) ?? config.instructions);
     }
-  }, [config?.instructions]);
+  }, [config?.instructions, draftKey]);
 
   const isDirty = instructions !== initialText;
   useUnsavedChanges(isDirty);

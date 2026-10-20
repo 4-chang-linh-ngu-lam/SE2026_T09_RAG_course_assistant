@@ -237,6 +237,7 @@ export type ClassDocumentGrant = {
   isShared: boolean;
   grantedAt?: string;
   servingVersion: number;
+  classStatus?: ClassSummary['status'];
 };
 
 export type PersonalNoteItem = {
@@ -623,6 +624,7 @@ export type WorkspaceData =
         document: DocumentItem;
         versions: DocumentVersion[];
         grants: ClassDocumentGrant[];
+      shareableClasses?: ClassSummary[]; // Current assigned ACTIVE classes, independent of existing grants.
       };
       capabilityPolicy?: DocumentCapabilityPolicy;
       classDocuments?: DocumentItem[];

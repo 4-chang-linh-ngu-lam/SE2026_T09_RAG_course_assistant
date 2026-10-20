@@ -505,6 +505,13 @@ test('5. editor sources resolve to real granted class documents; revoked or unre
   assert.equal(sanitizedQRevokedDoc.sourceRef?.isAccessible, false);
   assert.equal(sanitizedQRevokedDoc.sourceRef?.displayText, 'Tài liệu không còn khả dụng');
   assert.equal(sanitizedQRevokedDoc.sourceReference, undefined);
+  assert.equal(sanitizedQFailedVer.sourceRef?.locator, '');
+  assert.equal(sanitizedQFailedVer.sourceRef?.documentTitle, 'Tài liệu không còn khả dụng');
+  const feedback = await mockAdapter.learning.checkPracticeAnswer({classId: CLASS_101_ID, practiceId: unreadyDraft.practiceId, attemptId: startUnready.attemptId, questionId: 'q-failed-ver', answer: {questionId: 'q-failed-ver', singleChoiceValue: 'A'}});
+  assert.equal(feedback.sourceRef?.locator, '');
+  assert.ok(!feedback.pedagogicalHint?.includes('Trang 1'));
+  assert.ok(!feedback.pedagogicalHint?.includes('v3_draft'));
+
 });
 
 test('6. teacher editor: saving new question cannot forge review; explicit review required', { timeout: 10000 }, async () => {
@@ -1411,3 +1418,53 @@ test('18. Practice Attempt lifecycle: in-flight save across navigation/remount, 
 });
 
 
+
+test('LF-109 learner hints and checked feedback reevaluate revoke/regrant without changing published questions or results', {timeout:10000}, async()=>{
+ resetStage3aMockStores();
+ await mockAdapter.identity.login(STUDENT_LOGIN);
+ const target={classId:CLASS_101_ID,practiceId:PRACTICE_ID,attemptId:ATTEMPT_ID};
+ const before=await mockAdapter.workspace.load('s.practiceAttempt',target);
+ assert.ok(before.kind==='ready');
+ const q=before.practiceAttempt!.questions[0];
+ assert.equal(q.sourceRef?.isAccessible,true);
+ const feedback=await mockAdapter.learning.checkPracticeAnswer({...target,questionId:q.id,answer:{questionId:q.id,singleChoiceValue:'A'}});
+ assert.ok(feedback.pedagogicalHint?.includes(q.sourceRef!.documentTitle));
+ await mockAdapter.identity.login(TEACHER1_LOGIN);
+ await mockAdapter.document.revokeShare(q.sourceRef!.documentId,CLASS_101_ID);
+ await mockAdapter.identity.login(STUDENT_LOGIN);
+ const revokedData=await mockAdapter.workspace.load('s.practiceAttempt',target);assert.ok(revokedData.kind==='ready');
+ const revoked=revokedData.practiceAttempt!;
+ assert.equal(revoked.questions[0].prompt,q.prompt);
+ assert.equal(revoked.questions[0].sourceRef?.isAccessible,false);
+ assert.equal(revoked.questions[0].sourceRef?.locator,'');
+ assert.equal(revoked.checkedFeedbacks[q.id].sourceRef?.pageNumber,undefined);
+ assert.ok(!revoked.checkedFeedbacks[q.id].pedagogicalHint?.includes(q.sourceRef!.documentTitle));
+ const staleDraft={pinnedContext:{actorId:revoked.ownerUserId,classId:CLASS_101_ID,practiceId:PRACTICE_ID,attemptId:ATTEMPT_ID,version:revoked.publishedVersionNumber},lastVisitedQuestionIndex:0,localAnswers:revoked.savedAnswers,confirmedAnswers:revoked.savedAnswers,checkedFeedbacks:{[q.id]:feedback},checkedAnswerSnapshots:revoked.savedAnswers,ackStatus:'saved' as const,updatedAt:Date.now()};
+ const input={actorId:revoked.ownerUserId,classId:CLASS_101_ID,practiceId:PRACTICE_ID,attempt:revoked,draft:staleDraft};
+ const reconciled=reconcileAttemptDraft(input);
+ assert.equal(reconciled.feedbacks[q.id].sourceRef?.isAccessible,false);
+ assert.ok(!reconciled.feedbacks[q.id].pedagogicalHint?.includes(q.sourceRef!.documentTitle));
+ // Even a feedback receipt cached locally before the fresh read must respect current source permissions.
+ const localOnly=reconcileAttemptDraft({...input,attempt:{...revoked,checkedFeedbacks:{}}});
+ assert.equal(localOnly.feedbacks[q.id].sourceRef?.isAccessible,false);
+ assert.ok(!localOnly.feedbacks[q.id].pedagogicalHint?.includes(q.sourceRef!.documentTitle));
+
+ await mockAdapter.learning.finishPracticeAttempt(target);
+ const resultData=await mockAdapter.workspace.load('s.practiceResult',target);assert.ok(resultData.kind==='ready');
+ const result=resultData.practiceResult!;
+ assert.equal(result.questions[0].sourceRef?.isAccessible,false);
+ const answer=result.questions[0].studentAnswerText;
+ await mockAdapter.identity.login(TEACHER1_LOGIN);
+ await mockAdapter.document.shareDocument(q.sourceRef!.documentId,[CLASS_101_ID]);
+ await mockAdapter.identity.login(STUDENT_LOGIN);
+ const restoredData=await mockAdapter.workspace.load('s.practiceAttempt',target);assert.ok(restoredData.kind==='ready');
+ const restored=restoredData.practiceAttempt!;
+ assert.equal(restored.questions[0].sourceRef?.documentTitle,q.sourceRef!.documentTitle);
+ assert.equal(restored.checkedFeedbacks[q.id].sourceRef?.isAccessible,true);
+ assert.ok(restored.checkedFeedbacks[q.id].pedagogicalHint?.includes(q.sourceRef!.documentTitle));
+ const historicalData=await mockAdapter.workspace.load('s.practiceResult',target);assert.ok(historicalData.kind==='ready');
+ const historical=historicalData.practiceResult!;
+ assert.equal(historical.questions[0].sourceRef?.isAccessible,true);
+ assert.equal(historical.questions[0].sourceRef?.locator,q.sourceRef!.locator);
+ assert.equal(historical.questions[0].studentAnswerText,answer);
+});

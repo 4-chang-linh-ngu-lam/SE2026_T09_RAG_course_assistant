@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import {useGuardedRouter as useRouter} from '@/components/unsaved-changes';
 import type { RouteDefinition } from '@/config/routes';
 import type { PracticeQuestion, QuestionType, Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import type { PracticeAiProposal, PracticeDraftContent, PracticeEditorSnapshot } from '@/lib/practice-authoring';
@@ -61,8 +61,9 @@ export function TeacherPracticeEditorView({ params, user }: Props) {
 
   useEffect(() => {
     if (!snapshot || !content) return;
+    if (!dirty) { draftStore.remove(draftKey); return; }
     draftStore.set<Cached>(draftKey, { revision: snapshot.revision, content: structuredClone(content), selectedId });
-  }, [snapshot, content, selectedId, draftKey]);
+  }, [snapshot, content, selectedId, draftKey, dirty]);
 
   const adopt = (value: PracticeEditorSnapshot) => {
     setSnapshot(value); setContent(contentOf(value)); setBlocked(false);
@@ -122,7 +123,7 @@ export function TeacherPracticeEditorView({ params, user }: Props) {
     </fieldset>
     <Dialog open={preview} title="Xem trước bài luyện tập" onClose={() => setPreview(false)} className="practice-preview"><p>Nội dung hiện đang soạn · {dirty ? 'Có thay đổi chưa lưu' : snapshot.editor.versionLabel}</p><div className="practice-preview-scroll">{content.questions.map((q, i) => <QuestionRenderer key={q.id} question={{ ...q, sourceRef: undefined, sourceReference: undefined }} questionNumber={i + 1} readOnly/>)}</div></Dialog>
     <Dialog open={reviewOpen} title="Rà soát trước khi công bố" onClose={() => setReviewOpen(false)}><p>{reviewed}/{content.questions.length} câu đã duyệt. {dirty ? 'Lưu và duyệt các thay đổi trước khi công bố.' : ''}</p>{content.questions.map((q, i) => <button className="button review-row" key={q.id} onClick={() => { setSelectedId(q.id); setReviewOpen(false); }}>Câu {i + 1}: {q.isReviewed ? 'Đã duyệt' : 'Cần duyệt'} · {q.prompt || 'Chưa có nội dung'}</button>)}<button className="button primary" disabled={!canPublish} onClick={() => { setReviewOpen(false); setPublishOpen(true); }}>Tiếp tục công bố</button></Dialog>
-    <Dialog open={publishOpen} title="Công bố bài luyện tập?" busy={busy} onClose={() => setPublishOpen(false)}><p>Công bố phiên bản {snapshot.editor.currentVersionNumber} với đúng {content.questions.length} câu đã duyệt. Các lượt học sinh đang làm giữ nguyên phiên bản đã bắt đầu.</p><ErrorNotice message={error}/><div className="actions"><button className="button" disabled={busy} onClick={() => setPublishOpen(false)}>Quay lại</button><button className="button primary" disabled={busy || !canPublish} onClick={() => void action(async () => { const token = generation.current; await adapter.practiceAuthoring.publish({ ...scope, expectedRevision: snapshot.revision }); if (generation.current !== token) return; draftStore.remove(draftKey); setPublishOpen(false); router.push(`/teacher/classes/${scope.classId}/activities`); })}>Xác nhận công bố</button></div></Dialog>
+    <Dialog open={publishOpen} title="Công bố bài luyện tập?" busy={busy} onClose={() => setPublishOpen(false)}><p>Công bố phiên bản {snapshot.editor.currentVersionNumber} với đúng {content.questions.length} câu đã duyệt. Các lượt học sinh đang làm giữ nguyên phiên bản đã bắt đầu.</p><ErrorNotice message={error}/><div className="actions"><button className="button" disabled={busy} onClick={() => setPublishOpen(false)}>Quay lại</button><button className="button primary" disabled={busy || !canPublish} onClick={() => void action(async () => { const token = generation.current; await adapter.practiceAuthoring.publish({ ...scope, expectedRevision: snapshot.revision }); if (generation.current !== token) return; draftStore.remove(draftKey); setPublishOpen(false); router.pushConfirmed(`/teacher/classes/${scope.classId}/activities`); })}>Xác nhận công bố</button></div></Dialog>
     <Dialog open={removeOpen} title="Xóa câu hỏi khỏi bản nháp?" onClose={() => setRemoveOpen(false)}><p>Câu hỏi chỉ được xóa khỏi bản đang soạn.</p><button className="button danger" onClick={() => { const next = content.questions.filter(q => q.id !== selectedId); setContent({ ...content, questions: next }); setSelectedId(next[Math.min(selectedIndex, next.length - 1)]?.id ?? ''); setRemoveOpen(false); }}>Xóa câu hỏi</button></Dialog>
     <Dialog open={replaceOpen} title="Đối chiếu bản nháp" onClose={() => setReplaceOpen(false)}><p>Bản đang soạn vẫn được giữ. Chỉ thay bằng nội dung trên máy chủ khi bạn đã đối chiếu xong.</p>{remote && <div className="card"><strong>{remote.editor.title}</strong><p>{remote.editor.questions.length} câu · {remote.editor.reviewedCount} đã duyệt</p></div>}<div className="actions"><button className="button" onClick={() => setReplaceOpen(false)}>Giữ bản đang soạn</button><button className="button primary" onClick={() => { if (remote) adopt(remote); setReplaceOpen(false); setError(null); }}>Dùng bản trên máy chủ</button></div></Dialog>
     <ClassSourcePreviewDialog request={sourcePreview} onClose={() => setSourcePreview(null)}/>

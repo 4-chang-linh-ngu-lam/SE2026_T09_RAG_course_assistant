@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useId } from 'react';
+import {toggleActivity, type ResourceSelectionMode} from '@/lib/activity-selection';
 import type { ActivityOption } from '@/lib/intelligence';
 import './scope-filters.css';
 
@@ -8,7 +9,9 @@ export interface LearningScopeFiltersProps {
   fromDate: string;
   toDate: string;
   activities: readonly ActivityOption[];
-  selectedResourceIds: readonly string[]; // [] means all activities
+  selectedResourceIds: readonly string[];
+  selectionMode: ResourceSelectionMode;
+  onAllResources():void;
   appliedSummary: string;
   error: string | null;
   busy?: boolean;
@@ -55,6 +58,8 @@ export function LearningScopeFilters({
   toDate,
   activities,
   selectedResourceIds,
+  selectionMode,
+  onAllResources,
   appliedSummary,
   error,
   busy = false,
@@ -66,6 +71,7 @@ export function LearningScopeFilters({
   const fromInputId = useId();
   const toInputId = useId();
   const errorId = useId();
+  const allHintId = useId();
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -77,17 +83,25 @@ export function LearningScopeFilters({
 
   const handleToggleActivity = (resourceId: string) => {
     if (busy) return;
-    const isSelected = selectedResourceIds.includes(resourceId);
-    const next = isSelected
-      ? selectedResourceIds.filter(id => id !== resourceId)
-      : [...selectedResourceIds, resourceId];
-    onResourcesChange(next);
+    onResourcesChange(toggleActivity(selectionMode==='ALL'?[]:selectedResourceIds,resourceId));
   };
 
   const handleClearAll = () => {
     if (busy) return;
+    onAllResources();
+  };
+
+  const handleDeselectAll = () => {
+    if (busy) return;
     onResourcesChange([]);
   };
+
+  const modeSummary =
+    selectionMode === 'ALL'
+      ? 'Tất cả hoạt động'
+      : selectedResourceIds.length === 0
+        ? 'Không chọn hoạt động nào'
+        : `${selectedResourceIds.length} hoạt động đã chọn`;
 
   return (
     <form className="in-filters card lumi-scope-filters" onSubmit={handleSubmit}>
@@ -121,23 +135,52 @@ export function LearningScopeFilters({
       <fieldset className="lumi-scope-activities-fieldset">
         <legend className="lumi-scope-legend">Hoạt động học tập</legend>
         <div className="lumi-scope-activities-header">
-          <button
-            type="button"
-            className={`button secondary lumi-scope-all-button ${selectedResourceIds.length === 0 ? 'lumi-scope-active' : ''}`}
-            onClick={handleClearAll}
-            disabled={busy}
-            aria-pressed={selectedResourceIds.length === 0}
-          >
-            Tất cả hoạt động
-          </button>
+          <div className="lumi-scope-mode-summary" role="status">
+            <span className="lumi-scope-mode-value">{modeSummary}</span>
+            {selectionMode === 'EXPLICIT' && selectedResourceIds.length === 0 && (
+              <span className="lumi-scope-mode-empty-hint">
+                {' '}— không trả về kết quả hoạt động nào.
+              </span>
+            )}
+          </div>
+          <div className="lumi-scope-button-group">
+            <button
+              type="button"
+              className={`button secondary lumi-scope-all-button ${selectionMode === 'ALL' ? 'lumi-scope-active' : ''}`}
+              onClick={handleClearAll}
+              disabled={busy}
+              aria-pressed={selectionMode === 'ALL'}
+            >
+              Tất cả hoạt động
+            </button>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={handleDeselectAll}
+              disabled={busy}
+            >
+              Bỏ chọn mọi hoạt động
+            </button>
+          </div>
         </div>
+
+        {selectionMode === 'ALL' && activities.length > 0 && (
+          <p id={allHintId} className="lumi-scope-all-hint muted">
+            Chọn hoạt động cụ thể để thu hẹp phạm vi.
+          </p>
+        )}
 
         {activities.length === 0 ? (
           <p className="lumi-scope-empty muted">Chưa có hoạt động nào trong phạm vi đã chọn.</p>
         ) : (
-          <div className="lumi-scope-activities-list" role="group" aria-label="Lựa chọn hoạt động">
+          <div
+            className="lumi-scope-activities-list"
+            role="group"
+            aria-label="Lựa chọn hoạt động"
+            aria-describedby={selectionMode === 'ALL' && activities.length > 0 ? allHintId : undefined}
+          >
             {activities.map(activity => {
-              const checked = selectedResourceIds.includes(activity.resourceId);
+              const checked = selectionMode === 'EXPLICIT' && selectedResourceIds.includes(activity.resourceId);
               const activityCheckboxId = `lumi-scope-act-${activity.resourceId}`;
               return (
                 <label
@@ -180,9 +223,12 @@ export function LearningScopeFilters({
       </div>
 
       {appliedSummary && (
-        <p className="lumi-scope-applied-summary muted">
-          {appliedSummary}
-        </p>
+        <div className="lumi-scope-applied-container">
+          <span className="lumi-scope-applied-label">Dữ liệu thực tế đã tải</span>
+          <p className="lumi-scope-applied-summary muted">
+            {appliedSummary}
+          </p>
+        </div>
       )}
     </form>
   );

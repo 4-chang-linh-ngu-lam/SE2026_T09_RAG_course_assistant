@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
+import {useGuardedRouter as useRouter} from '@/components/unsaved-changes';
 import type { RouteDefinition } from '@/config/routes';
 import type { Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import type { AccountsWorkspace } from '@/lib/accounts';

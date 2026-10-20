@@ -157,22 +157,4 @@ export function Dialog({
   );
 }
 
-export function useUnsavedChanges(dirty: boolean) {
-  useEffect(() => {
-    if (!dirty) return;
-    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); };
-    const navigate = (event: MouseEvent) => {
-      const anchor = (event.target as Element).closest?.('a[href]');
-      if (anchor && !window.confirm('Bạn còn thay đổi chưa lưu. Rời trang?')) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    window.addEventListener('beforeunload', beforeUnload);
-    document.addEventListener('click', navigate, true);
-    return () => {
-      window.removeEventListener('beforeunload', beforeUnload);
-      document.removeEventListener('click', navigate, true);
-    };
-  }, [dirty]);
-}
+export {useUnsavedChanges,useGuardedRouter} from './unsaved-changes';

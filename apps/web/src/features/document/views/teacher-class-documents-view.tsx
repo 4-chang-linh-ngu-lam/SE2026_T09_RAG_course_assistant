@@ -1,12 +1,14 @@
 'use client';
 import { ClassSourcePreviewDialog, type SourcePreviewRequest } from '../class-source-preview';
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
+import { useDocumentGrantAction } from '../use-document-grant-action';
+import { GrantMutationNotice } from '../components/grant-mutation-notice';
 import Link from 'next/link';
 import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { DocumentItem, RouteParams, WorkspaceData } from '@/lib/domain';
 import { adapter } from '@/lib/data';
-import { StatePanel, Icon, Dialog } from '@/components/ui';
+import { StatePanel, Icon, Dialog, ErrorNotice } from '@/components/ui';
 
 type Props = {
   route: RouteDefinition;
@@ -19,7 +21,9 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
   const [sourcePreview, setSourcePreview] = useState<SourcePreviewRequest | null>(null);
   const [revokeDoc, setRevokeDoc] = useState<DocumentItem | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const grantAction = useDocumentGrantAction();
+  const isPending = grantAction.busy;
+  const mutationBlocked = isPending || Boolean(grantAction.unknown);
 
   if (!data) {
     return <StatePanel busy title="Đang tải danh sách tài liệu lớp…" />;
@@ -44,20 +48,23 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
   const isAssisting = classSummary?.teachingRole === 'ASSISTING';
 
   const handleConfirmRevoke = () => {
-    if (!revokeDoc || !params.classId) return;
-    startTransition(async () => {
-      try {
-        await adapter.document.revokeShare(revokeDoc.id, params.classId);
-        setRevokeDoc(null);
-        reload();
-      } catch (err) {
-        setActionError(err instanceof Error ? err.message : 'Có lỗi khi gỡ tài liệu khỏi lớp.');
-      }
-    });
+    if (mutationBlocked || !revokeDoc?.canRevokeGrant || !params.classId || classSummary?.status !== 'ACTIVE') return;
+    const documentId = revokeDoc.id;
+    void grantAction.run({documentId, classIds:[params.classId], shared:false, classRoute:params.classId},
+      () => adapter.document.revokeShare(documentId, params.classId), () => { setRevokeDoc(null); reload(); });
   };
 
   return (
     <div className="teacher-class-docs-container space-y-6">
+      {!revokeDoc && (
+        <GrantMutationNotice
+          busy={isPending}
+          unknown={Boolean(grantAction.unknown)}
+          error={grantAction.error}
+          message={grantAction.message}
+          onReconcile={() => void grantAction.reconcile(() => { setRevokeDoc(null); reload(); })}
+        />
+      )}
       {/* Role Banner under Rule O1 */}
       {isAssisting && (
         <div className="card p-3.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl flex items-center gap-3 text-xs">
@@ -78,23 +85,38 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
           </p>
         </div>
 
-        <Link
-          id="ux-class-add-doc"
-          href="/teacher/library"
-          className="button primary small flex items-center gap-1.5"
-        >
-          <Icon name="plus" />
-          <span>Thêm tài liệu từ thư viện</span>
-        </Link>
+        {classSummary?.status === 'ACTIVE' ? (
+          <Link
+            id="ux-class-add-doc"
+            href="/teacher/library"
+            className="button primary small flex items-center gap-1.5 lumi-class-btn-add"
+          >
+            <Icon name="plus" />
+            <span>Thêm tài liệu từ thư viện</span>
+          </Link>
+        ) : (
+          <button
+            id="ux-class-add-doc"
+            type="button"
+            disabled
+            className="button primary small flex items-center gap-1.5 lumi-class-btn-add"
+            title="Lớp học đã lưu trữ, không thể thêm tài liệu"
+          >
+            <Icon name="plus" />
+            <span>Thêm tài liệu từ thư viện</span>
+          </button>
+        )}
       </div>
 
       {/* Class Documents Table */}
       {classDocuments.length === 0 ? (
-        <div className="card p-8 text-center">
+        <div className="card p-8 text-center lumi-class-docs-empty">
           <p className="muted text-sm">Lớp học này chưa có tài liệu nào được chia sẻ.</p>
-          <Link href="/teacher/library" className="button secondary small mt-3 inline-block">
-            Mở thư viện tài liệu để chia sẻ
-          </Link>
+          {classSummary?.status === 'ACTIVE' && (
+            <Link href="/teacher/library" className="button secondary small mt-3 inline-block">
+              Mở thư viện tài liệu để chia sẻ
+            </Link>
+          )}
         </div>
       ) : (
         <div className="card table-container overflow-x-auto">
@@ -144,10 +166,18 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
                       <button
                         type="button"
                         className="button small danger"
+                        disabled={mutationBlocked || !doc.canRevokeGrant || classSummary?.status !== 'ACTIVE'}
                         onClick={() => {
                           setRevokeDoc(doc);
                           setActionError(null);
                         }}
+                        title={
+                          classSummary?.status !== 'ACTIVE'
+                            ? 'Lớp học đã lưu trữ, không thể gỡ tài liệu'
+                            : !doc.canRevokeGrant
+                            ? 'Bạn không có quyền gỡ tài liệu này khỏi lớp'
+                            : undefined
+                        }
                       >
                         Gỡ khỏi lớp
                       </button>
@@ -166,24 +196,38 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
         busy={isPending}
         open={Boolean(revokeDoc)}
         title="Gỡ tài liệu khỏi lớp học"
+        className="lumi-source-dialog"
         onClose={() => {
           if (!isPending) setRevokeDoc(null);
         }}
       >
-        <div className="space-y-4 text-sm">
-          {actionError && <div className="card p-2 bg-red-50 text-red-700 text-xs">{actionError}</div>}
-          <p>
+        <div id="ux-class-revoke-dialog" className="lumi-source-dialog-content">
+          <GrantMutationNotice
+            busy={isPending}
+            unknown={Boolean(grantAction.unknown)}
+            error={grantAction.error}
+            message={grantAction.message}
+            onReconcile={() => void grantAction.reconcile(() => { setRevokeDoc(null); reload(); })}
+          />
+          <ErrorNotice message={actionError}/>
+          <p className="lumi-source-dialog-text">
             Bạn có chắc chắn muốn gỡ tài liệu <strong>{revokeDoc?.title}</strong> khỏi lớp{' '}
             <strong>{classSummary?.name}</strong>?
           </p>
-          <div className="card p-3 bg-amber-50 text-amber-900 text-xs border border-amber-200 rounded-lg">
-            Học sinh trong lớp này sẽ không còn quyền đọc tài liệu và trợ lý Lumi sẽ ngừng trích dẫn nội dung này trong lớp.
+          <div className="lumi-source-impact-notice" role="note">
+            <div className="lumi-source-impact-title">⚠️ Ảnh hưởng khi thu hồi quyền chia sẻ:</div>
+            <ul className="lumi-source-impact-list">
+              <li>Học sinh trong lớp không thể mở tài liệu nguồn.</li>
+              <li>Trợ lý Lumi không còn truy xuất hoặc trích dẫn nội dung tài liệu này trong lớp.</li>
+              <li>Các đoạn trích dẫn nguyên văn trong ghi chú cá nhân sẽ bị ẩn; nội dung ghi chú riêng của học sinh vẫn được bảo lưu.</li>
+              <li>Quyền truy cập của các lớp học khác không bị ảnh hưởng.</li>
+            </ul>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-outline-variant/30">
+          <div className="lumi-source-dialog-actions">
             <button
               type="button"
-              className="button secondary"
+              className="button secondary lumi-source-dialog-btn"
               onClick={() => setRevokeDoc(null)}
               disabled={isPending}
             >
@@ -191,9 +235,9 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
             </button>
             <button
               type="button"
-              className="button danger"
+              className="button danger lumi-source-dialog-btn"
               onClick={handleConfirmRevoke}
-              disabled={isPending}
+              disabled={mutationBlocked || !revokeDoc?.canRevokeGrant || classSummary?.status !== 'ACTIVE'}
             >
               {isPending ? 'Đang gỡ…' : 'Xác nhận gỡ khỏi lớp'}
             </button>

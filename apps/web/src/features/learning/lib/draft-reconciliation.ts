@@ -218,8 +218,16 @@ export function reconcileAttemptDraft(input: ReconcileDraftInput): ReconcileDraf
     for (const [qid, fb] of Object.entries(draft.checkedFeedbacks)) {
       const snap = draft.checkedAnswerSnapshots[qid];
       const curAns = localAnswers[qid];
-      if (curAns && snap && areAnswersEqual(curAns, snap)) {
-        restoredFeedbacks[qid] = fb;
+      if (curAns && snap && areAnswersEqual(curAns, snap) && !restoredFeedbacks[qid]) {
+        // Current authoritative feedback wins over a stale session cache after revocation.
+        const source = validQuestionsMap.get(qid)?.sourceRef;
+        const safe = structuredClone(fb);
+        if (!source || source.isAccessible === false) {
+          safe.sourceRef = source ? structuredClone(source) : undefined;
+          safe.sourceReference = undefined;
+          if (safe.pedagogicalHint) safe.pedagogicalHint = 'Hãy xác định dạng bài, xem xét các dữ kiện và áp dụng công thức phù hợp từng bước.';
+        }
+        restoredFeedbacks[qid] = safe;
       }
     }
   }

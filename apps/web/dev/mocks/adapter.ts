@@ -1,3 +1,4 @@
+import { documentFileError } from '../../src/lib/document-upload';
 import { createIntelligencePort } from './intelligence';
 import { auditedPort, readPreviewAudit } from './audit';
 import { createDataRequestReview } from './data-request-review';
@@ -236,7 +237,13 @@ function sanitizeQuestionSource<T extends PracticeQuestion | PracticeResultQuest
   cloned.sourceRef.isAccessible = isAccessible;
   if (!isAccessible) {
     cloned.sourceRef.displayText = 'Tài liệu không còn khả dụng';
+    cloned.sourceRef.documentTitle = 'Tài liệu không còn khả dụng';
+    cloned.sourceRef.locator = '';
+    cloned.sourceRef.pageNumber = undefined;
     cloned.sourceReference = undefined;
+    if ('pedagogicalHint' in cloned && cloned.pedagogicalHint) {
+      cloned.pedagogicalHint = 'Hãy xác định dạng bài, xem xét các dữ kiện và áp dụng công thức phù hợp từng bước.';
+    }
   }
   return cloned;
 }
@@ -816,6 +823,8 @@ export const adapter: DataAdapter = {
       if (!user.roles.includes('LECTURER')) {
         throw new ApiError('FORBIDDEN', 'Chỉ giáo viên mới có quyền tải lên tài liệu.', 403);
       }
+      const fileError = documentFileError(file, documentCapabilityPolicy);
+      if (fileError) throw new ApiError('VALIDATION_ERROR', fileError);
       if (!file.title?.trim()) {
         throw new ApiError('VALIDATION_ERROR', 'Tiêu đề tài liệu không được để trống.');
       }
@@ -864,6 +873,8 @@ export const adapter: DataAdapter = {
       if (doc.ownerId !== user.id) {
         throw new ApiError('FORBIDDEN', 'Chỉ chủ sở hữu tài liệu mới có quyền tải lên phiên bản mới.', 403);
       }
+      const fileError = documentFileError(file, documentCapabilityPolicy);
+      if (fileError) throw new ApiError('VALIDATION_ERROR', fileError);
       const ext = '.' + file.name.split('.').pop()?.toLowerCase();
       if (!documentCapabilityPolicy.allowedExtensions.includes(ext)) {
         throw new ApiError('VALIDATION_ERROR', `Định dạng tệp ${ext} không được hỗ trợ.`);
@@ -906,7 +917,7 @@ export const adapter: DataAdapter = {
         throw new ApiError('FORBIDDEN', 'Chỉ chủ sở hữu mới có quyền thao tác trên tài liệu này.', 403);
       }
       const vers = documentVersions[documentId] ?? [];
-      const targetVer = versionNumber ? vers.find(v => v.versionNumber === versionNumber) : vers[0];
+      const targetVer = versionNumber !== undefined ? vers.find(v => v.versionNumber === versionNumber) : [...vers].sort((a,b) => b.versionNumber-a.versionNumber)[0];
       if (!targetVer) throw new ApiError('NOT_FOUND', 'Không tìm thấy phiên bản tài liệu.', 404);
       targetVer.status = 'READY';
       targetVer.errorMessage = undefined;
@@ -929,12 +940,16 @@ export const adapter: DataAdapter = {
       const user = signedIn();
       const doc = documents.find(d => d.id === documentId);
       if (!doc) throw new ApiError('NOT_FOUND', 'Tài liệu không tồn tại.', 404);
-      if (doc.ownerId !== user.id) {
+      if (!user.roles.includes('LECTURER') || doc.ownerId !== user.id) {
         throw new ApiError('FORBIDDEN', 'Chỉ chủ sở hữu tài liệu nguồn mới có quyền cấp quyền chia sẻ cho lớp.', 403);
       }
+      if (!classIds.length) throw new ApiError('VALIDATION_ERROR', 'Vui lòng chọn ít nhất một lớp để cấp thêm quyền.');
+      const serving = (documentVersions[documentId] ?? []).filter(v => v.status === 'READY').sort((a,b) => b.versionNumber-a.versionNumber)[0];
+      if (!serving) throw new ApiError('CONFLICT', 'Chưa có phiên bản xử lý thành công để chia sẻ.', 409);
+      const targetIds = [...new Set(classIds)];
       const allowedClassIds = getTeacherAssignedClassIds(user.id);
-      for (const cid of classIds) {
-        const cls = classes.find(c => c.id === cid);
+      for (const cid of targetIds) {
+        const cls = previewClassroomStore.getClass(cid);
         if (!cls) {
           throw new ApiError('NOT_FOUND', `Lớp học ${cid} không tồn tại.`, 404);
         }
@@ -946,12 +961,15 @@ export const adapter: DataAdapter = {
         }
       }
       const existing = documentGrants[documentId] ?? [];
-      for (const cid of classIds) {
-        const cls = classes.find(c => c.id === cid);
+      for (const cid of targetIds) {
+        const cls = previewClassroomStore.getClass(cid);
         if (!cls) continue;
         const grant = existing.find(g => g.classId === cid);
         if (grant) {
           grant.isShared = true;
+          grant.servingVersion = serving.versionNumber;
+          grant.className = cls.name;
+          grant.classCode = cls.code;
         } else {
           existing.push({
             classId: cid,
@@ -959,7 +977,7 @@ export const adapter: DataAdapter = {
             classCode: cls.code,
             isShared: true,
             grantedAt: 'Hôm nay',
-            servingVersion: doc.currentVersion,
+            servingVersion: serving.versionNumber,
           });
         }
       }
@@ -972,9 +990,12 @@ export const adapter: DataAdapter = {
       const doc = documents.find(d => d.id === documentId);
       if (!doc) throw new ApiError('NOT_FOUND', 'Tài liệu không tồn tại.', 404);
       const allowedClassIds = getTeacherAssignedClassIds(user.id);
+      const cls = previewClassroomStore.getClass(classId);
+      if (!cls) throw new ApiError('NOT_FOUND', 'Lớp học không tồn tại.', 404);
+      if (cls.status !== 'ACTIVE') throw new ApiError('FORBIDDEN', 'Lớp lưu trữ chỉ đọc; không thể thu hồi chia sẻ.', 403);
       const isOwner = doc.ownerId === user.id;
       const isAssigned = allowedClassIds.includes(classId);
-      if (!isOwner && !isAssigned) {
+      if (!user.roles.includes('LECTURER') || (!isOwner && !isAssigned)) {
         throw new ApiError('FORBIDDEN', 'Bạn không có quyền thu hồi tài liệu này trong lớp.', 403);
       }
       const existing = documentGrants[documentId] ?? [];
@@ -1446,7 +1467,8 @@ export const adapter: DataAdapter = {
       const feedback = sanitizeQuestionSource(rawFeedback, input.classId, user.id);
 
       attempt.savedAnswers[question.id] = structuredClone(input.answer);
-      attempt.checkedFeedbacks[question.id] = structuredClone(feedback);
+      // Keep canonical metadata internally so permissions can be reevaluated after a later grant.
+      attempt.checkedFeedbacks[question.id] = structuredClone(rawFeedback);
       attempt.lastSavedAt = 'Vừa xong';
 
       return structuredClone(feedback);
@@ -1617,7 +1639,8 @@ export const adapter: DataAdapter = {
           sourceRef: q.sourceRef,
         };
 
-        resultQuestions.push(sanitizeQuestionSource(rawResultItem, input.classId, user.id));
+        // Store the immutable question snapshot; sanitize only at the learner read boundary.
+        resultQuestions.push(structuredClone(rawResultItem));
       }
 
       const total = attempt.questions.length;
@@ -2204,7 +2227,8 @@ export const adapter: DataAdapter = {
           sourceDocumentDetail: {
             document: currentDocumentView(doc, user),
             versions: structuredClone(vers),
-            grants: grants.map(grant => { const cls = previewClassroomStore.getClass(grant.classId); return { ...structuredClone(grant), className: cls?.name ?? grant.className, classCode: cls?.code ?? grant.classCode }; }),
+            shareableClasses: getTeacherAssignedClassIds(user.id).flatMap(id => { const cls = previewClassroomStore.getClass(id); return cls?.status === 'ACTIVE' ? [getTeacherClassSummary(cls, user.id)] : []; }),
+            grants: grants.map(grant => { const cls = previewClassroomStore.getClass(grant.classId); return { ...structuredClone(grant), className: cls?.name ?? grant.className, classCode: cls?.code ?? grant.classCode, classStatus: cls?.status }; }),
           },
           capabilityPolicy: structuredClone(documentCapabilityPolicy),
         };
@@ -2219,7 +2243,7 @@ export const adapter: DataAdapter = {
             currentVersion: (documentGrants[d.id] ?? []).find(g => g.classId === params.classId && g.isShared)!.servingVersion,
             processingStatus: (documentVersions[d.id] ?? []).find(v => v.versionNumber === (documentGrants[d.id] ?? []).find(g => g.classId === params.classId && g.isShared)!.servingVersion)?.status ?? d.processingStatus,
             canManageSource: d.ownerId === user.id, // Only owner can manage source under Rule O1
-            canRevokeGrant: true, // Both primary and assisting can revoke share from class under Rule O1
+            canRevokeGrant: summary?.status === 'ACTIVE', // Archived classrooms are read-only (F5).
           }));
         return {
           kind: 'ready',

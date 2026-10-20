@@ -1,11 +1,13 @@
 'use client';
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useRef, useTransition } from 'react';
 import Link from 'next/link';
 import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { DocumentCapabilityPolicy, DocumentFormat, DocumentItem, ProcessingStatus, WorkspaceData } from '@/lib/domain';
 import { adapter } from '@/lib/data';
+import { documentFileError, documentFileSelection } from '@/lib/document-upload';
 import { StatePanel, Icon, Dialog } from '@/components/ui';
+import '../library.css';
 
 type Props = {
   route: RouteDefinition;
@@ -14,6 +16,8 @@ type Props = {
 };
 
 export function TeacherLibraryView({ data, reload }: Props) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  const clearSelectedFile = () => { setSelectedFile(null); if (fileInput.current) fileInput.current.value = ''; };
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [formatFilter, setFormatFilter] = useState<string>('all');
@@ -59,36 +63,11 @@ export function TeacherLibraryView({ data, reload }: Props) {
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUploadError(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!capability) {
-      setUploadError('Chính sách tải lên tài liệu chưa sẵn sàng trên hệ thống.');
-      e.target.value = '';
-      return;
-    }
-
-    if (file.size === 0) {
-      setUploadError('Tệp tin không được rỗng (0 bytes). Vui lòng chọn tệp có nội dung.');
-      e.target.value = '';
-      return;
-    }
-
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!capability.allowedExtensions.includes(ext)) {
-      setUploadError(`Định dạng tệp ${ext} không được hỗ trợ. Các định dạng được phép: ${capability.allowedExtensions.join(', ')}.`);
-      e.target.value = '';
-      return;
-    }
-    if (file.size > capability.maxSizeBytes) {
-      const maxMb = (capability.maxSizeBytes / (1024 * 1024)).toFixed(0);
-      setUploadError(`Dung lượng tệp vượt quá giới hạn ${maxMb}MB cho phép.`);
-      e.target.value = '';
-      return;
-    }
-
-    setSelectedFile(file);
+    const selection = documentFileSelection(e.target.files?.[0], capability);
+    setSelectedFile(selection.file);
+    setUploadError(selection.error);
+    if (!selection.file) { e.target.value = ''; return; }
+    const file = selection.file;
     if (!title) {
       setTitle(file.name.replace(/\.[^/.]+$/, ''));
     }
@@ -104,10 +83,8 @@ export function TeacherLibraryView({ data, reload }: Props) {
       setUploadError('Vui lòng nhập tiêu đề tài liệu.');
       return;
     }
-    if (!selectedFile) {
-      setUploadError('Vui lòng chọn tệp tin tải lên.');
-      return;
-    }
+    const fileError = documentFileError(selectedFile, capability);
+    if (fileError || !selectedFile) { setUploadError(fileError); return; }
 
     startTransition(async () => {
       try {
@@ -143,22 +120,29 @@ export function TeacherLibraryView({ data, reload }: Props) {
   };
 
   return (
-    <div className="teacher-library-container space-y-6">
+    <div className="teacher-library-container">
       {/* Top action & filter bar */}
-      <div className="card library-toolbar p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-        <div className="flex-1 flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+      <div className="card library-toolbar">
+        <div className="library-toolbar-filters">
+          <label htmlFor="ux-doc-search" className="sr-only">
+            Tìm kiếm tài liệu
+          </label>
           <input
             id="ux-doc-search"
             type="search"
-            className="input search-input"
+            className="library-search-input"
+            aria-label="Tìm kiếm tài liệu"
             placeholder="Tìm kiếm tài liệu..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
 
+          <label htmlFor="processingFilter" className="sr-only">
+            Lọc theo trạng thái xử lý
+          </label>
           <select
             id="processingFilter"
-            className="input select-input"
+            className="library-select-input"
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
             aria-label="Lọc theo trạng thái xử lý"
@@ -174,7 +158,7 @@ export function TeacherLibraryView({ data, reload }: Props) {
         <button
           id="ux-doc-open-upload"
           type="button"
-          className="button primary shrink-0 flex items-center gap-2"
+          className="button primary library-upload-btn"
           onClick={() => {
             setUploadOpen(true);
             setUploadError(null);
@@ -186,13 +170,14 @@ export function TeacherLibraryView({ data, reload }: Props) {
       </div>
 
       {/* Format Chips */}
-      <div className="flex flex-wrap gap-2 items-center text-sm" role="toolbar" aria-label="Lọc theo định dạng">
-        <span className="muted mr-2">Định dạng:</span>
+      <div className="library-format-toolbar" role="toolbar" aria-label="Lọc theo định dạng">
+        <span className="library-format-label" id="ux-format-filter-label">Định dạng:</span>
         {(['all', 'pdf', 'pptx', 'docx', 'txt', 'md'] as const).map(fmt => (
           <button
             key={fmt}
             type="button"
             data-ux-format={fmt}
+            aria-pressed={formatFilter === fmt}
             className={`tag cursor-pointer ${formatFilter === fmt ? 'primary' : 'default'}`}
             onClick={() => setFormatFilter(fmt)}
           >
@@ -201,11 +186,11 @@ export function TeacherLibraryView({ data, reload }: Props) {
         ))}
       </div>
 
-      {retryError && <p className="notice error">{retryError}</p>}
+      {retryError && <p className="notice error lumi-library-error" role="alert">{retryError}</p>}
 
       {/* Documents Table */}
       {filtered.length === 0 ? (
-        <div className="card empty-panel p-8 text-center">
+        <div className="card empty-panel library-empty-panel">
           <p className="muted">
             {search.trim() || statusFilter !== 'all' || formatFilter !== 'all'
               ? 'Không có tài liệu nào phù hợp với bộ lọc hiện tại.'
@@ -213,30 +198,35 @@ export function TeacherLibraryView({ data, reload }: Props) {
           </p>
         </div>
       ) : (
-        <div className="card table-container overflow-x-auto">
-          <table className="table w-full text-left border-collapse" aria-label="Bảng danh sách tài liệu">
+        <div
+          className="card library-table-container"
+          tabIndex={0}
+          role="region"
+          aria-label="Bảng danh sách tài liệu"
+        >
+          <table className="library-table" aria-label="Bảng danh sách tài liệu">
             <thead>
-              <tr className="border-b text-xs text-muted font-semibold uppercase">
+              <tr >
                 <th className="p-3">Tên tài liệu</th>
                 <th className="p-3">Định dạng</th>
                 <th className="p-3">Phiên bản</th>
                 <th className="p-3">Trạng thái</th>
                 <th className="p-3">Lớp chia sẻ</th>
                 <th className="p-3">Ngày cập nhật</th>
-                <th className="p-3 text-right">Thao tác</th>
+                <th className="p-3 library-table-actions">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-outline-variant/30 text-sm">
+            <tbody className="text-sm">
               {filtered.map(doc => {
                 const detailHref = routeHref('t.libraryDocument', { documentId: doc.id }) ?? `/teacher/library/${doc.id}`;
                 return (
-                  <tr key={doc.id} className="hover:bg-surface-container-low transition-colors">
-                    <td className="p-3 font-medium">
-                      <Link href={detailHref} className="text-primary hover:underline flex items-center gap-2">
+                  <tr key={doc.id} >
+                    <td className="library-table-title-cell">
+                      <Link href={detailHref} className="library-title-link">
                         <Icon name="file" />
                         <span>{doc.title}</span>
                       </Link>
-                      {doc.description && <p className="text-xs muted line-clamp-1 mt-0.5">{doc.description}</p>}
+                      {doc.description && <p className="library-table-desc">{doc.description}</p>}
                     </td>
                     <td className="p-3">
                       <span className="badge primary text-xs">{doc.format}</span>
@@ -258,7 +248,7 @@ export function TeacherLibraryView({ data, reload }: Props) {
                       {doc.sharedClassCount ? `${doc.sharedClassCount} lớp` : <span className="muted">Chưa chia sẻ</span>}
                     </td>
                     <td className="p-3 text-xs muted">{doc.updatedAt}</td>
-                    <td className="p-3 text-right space-x-2">
+                    <td className="p-3 library-table-actions">
                       {doc.processingStatus === 'FAILED' && (
                         <button
                           type="button"
@@ -287,90 +277,54 @@ export function TeacherLibraryView({ data, reload }: Props) {
         busy={isPending}
         open={uploadOpen}
         title="Tải lên tài liệu mới"
+        className="lumi-library-dialog"
         onClose={() => {
           if (!isPending) setUploadOpen(false);
         }}
       >
-        <form id="ux-document-dialog" onSubmit={handleUploadSubmit} className="space-y-4">
+        <form id="ux-document-dialog" onSubmit={handleUploadSubmit} className="lumi-library-dialog-form">
           {uploadError && (
-            <div className="card p-3 bg-red-50 text-red-700 text-xs border border-red-200" role="alert">
+            <div className="lumi-library-error" role="alert">
               {uploadError}
             </div>
           )}
 
-          <div>
-            <label htmlFor="ux-doc-title" className="label text-xs font-semibold block mb-1">
+          <div className="lumi-library-form-group">
+            <label htmlFor="ux-doc-title" className="lumi-library-label">
               Tiêu đề tài liệu <span className="text-red-500">*</span>
             </label>
             <input
               id="ux-doc-title"
               type="text"
-              className="input w-full"
+              className="lumi-library-input"
               placeholder="ví dụ: Hàm số bậc hai và đồ thị"
               value={title}
               onChange={e => setTitle(e.target.value)}
+              disabled={isPending}
               required
             />
           </div>
 
-          <div>
-            <label htmlFor="ux-doc-description" className="label text-xs font-semibold block mb-1">
-              Mô tả ngắn (tùy chọn)
-            </label>
-            <textarea
-              id="ux-doc-description"
-              className="input w-full h-20"
-              placeholder="ví dụ: Ôn tập khảo sát parabol và tính chất đơn điệu"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-            />
+          <div className="lumi-library-form-group">
+            <label htmlFor="ux-doc-description" className="lumi-library-label">Mô tả ngắn (tùy chọn)</label>
+            <textarea id="ux-doc-description" className="lumi-library-input" rows={3}
+              placeholder="Mô tả nội dung và mục đích sử dụng" value={description}
+              onChange={e => setDescription(e.target.value)} disabled={isPending}/>
+          </div>
+          <div className="lumi-library-form-group">
+            <label htmlFor="ux-doc-file" className="lumi-library-label">Tệp tài liệu <span aria-hidden="true">*</span></label>
+            <input id="ux-doc-file" ref={fileInput} type="file" className="lumi-library-input"
+              accept={capability?.allowedExtensions.join(',')} onChange={handleFileChange} disabled={isPending}
+              aria-describedby="ux-doc-file-help" aria-invalid={Boolean(uploadError)}/>
+            <p id="ux-doc-file-help" className="muted">Hỗ trợ {capability?.allowedExtensions.join(', ') ?? 'chưa xác định'}.
+              {capability && ` Tối đa ${(capability.maxSizeBytes / 1024 / 1024).toFixed(0)} MB.`} Chọn tệp khác để thay thế.</p>
+            {selectedFile && <div className="lumi-library-selected-file">
+              <div><strong>{selectedFile.name}</strong><p className="muted">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p></div>
+              <button id="ux-doc-remove" type="button" className="button small danger" disabled={isPending} onClick={clearSelectedFile}>Gỡ tệp</button>
+            </div>}
           </div>
 
-          <div>
-            <label className="label text-xs font-semibold block mb-1">
-              Tệp tài liệu <span className="text-red-500">*</span>
-            </label>
-            {!selectedFile ? (
-              <div className="border-2 border-dashed border-outline-variant p-6 rounded-lg text-center cursor-pointer hover:bg-surface-container-low transition-colors">
-                <input
-                  id="ux-doc-file"
-                  type="file"
-                  className="hidden"
-                  accept={capability ? capability.allowedExtensions.join(',') : undefined}
-                  onChange={handleFileChange}
-                />
-                <label htmlFor="ux-doc-file" className="cursor-pointer block">
-                  <Icon name="file" />
-                  <p className="mt-2 text-sm font-medium">Bấm vào đây để chọn tệp tài liệu</p>
-                  <p className="text-xs muted mt-1">
-                    Hỗ trợ: {capability ? capability.allowedExtensions.map(e => e.replace('.', '').toUpperCase()).join(', ') : 'Chưa xác định'} (tối đa {capability ? (capability.maxSizeBytes / (1024 * 1024)).toFixed(0) : '0'}MB)
-                  </p>
-                </label>
-              </div>
-            ) : (
-              <div className="card p-3 flex items-center justify-between bg-surface-container-low border border-outline-variant">
-                <div className="flex items-center gap-3">
-                  <span className="badge primary uppercase text-xs">
-                    {selectedFile.name.split('.').pop()}
-                  </span>
-                  <div>
-                    <p className="text-xs font-semibold text-on-surface">{selectedFile.name}</p>
-                    <p className="text-xs muted">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-                  </div>
-                </div>
-                <button
-                  id="ux-doc-remove"
-                  type="button"
-                  className="button small danger"
-                  onClick={() => setSelectedFile(null)}
-                >
-                  Gỡ tệp
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4 border-t border-outline-variant/30">
+          <div className="lumi-library-dialog-actions">
             <button
               id="ux-doc-cancel"
               type="button"

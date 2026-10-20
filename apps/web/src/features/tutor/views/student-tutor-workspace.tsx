@@ -6,7 +6,7 @@ import type { CitationItem, PersonalNoteItem, RouteParams, StudentTutorWorkspace
 import { adapter } from '@/lib/data';
 import { draftStore, getTutorDraft, setTutorDraft } from '@/lib/draft-store';
 import { useSession } from '@/components/session-provider';
-import { StatePanel, Icon, Dialog } from '@/components/ui';
+import { StatePanel, Icon, Dialog, useUnsavedChanges } from '@/components/ui';
 import '../tutor.css';
 import { stopTutorStream } from '../stop-stream';
 import { errorMessage } from '@/lib/api/errors';
@@ -39,6 +39,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
     generation: number;
     controller: AbortController;
   } | null>(null);
+  useUnsavedChanges(Boolean(inputContent.trim()) || isStreaming, {queryKeys:['conversationId','compose','mode']});
   const generationRef = useRef(0);
   const synchronizedUrlRef = useRef<string | null>(null);
 

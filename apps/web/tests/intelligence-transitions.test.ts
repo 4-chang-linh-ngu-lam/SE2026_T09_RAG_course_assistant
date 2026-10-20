@@ -65,3 +65,25 @@ test('Student and Teacher learner activity options contain only target-owned evi
   if(target.kind==='student') assert.deepEqual(target.availableActivities.map(a=>a.resourceId),['assignment-a']);
   await assert.rejects(()=>h.port.load('t.studentAnalytics',{classId:CLASS,studentId:PEER},{resourceIds:['exam-a']}),denied);
 });
+
+test('LF-105 explicit none differs from ALL for Student, Teacher and learner analytics', async()=>{
+ const h=harness();seed();
+ for(const actor of ['student','teacher','learner'] as const){
+  if(actor!=='student')h.actor(TEACHER,['LECTURER']);
+  const route=actor==='student'?'s.progress':actor==='teacher'?'t.analytics':'t.studentAnalytics';
+  const params={classId:CLASS,...(actor==='learner'?{studentId:STUDENT}:{})};
+  const empty=await h.port.load(route,params,{resourceIds:[],resourceSelectionMode:'EXPLICIT'});
+  if(empty.kind==='student')assert.equal(empty.evidence.length,0);else if(empty.kind==='class')assert.equal(empty.activities.length,0);else assert.fail('Wrong analytics kind');
+  assert.equal(empty.resourceSelectionMode,'EXPLICIT');assert.deepEqual(empty.selectedResourceIds,[]);assert.ok(empty.availableActivities.length);
+  const all=await h.port.load(route,params,{resourceIds:[],resourceSelectionMode:'ALL'});
+  if(all.kind==='student')assert.ok(all.evidence.length>0);else if(all.kind==='class')assert.ok(all.activities.length>0);else assert.fail('Wrong analytics kind');
+  assert.equal(all.resourceSelectionMode,'ALL');
+ }
+});
+test('LF-105 report preview/export retains explicit zero activity scope',async()=>{
+ const h=harness();seed();h.actor(ADMIN,['ADMIN']);
+ const none=await h.port.previewReport({...scope,resourceIds:[],resourceSelectionMode:'EXPLICIT'});
+ assert.equal(none.scope.resourceSelectionMode,'EXPLICIT');assert.equal(none.classes[0].officialResultCount,0);assert.equal(none.classes[0].practiceAttemptCount,0);assert.equal(none.classes[0].activities.length,0);
+ const job=await h.port.createExport({previewId:none.id,format:'XLSX',operationId:'explicit-none'});assert.equal(job.scope.resourceSelectionMode,'EXPLICIT');
+ const all=await h.port.previewReport({...scope,resourceIds:[],resourceSelectionMode:'ALL'});assert.equal(all.classes[0].activities.length,3);
+});

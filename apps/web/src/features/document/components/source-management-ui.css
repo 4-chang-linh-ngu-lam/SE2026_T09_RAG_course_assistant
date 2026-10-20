@@ -641,3 +641,481 @@
     text-align: center;
   }
 }
+
+/* Archived & Unverified Badges */
+.lumi-source-badge-archived {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.lumi-source-badge-unverified {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+/* Grant Mutation Notice */
+.lumi-grant-mutation-notice-wrapper {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lumi-grant-mutation-unknown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 14px 16px;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lumi-grant-unknown-text {
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-grant-btn-reconcile {
+  align-self: flex-start;
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+.lumi-grant-btn-reconcile:hover:not(:disabled) {
+  background: #fef3c7;
+}
+
+/* Scoped Dialog Styles (.lumi-source-dialog) */
+dialog.lumi-source-dialog {
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  padding: 0;
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  color: #0f172a;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.lumi-source-dialog .dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.lumi-source-dialog .dialog-header h2 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-dialog .dialog-body {
+  padding: 20px 24px 24px;
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.lumi-source-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lumi-source-dialog-desc {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-dialog-text {
+  font-size: 14px;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.55;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Share Classes List in Dialog */
+.lumi-source-share-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 250px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #ffffff;
+}
+
+.lumi-source-share-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  min-width: 0;
+  user-select: none;
+}
+
+.lumi-source-share-item:hover:not(.is-shared):not(.is-archived) {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.lumi-source-share-item.is-shared {
+  background: #f1f5f9;
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+.lumi-source-share-item.is-archived {
+  background: #f8fafc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.lumi-source-share-item input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.lumi-source-share-item input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.lumi-source-share-item-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lumi-source-share-class-name {
+  font-weight: 600;
+  color: #0f172a;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-share-class-code {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.lumi-source-grant-badge-shared {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0369a1;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 3px 8px;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: right;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-empty-classes,
+.lumi-source-empty-choices-notice {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-empty-classes {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+}
+
+.lumi-source-empty-choices-notice {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+/* Impact Notice (Revoke) */
+.lumi-source-impact-notice {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: #991b1b;
+  line-height: 1.55;
+  min-width: 0;
+}
+
+.lumi-source-impact-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lumi-source-impact-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lumi-source-impact-list li {
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Danger Notice (Delete) */
+.lumi-source-danger-notice {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: #991b1b;
+  line-height: 1.55;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Dialog Action Footer */
+.lumi-source-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.lumi-source-dialog-btn {
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Form Styles for Version Upload */
+.lumi-source-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lumi-source-form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.lumi-source-file-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.lumi-source-file-input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Teacher Class Documents Container */
+.teacher-class-docs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.teacher-class-docs-container .card {
+  min-width: 0;
+}
+
+.lumi-class-btn-add {
+  white-space: nowrap;
+}
+
+.lumi-class-docs-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 20px;
+}
+
+/* Responsive Scoping across 1440px / 768px / 390px / 320px */
+@media (max-width: 768px) {
+  dialog.lumi-source-dialog {
+    width: min(520px, calc(100vw - 28px));
+  }
+
+  .lumi-source-dialog .dialog-header {
+    padding: 16px 20px;
+  }
+
+  .lumi-source-dialog .dialog-body {
+    padding: 18px 20px;
+  }
+
+  .lumi-source-share-list {
+    max-height: 220px;
+  }
+}
+
+@media (max-width: 480px) {
+  dialog.lumi-source-dialog {
+    width: calc(100vw - 20px);
+    border-radius: 14px;
+  }
+
+  .lumi-source-dialog .dialog-header {
+    padding: 14px 16px;
+  }
+
+  .lumi-source-dialog .dialog-body {
+    padding: 16px;
+  }
+
+  .lumi-source-share-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .lumi-source-share-item-info {
+    width: 100%;
+  }
+
+  .lumi-source-grant-badge-shared {
+    width: 100%;
+    text-align: left;
+    margin-top: 2px;
+  }
+
+  .lumi-source-dialog-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .lumi-source-dialog-actions .lumi-source-dialog-btn {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+  }
+
+  .lumi-grant-btn-reconcile {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+  }
+
+  .teacher-class-docs-container .card.p-4 {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .lumi-class-btn-add {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 340px) {
+  dialog.lumi-source-dialog {
+    width: calc(100vw - 12px);
+    border-radius: 12px;
+  }
+
+  .lumi-source-dialog .dialog-header {
+    padding: 12px 14px;
+  }
+
+  .lumi-source-dialog .dialog-header h2 {
+    font-size: 15px;
+  }
+
+  .lumi-source-dialog .dialog-body {
+    padding: 14px;
+  }
+
+  .lumi-source-impact-notice {
+    padding: 12px;
+    font-size: 12px;
+  }
+
+  .lumi-source-impact-list {
+    padding-left: 14px;
+  }
+}
+
+.lumi-source-back-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--primary,#2563eb)}
+.lumi-source-back-link:hover{text-decoration:underline}
+.lumi-source-back-link:focus-visible{outline:3px solid #2563eb;outline-offset:3px}
+
+@media(max-width:480px){
+ .lumi-source-actions{display:grid;grid-template-columns:minmax(0,1fr) 44px;width:100%;gap:8px}
+ .lumi-source-actions #ux-doc-open-share{grid-column:1/-1}
+ .lumi-source-actions .lumi-source-btn{width:100%;min-height:44px;justify-content:center}
+ .lumi-source-actions .lumi-source-btn-icon{width:44px}
+}

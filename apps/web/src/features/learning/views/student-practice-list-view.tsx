@@ -1,7 +1,7 @@
 'use client';
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import {useGuardedRouter as useRouter} from '@/components/unsaved-changes';
 import type { RouteDefinition } from '@/config/routes';
 import type { Role, RouteParams, User, WorkspaceData, PracticeActivity, PracticeHistoryItem } from '@/lib/domain';
 import { adapter } from '@/lib/data';

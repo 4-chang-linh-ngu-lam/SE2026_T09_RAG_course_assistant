@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import {useGuardedRouter as useRouter} from '@/components/unsaved-changes';
 import type { RouteDefinition } from '@/config/routes';
 import { homeFor } from '@/config/routes';
 import { safeReturnTo } from '@/lib/navigation';

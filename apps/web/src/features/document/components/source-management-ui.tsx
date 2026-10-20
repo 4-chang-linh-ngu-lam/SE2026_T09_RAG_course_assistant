@@ -153,7 +153,7 @@ export function SourceFailureNotice({
           </h2>
           <p className="lumi-source-failure-text">
             {servingVersion
-              ? 'Các lớp được chia sẻ tiếp tục giữ nguyên phiên bản đã cấp hiện hành của từng lớp (chi tiết theo từng lớp ở danh mục bên dưới) trong khi phiên bản này đang được khắc phục.'
+              ? `Bản v${servingVersion.versionNumber} vẫn sẵn sàng cho các lớp được cấp quyền. Lỗi chỉ ảnh hưởng phiên bản mới.`
               : 'Hiện tại tài liệu chưa có phiên bản phục vụ nào khả dụng cho các lớp học.'}
           </p>
           <p className="lumi-source-failure-detail">{failureMessage}</p>
@@ -199,29 +199,52 @@ export function SourceGrantsPanel({ grants, busy, onRevoke }: SourceGrantsPanelP
         </div>
       ) : (
         <div className="lumi-source-grants-list" role="list">
-          {grants.map(grant => (
-            <article key={grant.classId} className="lumi-source-grant-item" role="listitem">
-              <div className="lumi-source-grant-info">
-                <div className="lumi-source-grant-title-line">
-                  <span className="lumi-source-grant-name">{grant.className}</span>
-                  <span className="lumi-source-grant-code">({grant.classCode})</span>
+          {grants.map(grant => {
+            const isArchived = grant.classStatus === 'ARCHIVED';
+            const isUnverified = !grant.classStatus;
+            const canRevoke = grant.classStatus === 'ACTIVE';
+
+            return (
+              <article key={grant.classId} className="lumi-source-grant-item" role="listitem">
+                <div className="lumi-source-grant-info">
+                  <div className="lumi-source-grant-title-line">
+                    <span className="lumi-source-grant-name">{grant.className}</span>
+                    <span className="lumi-source-grant-code">({grant.classCode})</span>
+                    {isArchived && (
+                      <span className="lumi-source-badge lumi-source-badge-archived">
+                        Lớp đã lưu trữ
+                      </span>
+                    )}
+                    {isUnverified && (
+                      <span className="lumi-source-badge lumi-source-badge-unverified">
+                        Chưa xác minh quyền
+                      </span>
+                    )}
+                  </div>
+                  <div className="lumi-source-grant-meta">
+                    <span>Phiên bản phục vụ: v{grant.servingVersion}</span>
+                    {grant.grantedAt && <span>Cấp quyền: {grant.grantedAt}</span>}
+                  </div>
                 </div>
-                <div className="lumi-source-grant-meta">
-                  <span>Phiên bản phục vụ: v{grant.servingVersion}</span>
-                  {grant.grantedAt && <span>Cấp quyền: {grant.grantedAt}</span>}
-                </div>
-              </div>
-              <button
-                id={`ux-doc-revoke-class-${grant.classId}`}
-                type="button"
-                className="lumi-source-btn-revoke"
-                onClick={() => onRevoke(grant)}
-                disabled={busy}
-              >
-                Thu hồi chia sẻ
-              </button>
-            </article>
-          ))}
+                <button
+                  id={`ux-doc-revoke-class-${grant.classId}`}
+                  type="button"
+                  className="lumi-source-btn-revoke"
+                  onClick={() => onRevoke(grant)}
+                  disabled={busy || !canRevoke}
+                  title={
+                    !canRevoke
+                      ? isArchived
+                        ? 'Lớp học đã lưu trữ, không thể thu hồi chia sẻ'
+                        : 'Chưa thể xác minh quyền của lớp này'
+                      : undefined
+                  }
+                >
+                  Thu hồi chia sẻ
+                </button>
+              </article>
+            );
+          })}
         </div>
       )}
 
@@ -313,7 +336,7 @@ export function SourceVersionHistory({
                         </span>
                       ) : (
                         <span className="lumi-source-badge lumi-source-badge-unserved">
-                          <span>Chưa áp dụng</span>
+                          <span>{v.status === 'READY' ? 'Bản lưu' : 'Chưa áp dụng'}</span>
                         </span>
                       )}
                     </td>

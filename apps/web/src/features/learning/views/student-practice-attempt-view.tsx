@@ -1,12 +1,12 @@
 'use client';
 import { useState, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import {useGuardedRouter as useRouter} from '@/components/unsaved-changes';
 import type { RouteDefinition } from '@/config/routes';
 import type { Role, RouteParams, User, WorkspaceData, PracticeAnswer, PracticeQuestionFeedback, PracticeAttemptDetail } from '@/lib/domain';
 import { adapter } from '@/lib/data';
 import { draftStore, getAttemptDraft, setAttemptDraft, clearAttemptDraft } from '@/lib/draft-store';
-import { StatePanel, Dialog } from '@/components/ui';
+import { StatePanel, Dialog, useUnsavedChanges } from '@/components/ui';
 import { QuestionRenderer } from '../components/question-renderer';
 import { SaveController, isAnswerComplete } from '../lib/save-controller';
 import { areAnswersEqual, areAnswerMapsEqual, reconcileAttemptDraft } from '../lib/draft-reconciliation';
@@ -78,6 +78,7 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
   const questions = attempt?.questions ?? [];
   const totalQuestions = questions.length;
   const currentQuestion = questions[currentIndex];
+  useUnsavedChanges(Boolean(attempt) && (!areAnswerMapsEqual(answers, lastAckedAnswersRef.current) || ackStatusRef.current !== 'saved'), {queryKeys:['question']});
 
   const persistScopedDraft = (
     questionIdx: number,
@@ -742,9 +743,9 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
 
         setShowFinishModal(false);
         if (res.resultHref) {
-          router.push(res.resultHref);
+          router.pushConfirmed(res.resultHref);
         } else {
-          router.push(`/student/classes/${classId}/practice/${practiceId}/attempts/${targetAttemptId}/result`);
+          router.pushConfirmed(`/student/classes/${classId}/practice/${practiceId}/attempts/${targetAttemptId}/result`);
         }
       } catch (err: unknown) {
         if (!isMountedRef.current || finishGenerationRef.current !== finishGen) return;
@@ -967,7 +968,7 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
                     Gợi ý phương pháp từ Lumi:
                   </div>
                   <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.5 }}>
-                    {currentQuestion.sourceRef
+                    {currentQuestion.sourceRef && currentQuestion.sourceRef.isAccessible !== false && currentQuestion.sourceRef.locator
                       ? `Tham khảo tài liệu "${currentQuestion.sourceRef.documentTitle}", lưu ý mục ${currentQuestion.sourceRef.locator} để nắm công thức trọng tâm.`
                       : 'Hãy xác định dạng hàm số, xem xét kỹ các hệ số và áp dụng các định lý tương ứng từng bước.'}
                   </p>
@@ -1103,7 +1104,7 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
               onClick={() => {
                 setShowLeaveModal(false);
                 persistScopedDraft(currentIndexRef.current, answersRef.current, feedbacksRef.current);
-                router.push(`/student/classes/${classId}/practice`);
+                router.pushConfirmed(`/student/classes/${classId}/practice`);
               }}
             >
               Xác nhận rời
