@@ -109,3 +109,22 @@ test('return target rejects external URLs, unknown paths and wrong roles', () =>
   assert.equal(safeReturnTo('/student/classes/../../admin/accounts', ['STUDENT'], '/student'), '/student');
   assert.equal(safeReturnTo('/student/classes/class-1/documents', ['STUDENT'], '/student'), '/student/classes/class-1/documents');
 });
+
+
+test('Webpack and Turbopack resolve the same mode-specific adapter and keep output isolation', () => {
+  const previous = process.env.NEXT_PUBLIC_DATA_MODE;
+  try {
+    for (const mode of ['live', 'mock']) {
+      process.env.NEXT_PUBLIC_DATA_MODE = mode;
+      const config = configure('phase-development-server');
+      const expected = mode === 'mock' ? './dev/mocks/adapter.ts' : './src/lib/data/live.ts';
+      assert.equal(config.turbopack.resolveAlias['@data-adapter'], expected);
+      const webpack = { resolve: { alias: {} as Record<string, string> } };
+      config.webpack(webpack);
+      assert.ok(webpack.resolve.alias['@data-adapter$'].replaceAll('\\', '/').endsWith(expected.slice(1)));
+      assert.equal(config.distDir, mode === 'mock' ? '.next-preview' : '.next');
+    }
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_DATA_MODE; else process.env.NEXT_PUBLIC_DATA_MODE = previous;
+  }
+});

@@ -51,3 +51,10 @@ Read repository `AGENTS.md`, `apps/web/AGENTS.md` and `.agents/skills/lumi-front
 ## Remaining integration work
 
 Approve missing service contracts, implement their live capability adapters/proxy decoders, and verify against actual services before calling those capabilities production-ready. The frontend intentionally reports unavailable rather than using fixture fallbacks. Real Core/database/email/AI integration and Docker/deployment are not certified by this delivery. No backend API/schema/business-rule changes are included.
+
+
+## Local development compiler
+
+`npm run dev:mock` uses Next.js 15 Turbopack to reduce initial development compilation. Both `turbopack.resolveAlias` and `webpack.resolve.alias` select the same mode-specific `@data-adapter`. The mock runner still forces mock mode and refuses production; the live build command and release scan are unchanged. Output stays in `.next-preview` for mock and `.next` for live.
+
+Stop the current server before changing compilers or restarting after this script update; never run two servers writing the same output directory. `npm run dev:mock:webpack` keeps the previous Webpack runner available for diagnosing bundler-specific issues. Neither compiler eliminates all cold compilation. Warm route GET times measure development server response, not complete click-to-content or backend latency. Keep the dev cache between ordinary restarts; do not delete `.next-preview` as a routine speed-up step.

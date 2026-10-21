@@ -1,5 +1,5 @@
 import type { PreviewContext } from './context';
-import type { AssessmentPort, AssessmentQuestion, AssessmentSettings, AssessmentDraft, AssessmentAttempt, AssessmentAnswers, AssessmentReceipt, AssessmentResult, AssessmentGrading, AssessmentTarget, AssessmentAttemptTarget, AssessmentSummary, AssessmentGradeHistory, OfficialCorrectionTarget, AssessmentSubmission } from '../../src/lib/assessment';
+import type { AssessmentPort, AssessmentLoad, AssessmentQuestion, AssessmentSettings, AssessmentDraft, AssessmentAttempt, AssessmentAnswers, AssessmentReceipt, AssessmentResult, AssessmentGrading, AssessmentTarget, AssessmentAttemptTarget, AssessmentSummary, AssessmentGradeHistory, OfficialCorrectionTarget, AssessmentSubmission } from '../../src/lib/assessment';
 import { assessmentAttemptHref, publicAssessmentQuestion, hasAssessmentAnswer } from '../../src/lib/assessment';
 import { ApiError } from '../../src/lib/api/errors';
 import { setMockAssessmentLock } from './assessment-lock';
@@ -95,7 +95,10 @@ export function createAssessmentPort(context:PreviewContext,simulation:Assessmen
  function correction(a:Attempt):OfficialCorrectionTarget {const g=a.grade.at(-1);if(!g||!a.released)conflict('Kết quả chưa được công bố để điều chỉnh.');return {classId:a.classId,assessmentId:a.assessmentId,attemptId:a.id,title:a.version.settings.title,studentName:a.ownerName,studentId:a.ownerId,appealId:a.appeal.status==='PENDING'?a.id:null,appealReason:a.appeal.submittedReason,gradeHistory:clone(a.grade),gradeVersion:g.version,effectiveScore:g.score,feedback:g.feedback};}
  const port:AssessmentPort={
   async readOwnHistory(resultId){const found=[...attempts.values()].find(a=>a.id===resultId||a.receipt?.id===resultId);if(!found)deny();return resultRead(own({classId:found.classId,assessmentId:found.assessmentId,attemptId:found.id},true));},
-  async load(routeId,params){const t={classId:params.classId,assessmentId:params.assessmentId,attemptId:params.attemptId};const c=context.classSummary(t.classId);if(!c)deny();
+  async load(routeId,params,signal){
+   signal?.throwIfAborted();
+   const actorScope=JSON.stringify([context.actor().id,context.actor().school_id,context.actor().roles]);
+   const result:AssessmentLoad=await (async():Promise<AssessmentLoad>=>{const t={classId:params.classId,assessmentId:params.assessmentId,attemptId:params.attemptId};const c=context.classSummary(t.classId);if(!c)deny();
    if(routeId==='s.assessments'){student(t.classId);return {kind:'ready',page:{type:'list',classSummary:clone(c),items:[...exams.values()].filter(e=>e.classId===t.classId&&e.published).map(summary),serverNow:iso(context.now())}};}
    if(routeId==='s.assessment'){student(t.classId);const e=exam(t);if(!e.published)deny();return {kind:'ready',page:{type:'detail',classSummary:clone(c),assessment:summary(e),serverNow:iso(context.now())}};}
    if(routeId==='s.examAttempt')return {kind:'ready',page:{type:'attempt',attempt:attemptRead(own(t))}};
@@ -104,6 +107,10 @@ export function createAssessmentPort(context:PreviewContext,simulation:Assessmen
    if(routeId==='t.assessmentEditor'||routeId==='t.assessmentApproval'){teacher(t.classId);return {kind:'ready',page:{type:routeId==='t.assessmentEditor'?'editor':'approval',classSummary:clone(c),draft:draftRead(exam(t))}};}
    if(routeId==='t.examGrading')return {kind:'ready',page:{type:'grading',grading:grading(assigned(t))}};
    return {kind:'unavailable',message:'Không tìm thấy trang kiểm tra.'};
+   })();
+   signal?.throwIfAborted();
+   if(actorScope!==JSON.stringify([context.actor().id,context.actor().school_id,context.actor().roles]))throw new ApiError('SESSION_CHANGED','Phiên làm việc đã thay đổi.',401);
+   return result.kind==='ready'?{...result,classSummary:clone(context.classSummary(params.classId))}:result;
   },
   async listCalendarEvents(classId){const u=actor();const c=context.classSummary(classId);if(!c||c.status!=='ACTIVE')deny();const isTeacher=u.roles.includes('LECTURER')&&context.teachingRole(u.id,classId)!==null;if(!isTeacher)student(classId);return [...exams.values()].filter(e=>e.classId===classId&&e.published).map(e=>{const v=e.published!;const dateParts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(v.settings.opensAt));const part=(type:string)=>dateParts.find(p=>p.type===type)!.value;const time=(value:string)=>new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value));return {id:`assessment:${e.id}`,classId,className:c.name,title:v.settings.title,description:`${v.settings.code} - v${v.number}`,category:'EXAM',readOnly:true,start:v.settings.opensAt,end:v.settings.closesAt,date:`${part('year')}-${part('month')}-${part('day')}`,timeRange:`${time(v.settings.opensAt)} - ${time(v.settings.closesAt)}`,href:isTeacher?`/teacher/classes/${classId}/assessments/${e.id}/edit`:`/student/classes/${classId}/assessments/${e.id}`};});},
   async listTeacherActivities(classId){teacher(classId);return [...exams.values()].filter(e=>e.classId===classId).map(e=>({id:e.id,classId,resourceId:e.id,title:e.draft.settings.title,type:'ASSESSMENT',topic:e.draft.settings.code,status:e.draft.status,dueOrTimeLabel:`${e.draft.settings.opensAt} — ${e.draft.settings.closesAt}`,editHref:`/teacher/classes/${classId}/assessments/${e.id}/edit`,submissionsHref:[...attempts.values()].find(a=>a.assessmentId===e.id&&!!a.receipt)?`/teacher/classes/${classId}/assessments/${e.id}/attempts/${[...attempts.values()].find(a=>a.assessmentId===e.id&&!!a.receipt)!.id}/grade`:undefined,pendingGradingCount:[...attempts.values()].filter(a=>a.assessmentId===e.id&&!!a.receipt&&!a.released).length}));},

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {useGuardedRouter as useRouter} from '@/components/unsaved-changes';
@@ -38,21 +38,21 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
   const [selectedClassesToShare, setSelectedClassesToShare] = useState<string[]>([]);
 
   if (!data) {
-    return <StatePanel busy title="Äang táº£i thÃ´ng tin tÃ i liá»‡u nguá»“nâ€¦" />;
+    return <StatePanel busy title="Đang tải thông tin tài liệu nguồn…" />;
   }
 
   if (data.kind === 'unavailable') {
     return (
-      <StatePanel title="Dá»‹ch vá»¥ tÃ i liá»‡u chÆ°a sáºµn sÃ ng" message={data.message}>
+      <StatePanel title="Dịch vụ tài liệu chưa sẵn sàng" message={data.message}>
         <button type="button" className="button" onClick={reload}>
-          Thá»­ láº¡i
+          Thử lại
         </button>
       </StatePanel>
     );
   }
 
   if (data.kind === 'empty' || !data.sourceDocumentDetail) {
-    return <StatePanel title="KhÃ´ng tÃ¬m tháº¥y tÃ i liá»‡u" message={data.kind === 'empty' ? data.message : 'TÃ i liá»‡u khÃ´ng tá»“n táº¡i.'} />;
+    return <StatePanel title="Không tìm thấy tài liệu" message={data.kind === 'empty' ? data.message : 'Tài liệu không tồn tại.'} />;
   }
 
   const { document: doc, versions, grants, shareableClasses = [] } = data.sourceDocumentDetail;
@@ -92,7 +92,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
         router.push('/teacher/library');
       } catch (err) {
         if (mutationScope.current !== generation) return;
-        setActionError(err instanceof Error ? err.message : 'CÃ³ lá»—i khi xÃ³a tÃ i liá»‡u.');
+        setActionError(err instanceof Error ? err.message : 'Có lỗi khi xóa tài liệu.');
       }
     });
   };
@@ -115,7 +115,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
         reload();
       } catch (err) {
         if (mutationScope.current !== generation) return;
-        setActionError(err instanceof Error ? err.message : 'CÃ³ lá»—i khi táº£i lÃªn phiÃªn báº£n má»›i.');
+        setActionError(err instanceof Error ? err.message : 'Có lỗi khi tải lên phiên bản mới.');
       }
     });
   };
@@ -129,7 +129,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
         reload();
       } catch (err) {
         if (mutationScope.current !== generation) return;
-        setActionError(err instanceof Error ? err.message : 'CÃ³ lá»—i khi thá»­ láº¡i xá»­ lÃ½.');
+        setActionError(err instanceof Error ? err.message : 'Có lỗi khi thử lại xử lý.');
       }
     });
   };
@@ -149,7 +149,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
       <div>
         <Link href="/teacher/library" className="lumi-source-back-link">
           <Icon name="arrowLeft" />
-          <span>Quay láº¡i ThÆ° viá»‡n tÃ i liá»‡u</span>
+          <span>Quay lại Thư viện tài liệu</span>
         </Link>
       </div>
 
@@ -158,7 +158,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
         servingVersion={servingVersion}
         busy={mutationBlocked}
         canShare={canShare}
-        shareUnavailableReason="Cáº§n má»™t phiÃªn báº£n xá»­ lÃ½ thÃ nh cÃ´ng trÆ°á»›c khi chia sáº»."
+        shareUnavailableReason="Cần một phiên bản xử lý thành công trước khi chia sẻ."
         onShare={handleOpenShare}
         onUploadVersion={() => { setNewVersionOpen(true); setSelectedFile(null); setActionError(null); }}
         onDelete={() => { setDeleteOpen(true); setActionError(null); }}
@@ -185,7 +185,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
       <Dialog
         busy={isPending}
         open={shareOpen}
-        title="Cáº¥p thÃªm quyá»n chia sáº» cho lá»›p há»c"
+        title="Cấp thêm quyền chia sẻ cho lớp học"
         className="lumi-source-dialog"
         onClose={() => {
           if (!isPending) setShareOpen(false);
@@ -199,22 +199,22 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
             message={grantAction.message}
             onReconcile={() => void grantAction.reconcile(() => { setShareOpen(false); reload(); })}
           />
-          <p className="lumi-source-dialog-desc">Chá»n cÃ¡c lá»›p báº¡n phá»¥ trÃ¡ch Ä‘á»ƒ cáº¥p quyá»n Ä‘á»c há»c liá»‡u vÃ  há»i Lumi:</p>
+          <p className="lumi-source-dialog-desc">Chọn các lớp bạn phụ trách để cấp quyền đọc học liệu và hỏi Lumi:</p>
 
           <ErrorNotice message={actionError}/>
 
           {shareableClasses.length === 0 ? (
             <div className="lumi-source-empty-classes">
-              KhÃ´ng cÃ³ lá»›p há»c nÃ o kháº£ dá»¥ng Ä‘á»ƒ chia sáº» tÃ i liá»‡u nÃ y.
+              Không có lớp học nào khả dụng để chia sẻ tài liệu này.
             </div>
           ) : (
             <>
               {shareableClasses.filter(c => c.status === 'ACTIVE' && !grants.some(g => g.classId === c.id && g.isShared)).length === 0 && (
                 <div className="lumi-source-empty-choices-notice" role="status">
-                  Táº¥t cáº£ cÃ¡c lá»›p há»c hoáº¡t Ä‘á»™ng Ä‘Ã£ Ä‘Æ°á»£c cáº¥p quyá»n chia sáº» tÃ i liá»‡u nÃ y.
+                  Tất cả các lớp học hoạt động đã được cấp quyền chia sẻ tài liệu này.
                 </div>
               )}
-              <div className="lumi-source-share-list" role="group" aria-label="Danh sÃ¡ch lá»›p Ä‘á»ƒ cáº¥p quyá»n chia sáº»">
+              <div className="lumi-source-share-list" role="group" aria-label="Danh sách lớp để cấp quyền chia sẻ">
                 {shareableClasses.map(cls => {
                   const grant = grants.find(g => g.classId === cls.id) ?? {
                     classId: cls.id,
@@ -254,11 +254,11 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
                       </div>
                       {isShared ? (
                         <span className="lumi-source-grant-badge-shared">
-                          Äang chia sáº»; thu há»“i táº¡i danh sÃ¡ch lá»›p bÃªn dÆ°á»›i
+                          Đang chia sẻ; thu hồi tại danh sách lớp bên dưới
                         </span>
                       ) : isArchived ? (
                         <span className="lumi-source-badge lumi-source-badge-archived">
-                          Lá»›p Ä‘Ã£ lÆ°u trá»¯
+                          Lớp đã lưu trữ
                         </span>
                       ) : null}
                     </label>
@@ -276,7 +276,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
               onClick={() => setShareOpen(false)}
               disabled={isPending}
             >
-              Há»§y
+              Hủy
             </button>
             <button
               id="ux-doc-confirm-share"
@@ -285,7 +285,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
               onClick={handleConfirmShare}
               disabled={mutationBlocked || !newTargets.length}
             >
-              {isPending ? 'Äang cáº¥p quyá»nâ€¦' : 'Cáº¥p quyá»n cho lá»›p Ä‘Ã£ chá»n'}
+              {isPending ? 'Đang cấp quyền…' : 'Cấp quyền cho lớp đã chọn'}
             </button>
           </div>
         </div>
@@ -295,7 +295,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
       <Dialog
         busy={isPending}
         open={Boolean(revokeClass)}
-        title="XÃ¡c nháº­n thu há»“i quyá»n chia sáº»"
+        title="Xác nhận thu hồi quyền chia sẻ"
         className="lumi-source-dialog"
         onClose={() => {
           if (!isPending) setRevokeClass(null);
@@ -311,16 +311,16 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
           />
           <ErrorNotice message={actionError}/>
           <p className="lumi-source-dialog-text">
-            Báº¡n cÃ³ cháº¯c cháº¯n muá»‘n thu há»“i quyá»n truy cáº­p tÃ i liá»‡u <strong>{doc.title}</strong> khá»i lá»›p{' '}
+            Bạn có chắc chắn muốn thu hồi quyền truy cập tài liệu <strong>{doc.title}</strong> khỏi lớp{' '}
             <strong>{revokeClass?.className}</strong>?
           </p>
           <div className="lumi-source-impact-notice" role="note">
-            <div className="lumi-source-impact-title">âš ï¸ áº¢nh hÆ°á»Ÿng khi thu há»“i quyá»n chia sáº»:</div>
+            <div className="lumi-source-impact-title">⚠️ Ảnh hưởng khi thu hồi quyền chia sẻ:</div>
             <ul className="lumi-source-impact-list">
-              <li>Há»c sinh trong lá»›p khÃ´ng thá»ƒ má»Ÿ tÃ i liá»‡u nguá»“n.</li>
-              <li>Trá»£ lÃ½ Lumi khÃ´ng cÃ²n truy xuáº¥t hoáº·c trÃ­ch dáº«n ná»™i dung tÃ i liá»‡u nÃ y trong lá»›p.</li>
-              <li>CÃ¡c Ä‘oáº¡n trÃ­ch dáº«n nguyÃªn vÄƒn trong ghi chÃº cÃ¡ nhÃ¢n sáº½ bá»‹ áº©n; ná»™i dung ghi chÃº riÃªng cá»§a há»c sinh váº«n Ä‘Æ°á»£c báº£o lÆ°u.</li>
-              <li>Quyá»n truy cáº­p cá»§a cÃ¡c lá»›p há»c khÃ¡c khÃ´ng bá»‹ áº£nh hÆ°á»Ÿng.</li>
+              <li>Học sinh trong lớp không thể mở tài liệu nguồn.</li>
+              <li>Trợ lý Lumi không còn truy xuất hoặc trích dẫn nội dung tài liệu này trong lớp.</li>
+              <li>Các đoạn trích dẫn nguyên văn trong ghi chú cá nhân sẽ bị ẩn; nội dung ghi chú riêng của học sinh vẫn được bảo lưu.</li>
+              <li>Quyền truy cập của các lớp học khác không bị ảnh hưởng.</li>
             </ul>
           </div>
 
@@ -332,7 +332,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
               onClick={() => setRevokeClass(null)}
               disabled={isPending}
             >
-              Há»§y
+              Hủy
             </button>
             <button
               id="ux-doc-revoke"
@@ -341,7 +341,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
               onClick={handleConfirmRevoke}
               disabled={mutationBlocked || revokeClass?.classStatus !== 'ACTIVE'}
             >
-              {isPending ? 'Äang thu há»“iâ€¦' : 'XÃ¡c nháº­n thu há»“i'}
+              {isPending ? 'Đang thu hồi…' : 'Xác nhận thu hồi'}
             </button>
           </div>
         </div>
@@ -351,7 +351,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
       <Dialog
         busy={isPending}
         open={deleteOpen}
-        title="XÃ¡c nháº­n xÃ³a tÃ i liá»‡u nguá»“n"
+        title="Xác nhận xóa tài liệu nguồn"
         className="lumi-source-dialog"
         onClose={() => {
           if (!isPending) setDeleteOpen(false);
@@ -360,10 +360,10 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
         <div id="ux-delete-dialog" className="lumi-source-dialog-content">
           <ErrorNotice message={actionError}/>
           <p className="lumi-source-dialog-text">
-            Báº¡n cÃ³ cháº¯c cháº¯n muá»‘n xÃ³a tÃ i liá»‡u nguá»“n <strong>{doc.title}</strong>?
+            Bạn có chắc chắn muốn xóa tài liệu nguồn <strong>{doc.title}</strong>?
           </p>
           <div className="lumi-source-danger-notice" role="alert">
-            âš ï¸ ToÃ n bá»™ cÃ¡c phiÃªn báº£n vÃ  liÃªn káº¿t chia sáº» tá»›i cÃ¡c lá»›p sáº½ bá»‹ xÃ³a hoÃ n toÃ n. Thao tÃ¡c nÃ y khÃ´ng thá»ƒ hoÃ n tÃ¡c.
+            ⚠️ Toàn bộ các phiên bản và liên kết chia sẻ tới các lớp sẽ bị xóa hoàn toàn. Thao tác này không thể hoàn tác.
           </div>
 
           <div className="lumi-source-dialog-actions">
@@ -374,7 +374,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
               onClick={() => setDeleteOpen(false)}
               disabled={isPending}
             >
-              Há»§y
+              Hủy
             </button>
             <button
               id="ux-doc-delete"
@@ -383,7 +383,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
               onClick={handleConfirmDelete}
               disabled={isPending}
             >
-              {isPending ? 'Äang xÃ³aâ€¦' : 'XÃ¡c nháº­n xÃ³a tÃ i liá»‡u'}
+              {isPending ? 'Đang xóa…' : 'Xác nhận xóa tài liệu'}
             </button>
           </div>
         </div>
@@ -393,7 +393,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
       <Dialog
         busy={isPending}
         open={newVersionOpen}
-        title={`Táº£i lÃªn phiÃªn báº£n má»›i cho ${doc.title}`}
+        title={`Tải lên phiên bản mới cho ${doc.title}`}
         className="lumi-source-dialog"
         onClose={() => {
           if (!isPending) setNewVersionOpen(false);
@@ -404,7 +404,7 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
 
           <div className="lumi-source-form-group">
             <label htmlFor="ux-doc-version-file-input" className="lumi-source-form-label">
-              Chá»n tá»‡p phiÃªn báº£n má»›i
+              Chọn tệp phiên bản mới
             </label>
             <input
               id="ux-doc-version-file-input"
@@ -422,8 +422,8 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
           </div>
 
           <p className="lumi-source-dialog-desc">
-            PhiÃªn báº£n tiáº¿p theo sáº½ lÃ  v{Math.max(doc.currentVersion, ...versions.map(v => v.versionNumber)) + 1}. Náº¿u phiÃªn báº£n nÃ y xá»­ lÃ½ thÃ nh cÃ´ng, há»‡ thá»‘ng sáº½ tá»± Ä‘á»™ng
-            phá»¥c vá»¥ báº£n má»›i nháº¥t cho cÃ¡c lá»›p Ä‘Æ°á»£c chia sáº».
+            Phiên bản tiếp theo sẽ là v{Math.max(doc.currentVersion, ...versions.map(v => v.versionNumber)) + 1}. Nếu phiên bản này xử lý thành công, hệ thống sẽ tự động
+            phục vụ bản mới nhất cho các lớp được chia sẻ.
           </p>
 
           <div className="lumi-source-dialog-actions">
@@ -433,10 +433,10 @@ export function TeacherLibraryDocumentView({ data, reload }: Props) {
               onClick={() => setNewVersionOpen(false)}
               disabled={isPending}
             >
-              Há»§y
+              Hủy
             </button>
             <button type="submit" className="button primary lumi-source-dialog-btn" disabled={isPending || !selectedFile}>
-              {isPending ? 'Äang táº£i lÃªnâ€¦' : 'Táº£i lÃªn phiÃªn báº£n'}
+              {isPending ? 'Đang tải lên…' : 'Tải lên phiên bản'}
             </button>
           </div>
         </form>

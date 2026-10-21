@@ -1,13 +1,15 @@
 'use client';
 import {useSession} from '@/components/session-provider';
 import {useVolatileDraft} from '@/components/volatile-draft';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {useGuardedRouter as useRouter} from '@/components/unsaved-changes';
 import type { RouteDefinition } from '@/config/routes';
 import type { Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import type { AssignmentDefinition, AssignmentDraftInput, AssignmentPage, AssignmentSubmission, AssignmentUpload, GradeAppeal, GradeProposal } from '@/lib/assignment';
 import { adapter } from '@/lib/data';
+import {resourceParamsKey} from '@/lib/route-load-plan';
+import {useClassSummary} from '@/components/class-summary-context';
 import { ApiError, errorMessage } from '@/lib/api/errors';
 import { draftStore } from '@/lib/draft-store';
 import { Dialog, ErrorNotice, Icon, StatePanel, useUnsavedChanges } from '@/components/ui';
@@ -108,8 +110,11 @@ function OfficialHistory({ page, reload }: { page: Extract<AssignmentPage, { kin
 }
 function Loaded({ page, actorId, reload }: { page: AssignmentPage; actorId: string; reload(): void }) { switch (page.kind) { case 'official-history': return <OfficialHistory page={page} reload={reload} />; case 'list': return <List page={page} actorId={actorId} />; case 'detail': return <Detail page={page} actorId={actorId} reload={reload} />; case 'editor': return <Editor page={page} actorId={actorId} reload={reload} />; case 'queue': return <Queue page={page} actorId={actorId} />; case 'grading': return <Grading page={page} actorId={actorId} reload={reload} />; case 'history': return <History page={page} reload={reload} />; case 'correction': return <Correction page={page} actorId={actorId} reload={reload} />; case 'approval': return <Approval page={page} actorId={actorId} reload={reload} />; } }
 export function AssignmentFeature({ route, params, user }: Props) {
- const [page, setPage] = useState<AssignmentPage | null>(null); const [error, setError] = useState<string | null>(null); const [revision, setRevision] = useState(0); const [loading, setLoading] = useState(true); const scope = `${user.id}:${route.id}:${JSON.stringify(params)}`; const loaded = useRef('');
- useEffect(() => { let current = true; setLoading(true); setError(null); if (loaded.current !== scope) setPage(null); loaded.current = scope; adapter.assignment.load(route.id, params).then(next => { if (current) { setPage(next); setLoading(false); } }).catch(e => { if (current) { setError(errorMessage(e)); setLoading(false); setPage(null); } }); return () => { current = false; }; }, [scope, revision, route.id, params]);
+ const paramsKey=resourceParamsKey(route.id,params);
+ const readParams=useMemo<RouteParams>(()=>JSON.parse(paramsKey),[paramsKey]);
+ const [page, setPage] = useState<AssignmentPage | null>(null); const [error, setError] = useState<string | null>(null); const [revision, setRevision] = useState(0); const [loading, setLoading] = useState(true); const scope = `${user.id}:${route.id}:${paramsKey}`; const loaded = useRef('');
+ useClassSummary(page?.classSummary,loading);
+ useEffect(() => { const controller=new AbortController(); setLoading(true); setError(null); if (loaded.current !== scope) setPage(null); loaded.current = scope; adapter.assignment.load(route.id, readParams, controller.signal).then(next => { if (!controller.signal.aborted) { setPage(next); setLoading(false); } }).catch(e => { if (!controller.signal.aborted) { setError(errorMessage(e)); setLoading(false); setPage(null); } }); return () => controller.abort(); }, [scope, revision, readParams]);
  if (!page) return <StatePanel busy={loading} title={loading ? 'Đang tải nội dung bài tập…' : 'Chưa thể mở nội dung'} message={error ?? undefined}>{!loading && <button className="button" onClick={() => setRevision(v => v + 1)}>Thử lại</button>}</StatePanel>;
  return <div aria-busy={loading}><Loaded key={scope} page={page} actorId={user.id} reload={() => setRevision(v => v + 1)} /></div>;
 }

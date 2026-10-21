@@ -7,6 +7,7 @@ export type SaveControllerOptions = {
   saveFn: (answers: Record<string, PracticeAnswer>) => Promise<{ savedAt: string }>;
   onStatusChange?: (status: SaveControllerStatus, message?: string) => void;
   onError?: (error: unknown, outcome: Outcome) => void;
+  onAcknowledged?: (answers: Record<string, PracticeAnswer>, savedAt: string) => void;
 };
 
 export function isAnswerComplete(question: PracticeQuestion, answer?: PracticeAnswer): boolean {
@@ -40,6 +41,8 @@ export function isAnswerComplete(question: PracticeQuestion, answer?: PracticeAn
 
 export class SaveController {
   private inFlight = false;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private sentAnswers: Record<string, PracticeAnswer> | null = null;
   private queuedAnswers: Record<string, PracticeAnswer> | null = null;
   private pendingAnswers: Record<string, PracticeAnswer> = {};
   private flushResolvers: Array<{ resolve: () => void; reject: (err: unknown) => void }> = [];
@@ -79,11 +82,14 @@ export class SaveController {
   }
 
   public block(err?: unknown): void {
+    this.cancelTimer();
     this.blocked = true;
     this.lastError = err ?? new Error('SaveController is in error state');
   }
 
   public unblockAndReconcile(authoritativeAnswers?: Record<string, PracticeAnswer>): void {
+    this.cancelTimer();
+    this.queuedAnswers = null;
     this.blocked = false;
     this.lastError = null;
     if (authoritativeAnswers) {
@@ -92,11 +98,11 @@ export class SaveController {
     }
   }
 
-  public queueSave(answers: Record<string, PracticeAnswer>): void {
+  public queueSave(answers: Record<string, PracticeAnswer>, delayMs = 0): void {
     if (this.disposed) return;
     const cloned = structuredClone(answers);
     this.pendingAnswers = cloned;
-    this.queuedAnswers = cloned;
+    this.queuedAnswers = JSON.stringify(cloned) === JSON.stringify(this.sentAnswers ?? this.lastSavedAnswers) ? null : cloned;
 
     // If blocked due to previous error/unknown outcome, do NOT trigger automatic write
     if (this.blocked) {
@@ -104,8 +110,21 @@ export class SaveController {
     }
 
     if (!this.inFlight) {
-      void this.executeNext();
+      this.cancelTimer();
+      if (!this.queuedAnswers) return;
+      if (delayMs > 0) this.timer = setTimeout(() => { this.timer = null; void this.executeNext(); }, delayMs);
+      else void this.executeNext();
     }
+  }
+
+  private cancelTimer(): void { if (this.timer !== null) { clearTimeout(this.timer); this.timer = null; } }
+
+  /** Explicit action barrier: restored local edits must be ACKed before check/finish. */
+  public async flushAnswers(answers: Record<string, PracticeAnswer>): Promise<void> {
+    if (this.blocked) throw this.lastError ?? new Error('SaveController is in error state');
+    this.queueSave(answers);
+    await this.flush();
+    if (JSON.stringify(this.lastSavedAnswers) !== JSON.stringify(answers)) throw new Error('Câu trả lời chưa được xác nhận lưu.');
   }
 
   private async executeNext(): Promise<void> {
@@ -128,7 +147,8 @@ export class SaveController {
     }
 
     this.inFlight = true;
-    const currentPayload = structuredClone(this.queuedAnswers);
+    const currentPayload = this.queuedAnswers;
+    this.sentAnswers = currentPayload;
     this.queuedAnswers = null;
     this.options.onStatusChange?.('saving', 'Đang lưu...');
 
@@ -140,6 +160,8 @@ export class SaveController {
         return;
       }
       this.lastSavedAnswers = currentPayload;
+      this.sentAnswers = null;
+      this.options.onAcknowledged?.(structuredClone(currentPayload), res.savedAt);
       // Only announce overall saved when latest queued edit ACKed;
       // an older ACK cannot mark latest edits saved!
       if (this.queuedAnswers === null) {
@@ -166,6 +188,7 @@ export class SaveController {
       this.rejectFlush(err);
       return;
     } finally {
+      this.sentAnswers = null;
       if (this.disposed) {
         this.inFlight = false;
         this.rejectFlush(new Error('SaveController has been disposed'));
@@ -207,6 +230,7 @@ export class SaveController {
   }
 
   public flush(): Promise<void> {
+    this.cancelTimer();
     if (this.disposed) {
       return Promise.reject(new Error('SaveController has been disposed'));
     }
@@ -216,13 +240,16 @@ export class SaveController {
     if (!this.inFlight && !this.queuedAnswers) {
       return Promise.resolve();
     }
-    return new Promise<void>((resolve, reject) => {
+    const pending = new Promise<void>((resolve, reject) => {
       this.flushResolvers.push({ resolve, reject });
     });
+    if (!this.inFlight) void this.executeNext();
+    return pending;
   }
 
   public dispose(): void {
     this.disposed = true;
+    this.cancelTimer();
     this.queuedAnswers = null;
     this.rejectFlush(new Error('SaveController has been disposed'));
   }

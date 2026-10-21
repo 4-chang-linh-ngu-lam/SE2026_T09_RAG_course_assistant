@@ -9,6 +9,11 @@ export default function configure(phase) {
     distDir: mode === 'mock' ? '.next-preview' : '.next',
     poweredByHeader: false,
     env: { NEXT_PUBLIC_DATA_MODE: mode },
+    turbopack: {
+      root: fileURLToPath(new URL('.', import.meta.url)),
+      // Turbopack does not execute webpack(); keep both bundlers on the same adapter.
+      resolveAlias: { '@data-adapter': adapter },
+    },
     webpack(config) {
       config.resolve.alias['@data-adapter$'] = fileURLToPath(new URL(adapter, import.meta.url));
       return config;

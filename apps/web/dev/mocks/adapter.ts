@@ -420,12 +420,12 @@ function validateQuestionForPublication(q: PracticeQuestion): void {
 
 async function learningCalendar(user: User, onlyClassId?: string): Promise<CalendarEvent[]> {
   const ids = onlyClassId ? [onlyClassId] : user.roles.includes('STUDENT') ? getStudentActiveClassIds(user.id) : getTeacherAssignedClassIds(user.id).filter(id => classes.find(cls => cls.id === id)?.status === 'ACTIVE');
-  const events = await Promise.all(ids.map(async classId => [...await assessmentPort.listCalendarEvents(classId), ...await assignmentPort.listCalendarEvents(classId)]));
+  const events = await Promise.all(ids.map(async classId => { const [assessment,assignment] = await Promise.all([assessmentPort.listCalendarEvents(classId),assignmentPort.listCalendarEvents(classId)]); return [...assessment,...assignment]; }));
   return events.flat();
 }
 const eventDate = (value: string) => new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'short', timeStyle: 'short' });
-async function makeClassOverview(cls: ClassSummary, actor: User): Promise<ClassOverviewData> {
-  const events = (await learningCalendar(actor, cls.id)).filter(event => Date.parse(event.end ?? event.start) >= Date.now()).sort((a,b) => Date.parse(a.start)-Date.parse(b.start));
+async function makeClassOverview(cls: ClassSummary, actor: User, calendar?: CalendarEvent[]): Promise<ClassOverviewData> {
+  const events = (calendar ?? await learningCalendar(actor, cls.id)).filter(event => Date.parse(event.end ?? event.start) >= Date.now()).sort((a,b) => Date.parse(a.start)-Date.parse(b.start));
   const post = feedPosts.find(item => item.classId === cls.id && item.isAnnouncement);
   return {
     summary: structuredClone(cls),
@@ -444,9 +444,9 @@ async function makeStudentHome(user: User, studentClasses: ClassSummary[]): Prom
     tutorSuggestions: structuredClone(studentHomeOverview.tutorSuggestions.filter(item => studentClasses.some(cls => cls.id === item.classId))),
   };
 }
-async function teacherMetrics(user: User, classId: string) {
-  const queue = await assignmentPort.load('t.gradingQueue', { classId });
-  const events = await learningCalendar(user, classId), now = Date.now();
+async function teacherMetrics(user: User, classId: string, calendar?: CalendarEvent[]) {
+  const [queue,events] = await Promise.all([assignmentPort.load('t.gradingQueue', { classId }),calendar ?? learningCalendar(user,classId)]);
+  const now = Date.now();
   return {
     pendingGrading: queue.kind === 'queue' ? queue.items.filter(item => !item.graded).length + queue.appeals.filter(item => item.status === 'OPEN').length + queue.proposals.filter(item => item.status === 'PENDING').length : 0,
     openActivities: events.filter(event => event.category === 'ASSIGNMENT' ? Date.parse(event.start) >= now : Date.parse(event.start) <= now && Date.parse(event.end ?? event.start) >= now).length + practiceActivities.filter(item => item.classId === classId).length,
@@ -478,7 +478,12 @@ const previewContext: import('./context').PreviewContext = {
     if (actor.status !== 'ACTIVE') throw new ApiError('FORBIDDEN', 'Tài khoản hiện không hoạt động.', 403);
     return structuredClone(actor);
   },
-  classSummary: id => previewClassroomStore.getClass(id),
+  classSummary: classId => {
+    const cls=previewClassroomStore.getClass(classId);if(!cls||!current)return cls;
+    if(current.roles.includes('LECTURER'))return getTeacherClassSummary(cls,current.id);
+    if(current.roles.includes('STUDENT'))return {...cls,membershipStatus:getStudentActiveClassIds(current.id).includes(classId)?'ACTIVE' as const:'ENDED' as const};
+    return cls;
+  },
   studentMembership(userId, classId) {
     if (getStudentActiveClassIds(userId).includes(classId)) return 'ACTIVE';
     if (getStudentEndedClassIds(userId).includes(classId) || getStudentArchivedClassIds(userId).includes(classId)) return 'ENDED';
@@ -2126,11 +2131,13 @@ export const adapter: DataAdapter = {
         };
       }
       if (routeId === 't.overview') {
+        const calendar = summary ? await learningCalendar(user,summary.id) : undefined;
+        const [metrics,overview] = summary ? await Promise.all([teacherMetrics(user,summary.id,calendar),makeClassOverview(summary,user,calendar)]) : [];
         return {
           kind: 'ready',
-          teacherMetrics: summary ? await teacherMetrics(user, summary.id) : undefined,
+          teacherMetrics: metrics,
           classSummary: summary ? getTeacherClassSummary(summary, user.id) : undefined,
-          classOverview: summary ? await makeClassOverview(summary, user) : undefined,
+          classOverview: overview,
         };
       }
 

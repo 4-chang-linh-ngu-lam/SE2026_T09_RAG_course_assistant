@@ -15,7 +15,7 @@ import {createReaderOperationScope,settleReaderOperation} from '../reader-operat
 
 type Props={route:RouteDefinition;data:WorkspaceData|null;params:RouteParams;reload():void};
 export function StudentReaderView({data,params,reload}:Props){
- const router=useRouter();const {user}=useSession();const model=data?.kind==='ready'?data.readerModel:undefined;const doc=model?.document;const docId=doc?.id??params.documentId??'';const lastResolvedVersion=useRef(Number(params.version??1));const viewingVer=model?.viewingVersion??model?.servingVersion??lastResolvedVersion.current;if(model)lastResolvedVersion.current=viewingVer;const pageSync=useRef<{context:string;query:string|undefined}|null>(null);
+ const router=useRouter();const {user}=useSession();const model=data?.kind==='ready'?data.readerModel:undefined;const doc=model?.document;const docId=doc?.id??params.documentId??'';const lastResolvedVersion=useRef(Number(params.version??1));const viewingVer=model?.viewingVersion??model?.servingVersion??lastResolvedVersion.current;if(model)lastResolvedVersion.current=viewingVer;const requestedPageRead=useRef<string|null>(null);const pageSync=useRef<{context:string;query:string|undefined}|null>(null);
  const [currentPage,setCurrentPage]=useState(1);const [newNoteText,setNewNoteText]=useState('');const [editingNote,setEditingNote]=useState<PersonalNoteItem|null>(null);const [editingText,setEditingText]=useState('');const [deleteNote,setDeleteNote]=useState<PersonalNoteItem|null>(null);const [outlineOpen,setOutlineOpen]=useState(false);const [notesOpen,setNotesOpen]=useState(false);const [actionError,setActionError]=useState<string|null>(null);const pendingKeys=useRef(new Set<string>());const [pendingSnapshot,setPendingSnapshot]=useState<ReadonlySet<string>>(()=>new Set());const [zoom,setZoom]=useState(100);const [fullscreen,setFullscreen]=useState(false);const root=useRef<HTMLDivElement>(null);const operationScope=useRef(createReaderOperationScope()).current;const noteInput=useRef<HTMLTextAreaElement>(null);const notesTrigger=useRef<HTMLButtonElement>(null);const outlineTrigger=useRef<HTMLButtonElement>(null);
  const draftKey=`${user?.id??'anon'}:reader-note:${params.classId}:${docId}:${viewingVer}:${currentPage}`;
  useUnsavedChanges(Boolean(newNoteText.trim()) || Boolean(editingNote && editingText !== editingNote.noteText), {queryKeys:['page','version']});
@@ -33,6 +33,14 @@ export function StudentReaderView({data,params,reload}:Props){
    setCurrentPage(Math.max(1,Math.min(desired,model.totalPages||1)));pageSync.current={context,query:params.page};
   }else setCurrentPage(current=>Math.max(1,Math.min(current,model.totalPages||1)));
  },[params.page,params.classId,docId,viewingVer,model?.currentPage,model?.totalPages]);
+ useEffect(()=>{
+  if(!model||!model.isSourceAccessible||!params.page)return;
+  const requested=Number(params.page);
+  if(Number.isInteger(requested)&&requested>=1&&requested<=model.totalPages&&(model.currentPage===requested||model.pageContents?.some(page=>page.pageNumber===requested)))return;
+  const requestKey=JSON.stringify([user?.id,params.classId,docId,viewingVer,params.page]);
+  if(requestedPageRead.current===requestKey)return;
+  requestedPageRead.current=requestKey;reload();
+ },[params.page,model,user?.id,params.classId,docId,viewingVer,reload]);
  useEffect(()=>{setNewNoteText(draftStore.get<string>(draftKey)??'');},[draftKey]);
  useEffect(()=>{const changed=()=>setFullscreen(document.fullscreenElement===root.current);document.addEventListener('fullscreenchange',changed);return()=>document.removeEventListener('fullscreenchange',changed);},[]);
  if(!data)return <StatePanel busy title="Đang mở tài liệu học tập…"/>;
@@ -40,7 +48,7 @@ export function StudentReaderView({data,params,reload}:Props){
  if(data.kind==='empty'||!model||!doc)return <StatePanel title="Tài liệu không khả dụng" message={data.kind==='empty'?data.message:'Không tìm thấy dữ liệu xem tài liệu.'}/>;
  const isAccessible=model.isSourceAccessible;const totalPages=model.totalPages;const page=model.pageContents?.find(p=>p.pageNumber===currentPage);const backHref=routeHref('s.documents',{classId:params.classId})??'/student/classes';const currentNotes=model.notes.filter(n=>n.pageNumber===currentPage||n.locator===`Trang ${currentPage}`);
  function closeNoteEditor(){if(editingNote && editingText !== editingNote.noteText && !window.confirm('Bỏ thay đổi ghi chú chưa lưu?'))return;if(editingNote)draftStore.remove(`${user?.id}:reader-note-edit:${editingNote.id}`);setEditingNote(null);setEditingText('');}
- function changePage(value:number){if(value<1||value>totalPages||value===currentPage)return;operationScope.invalidate();operationScope.enter({...operationIdentity,page:value});setCurrentPage(value);setActionError(null);const query=new URLSearchParams(window.location.search);query.set('page',String(value));query.set('version',String(viewingVer));router.replace(`?${query.toString()}`,{scroll:false});}
+ function changePage(value:number){if(value<1||value>totalPages||value===currentPage)return;operationScope.invalidate();operationScope.enter({...operationIdentity,page:value});setCurrentPage(value);setActionError(null);const query=new URLSearchParams(window.location.search);query.set('page',String(value));window.history.replaceState(null,'',`?${query.toString()}`);}
  function action<T>(work:()=>Promise<T>,confirmed?:(result:T)=>void){
   const key=operationKey;
   if(pendingKeys.current.has(key))return;

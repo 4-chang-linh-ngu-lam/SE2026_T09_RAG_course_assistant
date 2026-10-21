@@ -28,7 +28,7 @@ export interface AssignmentPort {
  listTeacherActivities(classId: string): Promise<TeacherActivityItem[]>;
  setRecipients(input: {classId: string; assignmentId: string; studentIds: string[]; expectedRevision: number}): Promise<void>;
  createDraft(classId: string): Promise<{assignmentId: string; href: string}>;
- load(routeId: string, params: RouteParams): Promise<AssignmentPage>;
+ load(routeId: string, params: RouteParams, signal?: AbortSignal): Promise<AssignmentPage>;
  upload(input: { classId: string; assignmentId: string; file: File; expectedRevision: number }): Promise<AssignmentUpload>;
  submit(input: { classId: string; assignmentId: string; uploadId: string; expectedRevision: number; operationId: string; note: string }): Promise<AssignmentSubmission>;
  reconcile(input: { classId: string; assignmentId: string; operationId: string }): Promise<AssignmentSubmission | null>;

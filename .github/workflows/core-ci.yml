@@ -69,7 +69,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
       - run: npm run build
 
   compose-smoke:
@@ -80,7 +81,9 @@ jobs:
       POSTGRES_PORT: '15432'
       CORE_PORT: '18000'
       WEB_PORT: '13000'
-      NEXT_PUBLIC_CORE_API_URL: http://localhost:18000
+      WEB_ORIGIN: http://localhost:13000
+      CORS_ORIGINS: '["http://localhost:13000"]'
+      NEXT_PUBLIC_DATA_MODE: live
     steps:
       - uses: actions/checkout@v4
       - name: Configure isolated test credentials

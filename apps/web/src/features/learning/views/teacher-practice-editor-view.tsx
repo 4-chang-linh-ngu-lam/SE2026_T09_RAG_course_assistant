@@ -6,6 +6,7 @@ import type { RouteDefinition } from '@/config/routes';
 import type { PracticeQuestion, QuestionType, Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import type { PracticeAiProposal, PracticeDraftContent, PracticeEditorSnapshot } from '@/lib/practice-authoring';
 import { adapter } from '@/lib/data';
+import {useClassSummary} from '@/components/class-summary-context';
 import { ApiError, errorMessage } from '@/lib/api/errors';
 import { draftStore } from '@/lib/draft-store';
 import { Dialog, ErrorNotice, StatePanel, useUnsavedChanges } from '@/components/ui';
@@ -42,13 +43,15 @@ export function TeacherPracticeEditorView({ params, user }: Props) {
   const [proposal, setProposal] = useState<PracticeAiProposal | null>(null);
   const [sourcePreview, setSourcePreview] = useState<SourcePreviewRequest | null>(null);
   const draftKey = `${user.id}:practice-editor:${scope.classId}:${scope.practiceId}`;
+  useClassSummary(snapshot?.classSummary,!snapshot&&!error);
   const dirty = Boolean(snapshot && content && !sameContent(content, contentOf(snapshot)));
   useUnsavedChanges(dirty);
 
   useEffect(() => {
+    const controller=new AbortController();
     const token = ++generation.current;
     setSnapshot(null); setContent(null); setError(null);
-    void adapter.practiceAuthoring.load(scope).then(value => {
+    void adapter.practiceAuthoring.load(scope,controller.signal).then(value => {
       if (generation.current !== token) return;
       const cached = draftStore.get<Cached>(draftKey);
       setSnapshot(value);
@@ -56,7 +59,7 @@ export function TeacherPracticeEditorView({ params, user }: Props) {
       setSelectedId(cached?.selectedId ?? value.editor.questions[0]?.id ?? '');
       if (cached && cached.revision !== value.revision) { setBlocked(true); setError('Bản nháp trên máy chủ đã thay đổi. Bản đang soạn vẫn được giữ trong phiên; hãy đối chiếu trước khi lưu.'); }
     }).catch(err => { if (generation.current === token) setError(errorMessage(err)); });
-    return () => { ++generation.current; };
+    return () => { controller.abort();++generation.current; };
   }, [identity]);
 
   useEffect(() => {

@@ -246,6 +246,13 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
           });
           return res;
         },
+        onAcknowledged: (confirmed, savedAt) => {
+          if (!isMountedRef.current || scopeRef.current?.actorId !== user.id) return;
+          lastAckedAnswersRef.current = confirmed;
+          lastAckedAtRef.current = savedAt;
+          sentSnapshotRef.current = undefined;
+          persistScopedDraft(currentIndexRef.current, answersRef.current, feedbacksRef.current);
+        },
         onStatusChange: (status, message) => {
           if (!isMountedRef.current) return;
           if (scopeRef.current?.actorId !== user.id) return;
@@ -547,7 +554,7 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
     persistScopedDraft(currentIndexRef.current, updated, nextFeedbacks, undefined, 'pending');
 
     // Queue save via SaveController
-    saveControllerRef.current?.queueSave(updated);
+    saveControllerRef.current?.queueSave(updated, currentQuestion?.type === 'short_answer' ? 200 : 0);
   };
 
   const handleCheckAnswer = () => {
@@ -580,7 +587,7 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
 
     startTransition(async () => {
       try {
-        await controller.flush();
+        await controller.flushAnswers(answersRef.current);
 
         // Scope guard after flush await
         if (
@@ -649,7 +656,7 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
         if (controller.getLastSavedAnswers()) {
           lastAckedAnswersRef.current = controller.getLastSavedAnswers()!;
         }
-        setSaveStatus('Đã lưu: Vừa xong');
+        setSaveStatus(areAnswerMapsEqual(lastAckedAnswersRef.current, answersRef.current) ? 'Đã lưu: Vừa xong' : 'Chưa lưu lên máy chủ');
       } catch (err: unknown) {
         if (!isMountedRef.current || checkAnswerGenerationRef.current !== checkGen) return;
         const message = err instanceof Error ? err.message : 'Không thể kiểm tra câu trả lời.';
@@ -696,7 +703,7 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
           controller.queueSave(answersRef.current);
         }
 
-        await controller.flush();
+        await controller.flushAnswers(answersRef.current);
 
         // Scope & controller guard AFTER flush await
         if (

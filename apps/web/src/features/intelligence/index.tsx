@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {useGuardedRouter as useRouter} from '@/components/unsaved-changes';
 import type { RouteDefinition } from '@/config/routes';
@@ -7,6 +7,8 @@ import type { Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import type { ActivityAggregate, AdminDataRequest, DataClassification, ExportJob, IntelligenceFilter, IntelligencePage, IntelligenceAuditRecord, ReportPreview, ReportScope } from '@/lib/intelligence';
 import type { LearningEvidence } from '@/lib/learning-evidence';
 import { adapter } from '@/lib/data';
+import {resourceParamsKey} from '@/lib/route-load-plan';
+import {useClassSummary} from '@/components/class-summary-context';
 import { ApiError, errorMessage } from '@/lib/api/errors';
 import { draftStore } from '@/lib/draft-store';
 import { Dialog, ErrorNotice, StatePanel } from '@/components/ui';
@@ -54,7 +56,9 @@ function Exports({page,reload}:{page:Extract<IntelligencePage,{kind:'exports'}>;
 function Content({page,actorId,teacher,reload,onFilter}:{page:IntelligencePage;actorId:string;teacher:boolean;reload():void;onFilter(filter:IntelligenceFilter):void}){switch(page.kind){case 'student':return <Learner page={page} teacher={teacher} onFilter={onFilter}/>;case 'class':return <ClassAnalytics page={page} onFilter={onFilter}/>;case 'requests':return <Requests page={page} actorId={actorId} reload={reload}/>;case 'audit':return <Audit page={page}/>;case 'reports':return <Reports page={page} actorId={actorId}/>;case 'exports':return <Exports page={page} reload={reload}/>;}}
 const emptyIntelligenceFilter: IntelligenceFilter = {};
 export function IntelligenceFeature({route,params,user}:Props) {
- const scope=`${user.id}:${route.id}:${JSON.stringify(params)}`;
+ const paramsKey=resourceParamsKey(route.id,params);
+ const readParams=useMemo<RouteParams>(()=>JSON.parse(paramsKey),[paramsKey]);
+ const scope=`${user.id}:${route.id}:${paramsKey}`;
  const [loaded,setLoaded]=useState<{scope:string;page:IntelligencePage}|null>(null);
  const [error,setError]=useState<string|null>(null);
  const [loading,setLoading]=useState(true);
@@ -62,13 +66,14 @@ export function IntelligenceFeature({route,params,user}:Props) {
  const [selection,setSelection]=useState<{scope:string;filter:IntelligenceFilter}|null>(null);
  const filter=selection?.scope===scope?selection.filter:emptyIntelligenceFilter;
  const page=loaded?.scope===scope?loaded.page:null;
+ useClassSummary(page&&'classSummary' in page?page.classSummary:undefined,loading);
  useEffect(()=>{
-   let active=true;setError(null);setLoading(true);
-   adapter.intelligence.load(route.id,params,filter).then(next=>{if(active){setLoaded({scope,page:next});setLoading(false);}})
-    .catch(e=>{if(active){setError(errorMessage(e));setLoading(false);}});
-   return()=>{active=false;};
- },[scope,route.id,params,filter,revision]);
+   const controller=new AbortController();setError(null);setLoading(true);
+   adapter.intelligence.load(route.id,readParams,filter,controller.signal).then(next=>{if(!controller.signal.aborted){setLoaded({scope,page:next});setLoading(false);}})
+    .catch(e=>{if(!controller.signal.aborted){setLoaded(null);setError(errorMessage(e));setLoading(false);}});
+   return()=>controller.abort();
+ },[scope,readParams,filter,revision]);
  if(!page)return <StatePanel busy={loading||loaded?.scope!==scope&&!error} title={loading||!error?'Đang đối chiếu dữ liệu…':'Chưa thể mở nội dung'} message={error??undefined}>{!loading&&error&&<button className="button" onClick={()=>setRevision(v=>v+1)}>Thử lại</button>}</StatePanel>;
- return <div aria-busy={loading}>{error&&<div className="notice error" role="alert"><p>{error}</p><p>Dữ liệu bên dưới vẫn thuộc phạm vi đã tải thành công gần nhất.</p><div className="in-actions"><button className="button secondary" disabled={loading} onClick={()=>setRevision(v=>v+1)}>Thử lại phạm vi</button><button className="button secondary" disabled={loading} onClick={()=>setSelection({scope,filter:emptyIntelligenceFilter})}>Đặt lại bộ lọc</button></div></div>}<Content key={scope} page={page} actorId={user.id} teacher={route.id==='t.studentAnalytics'} reload={()=>setRevision(v=>v+1)} onFilter={next=>setSelection({scope,filter:next})}/></div>;
+ return <div aria-busy={loading}>{loading&&<p className="notice" role="status">Đang cập nhật phạm vi dữ liệu…</p>}{error&&<div className="notice error" role="alert"><p>{error}</p><p>Dữ liệu bên dưới vẫn thuộc phạm vi đã tải thành công gần nhất.</p><div className="in-actions"><button className="button secondary" disabled={loading} onClick={()=>setRevision(v=>v+1)}>Thử lại phạm vi</button><button className="button secondary" disabled={loading} onClick={()=>setSelection({scope,filter:emptyIntelligenceFilter})}>Đặt lại bộ lọc</button></div></div>}<Content key={scope} page={page} actorId={user.id} teacher={route.id==='t.studentAnalytics'} reload={()=>setRevision(v=>v+1)} onFilter={next=>setSelection({scope,filter:next})}/></div>;
 }
 export { IntelligenceFeature as Feature };

@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:mock": "node scripts/dev-mock.mjs",
+    "dev:mock:webpack": "node scripts/dev-mock.mjs --webpack",
     "build": "npm run check:boundaries && next build && npm run check:release",
     "start": "next start",
     "typecheck": "tsc --noEmit",

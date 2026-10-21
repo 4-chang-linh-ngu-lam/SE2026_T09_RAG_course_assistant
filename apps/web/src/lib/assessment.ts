@@ -28,14 +28,14 @@ export type AssessmentPage =
  | {type:'result';result:AssessmentResult}
  | {type:'editor'|'approval';classSummary:ClassSummary;draft:AssessmentDraft}
  | {type:'grading';grading:AssessmentGrading};
-export type AssessmentLoad = {kind:'ready';page:AssessmentPage}|{kind:'unavailable';message:string};
+export type AssessmentLoad = {kind:'ready';page:AssessmentPage;classSummary?:ClassSummary}|{kind:'unavailable';message:string};
 export type AssessmentTarget = {classId:string;assessmentId:string};
 export type AssessmentAttemptTarget = AssessmentTarget & {attemptId:string};
 export type AssessmentSubmission = {state:'CONFIRMED';receipt:AssessmentReceipt}|{state:'UNKNOWN';operationId:string};
 export type OfficialCorrectionTarget = {classId:string;assessmentId:string;attemptId:string;title:string;studentName:string;studentId:string;appealId:string|null;appealReason:string|null;gradeHistory:AssessmentGradeHistory[];gradeVersion:number;effectiveScore:number;feedback:string};
 export interface AssessmentPort {
  readOwnHistory(resultId:string):Promise<AssessmentResult>;
- load(routeId:string,params:RouteParams):Promise<AssessmentLoad>;
+ load(routeId:string,params:RouteParams,signal?:AbortSignal):Promise<AssessmentLoad>;
  listCalendarEvents(classId:string):Promise<CalendarEvent[]>;
  listTeacherActivities(classId:string):Promise<TeacherActivityItem[]>;
  createDraft(classId:string):Promise<{assessmentId:string;href:string}>;

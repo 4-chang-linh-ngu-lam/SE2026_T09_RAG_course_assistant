@@ -21,12 +21,14 @@ export function createPracticeAuthoringPort(deps: Dependencies): PracticeAuthori
   function assertActor(scope: PracticeAuthoringScope, actorId: string, mutated = false) {
     if (authorize(scope).id !== actorId) throw new ApiError('SESSION_CHANGED', 'Phiên đăng nhập đã thay đổi. Hãy mở lại bài trong phiên hiện tại.', 401, mutated ? 'unknown' : 'rejected');
   }
-  async function load(scope: PracticeAuthoringScope): Promise<PracticeEditorSnapshot> {
+  async function load(scope: PracticeAuthoringScope, signal?: AbortSignal): Promise<PracticeEditorSnapshot> {
+    signal?.throwIfAborted();
     const actorId = authorize(scope).id;
     const editor = await deps.read(scope);
+    signal?.throwIfAborted();
     assertActor(scope, actorId);
     if (editor.classId !== scope.classId || editor.practiceId !== scope.practiceId) throw new ApiError('NOT_FOUND', 'Không tìm thấy bài luyện tập.', 404);
-    return { editor, revision: revision(editor), defaultPoints: 1, questionTypes: ['single_choice', 'multiple_choice', 'true_false', 'short_answer'] };
+    return { editor, classSummary: structuredClone(deps.context.classSummary(scope.classId)), revision: revision(editor), defaultPoints: 1, questionTypes: ['single_choice', 'multiple_choice', 'true_false', 'short_answer'] };
   }
   async function match(scope: PracticeAuthoringScope, expected: string) {
     const current = await load(scope);

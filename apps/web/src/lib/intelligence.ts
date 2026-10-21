@@ -25,7 +25,7 @@ export type IntelligencePage =
  | {kind:'reports';classes:ClassSummary[];asOf:string;from:string;unavailableReason?:string}
  | {kind:'exports';jobs:ExportJob[]};
 export interface IntelligencePort {
- load(routeId:string,params:RouteParams,filter?:IntelligenceFilter):Promise<IntelligencePage>;
+ load(routeId:string,params:RouteParams,filter?:IntelligenceFilter,signal?:AbortSignal):Promise<IntelligencePage>;
  updateRequest(input:DataRequestUpdate):Promise<AdminDataRequest>;
  processRequest(input:DataRequestProcess):Promise<AdminDataRequest>;
  downloadRequest(requestId:string):Promise<{name:string;type:string;bytes:Uint8Array}>;
