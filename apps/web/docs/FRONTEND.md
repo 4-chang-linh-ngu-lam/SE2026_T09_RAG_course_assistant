@@ -40,7 +40,9 @@ For each future capability:
 
 From `apps/web`, run `node scripts/dev-mock.mjs --hostname 127.0.0.1 --port 4179` for explicit development preview. Use `npm run dev` for live mode with the documented server environment. Do not deploy the preview server or build with mock mode.
 
-`npm run check` covers boundaries, TypeScript and 170 behavioral tests in the current snapshot. `npm run build` runs a live production build and the release fixture-canary scan. Both passed on 20 October 2026. Production browser smoke checked all 71 mapped URLs and 18 transport/access/failure/UI assertions against an isolated Core contract stub; this is not a real Core deployment.
+Current acceptance (22 October 2026): `npm run check` passes boundaries, TypeScript and **226 behavioral tests**. The live `npm run build` and release fixture-canary scan pass. Chrome mock preview smoke checked **71 route IDs** (68 seeded routes plus 3 UI-created resources); focused journeys passed **214 assertions** with selected screens at 1440/768/390/320px. See [FRONTEND_COMPLETION.md](../FRONTEND_COMPLETION.md) for per-route evidence, worker ownership and limitations. This is not a real backend certification or all-canvas visual acceptance.
+
+Historical evidence from 20 October 2026: production browser smoke checked 71 mapped URLs and 18 transport/access/failure/UI assertions against an isolated Core contract stub; this is not a real Core deployment.
 
 The external implementation ledger and current evidence live under `D:/app/cnpm/frontend/artifacts/frontend-implementation`. See `COMPLETION.md`, `status.json` and `antigravity/qa/release-final/gates.json`. Journey evidence distinguishes actual browser interactions, unit tests, static route availability and unavailable live integrations. Selected screens were inspected at390/1024/1440; no blanket all104-canvas visual certification is claimed.
 

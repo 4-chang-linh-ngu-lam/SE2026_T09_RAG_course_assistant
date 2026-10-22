@@ -73,11 +73,10 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
     <div className="teacher-classes-container">
       {/* Toolbar: Role Filter Tabs and Search */}
       <div className="classes-toolbar card">
-        <div className="tab-group" role="tablist">
+        <div className="tab-group" role="group" aria-label="Bộ lọc vai trò lớp học">
           <button
             type="button"
-            role="tab"
-            aria-selected={roleFilter === 'all'}
+            aria-pressed={roleFilter === 'all'}
             className={`tab-btn ${roleFilter === 'all' ? 'active' : ''}`}
             onClick={() => setRoleFilter('all')}
           >
@@ -85,8 +84,7 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={roleFilter === 'primary'}
+            aria-pressed={roleFilter === 'primary'}
             className={`tab-btn ${roleFilter === 'primary' ? 'active' : ''}`}
             onClick={() => setRoleFilter('primary')}
           >
@@ -94,8 +92,7 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={roleFilter === 'assisting'}
+            aria-pressed={roleFilter === 'assisting'}
             className={`tab-btn ${roleFilter === 'assisting' ? 'active' : ''}`}
             onClick={() => setRoleFilter('assisting')}
           >
@@ -138,18 +135,19 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
             const isPrimary = cls.teachingRole === 'PRIMARY';
             return (
               <article key={cls.id} className="card class-card teacher-class-card">
-                <div className="class-card-top">
+                <div className="class-card-top" style={{ flexWrap: 'wrap', gap: '8px' }}>
                   <span className="tag primary">{cls.code}</span>
                   <span className={`badge ${isPrimary ? 'primary' : 'secondary'}`}>
                     {isPrimary ? 'Giáo viên chính' : 'Giáo viên phối hợp'}
                   </span>
+                  {cls.status === 'ARCHIVED' && <span className="badge warning">Đã lưu trữ</span>}
                 </div>
 
                 <h3>{cls.name}</h3>
 
                 <div className="class-card-info">
                   <p className="muted text-sm">{cls.metadata}</p>
-                  {cls.studentCount && (
+                  {typeof cls.studentCount === 'number' && (
                     <p className="muted text-xs">Sĩ số: {cls.studentCount} học sinh</p>
                   )}
                 </div>
@@ -157,10 +155,11 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
                 <div className="class-card-actions">
                   <Link
                     className="button primary"
-                    href={routeHref('t.overview', { classId: cls.id }) ?? `/teacher/classes/${cls.id}/overview`}
+                    href={routeHref(cls.status === 'ARCHIVED' ? 't.gradingQueue' : 't.overview', { classId: cls.id }) ?? '/teacher/classes'}
                   >
-                    Tổng quan <Icon name="chevronRight" />
+                    {cls.status === 'ARCHIVED' ? 'Xem bài đã nộp' : 'Tổng quan'} <Icon name="chevronRight" />
                   </Link>
+                  {cls.status === 'ACTIVE' && (<>
                   <Link
                     className="button secondary"
                     href={routeHref('t.feed', { classId: cls.id }) ?? `/teacher/classes/${cls.id}/feed`}
@@ -173,6 +172,7 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
                   >
                     Lịch
                   </Link>
+                  </>)}
                 </div>
               </article>
             );

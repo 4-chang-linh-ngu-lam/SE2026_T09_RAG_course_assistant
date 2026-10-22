@@ -1,4 +1,5 @@
 'use client';
+import './empty-states.css';
 import type { RouteDefinition } from '@/config/routes';
 import type { Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import { WorkspaceFeature } from '@/features/shared/workspace-feature';

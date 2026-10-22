@@ -84,6 +84,7 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
           <input
             id="docSearchInput"
             type="search"
+            aria-label="Tìm kiếm tài liệu học tập"
             className="input search-input"
             placeholder="Tìm kiếm tài liệu học tập..."
             value={search}

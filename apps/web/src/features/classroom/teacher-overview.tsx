@@ -51,10 +51,14 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
   const announcement = overview?.announcement;
   const activities = overview?.upcomingActivities ?? [];
   const classId = summary.id;
+  const readOnly = summary.status !== 'ACTIVE';
 
   return (
     <div className="teacher-overview-container">
       {/* Quick Action Toolbar */}
+      {readOnly ? (
+        <p className="notice" role="status">Lớp đã lưu trữ và chỉ đọc. Bạn có thể xem nội dung còn quyền; không tạo hoạt động, đăng bài hoặc thêm tài liệu mới.</p>
+      ) : (
       <section className="card teacher-quick-actions-bar">
         <div className="quick-actions-info">
           <h3>Thao tác nhanh cho lớp {summary?.name ?? ''}</h3>
@@ -81,6 +85,7 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
           </Link>
         </div>
       </section>
+      )}
 
       {/* Class Metrics */}
       <section className="class-metrics-grid">
@@ -149,7 +154,7 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
                 className="button secondary small"
                 href={routeHref('t.feed', { classId }) ?? `/teacher/classes/${classId}/feed`}
               >
-                Đăng thông báo mới
+                {readOnly ? 'Xem bảng tin' : 'Đăng thông báo mới'}
               </Link>
             </div>
           )}

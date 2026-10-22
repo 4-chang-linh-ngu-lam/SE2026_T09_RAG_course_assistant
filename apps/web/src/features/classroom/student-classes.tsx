@@ -75,11 +75,10 @@ export function StudentClassesFeature({ route: _route, data, reload }: Props) {
     <div className="student-classes-container">
       {/* Search and Tabs Controls */}
       <div className="classes-toolbar card">
-        <div className="tab-group" role="tablist">
+        <div className="tab-group" role="group" aria-label="Bộ lọc trạng thái lớp học">
           <button
             type="button"
-            role="tab"
-            aria-selected={activeTab === 'active'}
+            aria-pressed={activeTab === 'active'}
             className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`}
             onClick={() => setActiveTab('active')}
           >
@@ -87,8 +86,7 @@ export function StudentClassesFeature({ route: _route, data, reload }: Props) {
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={activeTab === 'archived'}
+            aria-pressed={activeTab === 'archived'}
             className={`tab-btn ${activeTab === 'archived' ? 'active' : ''}`}
             onClick={() => setActiveTab('archived')}
           >
@@ -146,7 +144,7 @@ export function StudentClassesFeature({ route: _route, data, reload }: Props) {
                   ) : cls.status === 'ARCHIVED' ? (
                     <span className="badge warning">Lưu trữ</span>
                   ) : (
-                    cls.studentCount && (
+                    typeof cls.studentCount === 'number' && (
                       <span className="muted small">{cls.studentCount} học sinh</span>
                     )
                   )}

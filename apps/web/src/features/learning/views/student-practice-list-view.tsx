@@ -149,6 +149,7 @@ export function StudentPracticeListView({ data, reload, params, user }: Props) {
           <input
             id="practice-search"
             type="search"
+            aria-label="Tìm kiếm bài luyện tập"
             className="input"
             placeholder="Tìm bài luyện tập theo tên, chuyên đề..."
             value={search}

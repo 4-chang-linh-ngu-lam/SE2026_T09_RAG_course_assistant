@@ -4,6 +4,7 @@ import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { WorkspaceData } from '@/lib/domain';
 import { StatePanel, Icon } from '@/components/ui';
+import { operationalTeachingOverview, teachingWorkload } from '@/lib/classroom-presentation';
 
 type Props = {
   route: RouteDefinition;
@@ -40,13 +41,8 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
 
   const overview = data.teacherHome;
   const assignedClasses = overview?.assignedClasses ?? data.classes ?? [];
-  const schedule = overview?.todaySchedule ?? [];
-  const discussions = overview?.recentDiscussions ?? [];
-  const stats = overview?.stats ?? {
-    totalClasses: assignedClasses.length,
-    totalStudents: assignedClasses.reduce((acc, c) => acc + (c.studentCount ?? 0), 0),
-    pendingGrading: 14,
-  };
+  const { schedule, discussions } = operationalTeachingOverview(assignedClasses, overview);
+  const stats = teachingWorkload(assignedClasses, overview?.stats);
 
   return (
     <div className="teacher-home-container">
@@ -59,12 +55,12 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
         </div>
         <div className="card stat-card">
           <span className="stat-label muted text-sm">Tổng số học sinh</span>
-          <div className="stat-value">{stats.totalStudents}</div>
+          <div className="stat-value">{stats.totalStudents ?? <span className="muted text-sm">Chưa có dữ liệu</span>}</div>
           <span className="muted text-xs">Phân bổ qua các lớp</span>
         </div>
         <div className="card stat-card highlight">
           <span className="stat-label muted text-sm">Bài nộp chờ chấm</span>
-          <div className="stat-value text-primary">{stats.pendingGrading}</div>
+          <div className="stat-value text-primary">{stats.pendingGrading ?? <span className="muted text-sm">Chưa có dữ liệu</span>}</div>
           <span className="muted text-xs">Cần phản hồi hoặc duyệt</span>
         </div>
       </section>
@@ -91,18 +87,19 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
               const isPrimary = cls.teachingRole === 'PRIMARY';
               return (
                 <article key={cls.id} className="card class-card teacher-class-card">
-                  <div className="class-card-top">
+                  <div className="class-card-top" style={{ flexWrap: 'wrap', gap: '8px' }}>
                     <span className="tag primary">{cls.code}</span>
                     <span className={`badge ${isPrimary ? 'primary' : 'secondary'}`}>
                       {isPrimary ? 'Giáo viên chính' : 'Giáo viên phối hợp'}
                     </span>
+                  {cls.status === 'ARCHIVED' && <span className="badge warning">Đã lưu trữ</span>}
                   </div>
 
                   <h3>{cls.name}</h3>
 
                   <div className="class-card-info">
                     <p className="muted text-sm">{cls.metadata}</p>
-                    {cls.studentCount && (
+                    {typeof cls.studentCount === 'number' && (
                       <p className="muted text-xs">Sĩ số: {cls.studentCount} học sinh</p>
                     )}
                   </div>
@@ -110,16 +107,18 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
                   <div className="class-card-actions">
                     <Link
                       className="button primary"
-                      href={routeHref('t.overview', { classId: cls.id }) ?? `/teacher/classes/${cls.id}/overview`}
+                      href={routeHref(cls.status === 'ARCHIVED' ? 't.gradingQueue' : 't.overview', { classId: cls.id }) ?? '/teacher/classes'}
                     >
-                      Vào lớp <Icon name="chevronRight" />
+                      {cls.status === 'ARCHIVED' ? 'Xem bài đã nộp' : 'Vào lớp'} <Icon name="chevronRight" />
                     </Link>
-                    <Link
+                    {cls.status === 'ACTIVE' && (<>
+                  <Link
                       className="button secondary"
                       href={routeHref('t.feed', { classId: cls.id }) ?? `/teacher/classes/${cls.id}/feed`}
                     >
                       Bảng tin
                     </Link>
+                  </>)}
                   </div>
                 </article>
               );
@@ -157,7 +156,7 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
                   <div className="schedule-content">
                     <h4>{ev.title}</h4>
                     <p className="muted text-sm">
-                      {ev.className} {ev.location ? `· Phòng ${ev.location}` : ''}
+                      {ev.className} {ev.location ? `· ${ev.location}` : ''}
                     </p>
                   </div>
                 </article>

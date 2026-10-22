@@ -2044,7 +2044,7 @@ export const adapter: DataAdapter = {
 
         // Student class access checks
         if (isStudent && routeId.startsWith('s.')) {
-          if (routeId === 's.history' && getStudentActiveClassIds(user.id).includes(params.classId)) return { kind: 'unavailable', message: 'L?p h?c ?ang ho?t ??ng. H?y m? t?ng quan l?p ?? ti?p t?c h?c.' };
+          if (routeId === 's.history' && getStudentActiveClassIds(user.id).includes(params.classId)) return { kind: 'unavailable', message: 'Lớp học đang hoạt động. Hãy mở tổng quan lớp để tiếp tục học.' };
           if (['s.history', 's.historyResult', 's.examResult', 's.receipt', 's.practiceResult'].includes(routeId)) {
             if (!getStudentActiveClassIds(user.id).includes(params.classId) && !getStudentEndedClassIds(user.id).includes(params.classId) && !getStudentArchivedClassIds(user.id).includes(params.classId)) {
               return { kind: 'unavailable', message: 'Bạn không có dữ liệu lưu trữ lịch sử cho lớp học này.' };

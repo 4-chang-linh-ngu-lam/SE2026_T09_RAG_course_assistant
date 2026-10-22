@@ -40,3 +40,12 @@ export interface AssignmentPort {
  propose(input: { classId: string; appealId: string; score: number; reason: string; expectedGradeVersion: number }): Promise<GradeProposal>;
  decide(input: { proposalId: string; approve: boolean; reason: string; expectedGradeVersion: number }): Promise<GradeProposal>;
 }
+
+// The page audience is explicit: a staff review must not enter a learner-only route.
+export function submissionResultHref(
+  submission: Pick<AssignmentSubmission, 'id' | 'classId' | 'assignmentId' | 'resultId'>,
+  audience: 'student' | 'teacher',
+): string {
+  if (audience === 'teacher') return `/teacher/classes/${encodeURIComponent(submission.classId)}/assignments/${encodeURIComponent(submission.assignmentId)}/submissions/${encodeURIComponent(submission.id)}/grade`;
+  return `/student/history/results/${encodeURIComponent(submission.resultId)}`;
+}

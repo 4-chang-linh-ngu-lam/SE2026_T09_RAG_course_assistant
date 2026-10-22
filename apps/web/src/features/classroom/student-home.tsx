@@ -68,7 +68,7 @@ export function StudentHomeFeature({ route: _route, data, reload }: Props) {
               <article key={cls.id} className="card class-card student-class-card">
                 <div className="class-card-top">
                   <span className="tag primary">{cls.code}</span>
-                  {cls.studentCount && (
+                  {typeof cls.studentCount === 'number' && (
                     <span className="muted small">{cls.studentCount} học sinh</span>
                   )}
                 </div>
@@ -118,7 +118,7 @@ export function StudentHomeFeature({ route: _route, data, reload }: Props) {
                       <span className="days-left-badge">{task.daysLeftLabel}</span>
                     </div>
                     <h4>{task.title}</h4>
-                    <p className="muted text-sm">{task.className} · Hạn: {task.dueDetail}</p>
+                    <p className="muted text-sm">{task.className} · {task.dueDetail}</p>
                   </div>
                   <div className="task-item-action">
                     <Link className="button secondary small" href={task.href}>
