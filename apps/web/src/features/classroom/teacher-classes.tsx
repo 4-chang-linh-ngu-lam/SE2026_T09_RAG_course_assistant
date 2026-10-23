@@ -73,7 +73,7 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
     <div className="teacher-classes-container">
       {/* Toolbar: Role Filter Tabs and Search */}
       <div className="classes-toolbar card">
-        <div className="tab-group" role="group" aria-label="Bộ lọc vai trò lớp học">
+        {allClasses.every(c=>c.teachingRole!==undefined)&&<div className="tab-group" role="group" aria-label="Bộ lọc vai trò lớp học">
           <button
             type="button"
             aria-pressed={roleFilter === 'all'}
@@ -98,7 +98,7 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
           >
             Giáo viên phối hợp ({assistingCount})
           </button>
-        </div>
+        </div>}
 
         <div className="classes-search-wrapper">
           <input
@@ -136,10 +136,10 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
             return (
               <article key={cls.id} className="card class-card teacher-class-card">
                 <div className="class-card-top" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                  <span className="tag primary">{cls.code}</span>
-                  <span className={`badge ${isPrimary ? 'primary' : 'secondary'}`}>
+                  {cls.code&&<span className="tag primary">{cls.code}</span>}
+                  {cls.teachingRole&&<span className={`badge ${isPrimary ? 'primary' : 'secondary'}`}>
                     {isPrimary ? 'Giáo viên chính' : 'Giáo viên phối hợp'}
-                  </span>
+                  </span>}
                   {cls.status === 'ARCHIVED' && <span className="badge warning">Đã lưu trữ</span>}
                 </div>
 
@@ -155,9 +155,9 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
                 <div className="class-card-actions">
                   <Link
                     className="button primary"
-                    href={routeHref(cls.status === 'ARCHIVED' ? 't.gradingQueue' : 't.overview', { classId: cls.id }) ?? '/teacher/classes'}
+                    href={routeHref(cls.status === 'ARCHIVED'&&!data.coreClassroom ? 't.gradingQueue' : 't.overview', { classId: cls.id }) ?? '/teacher/classes'}
                   >
-                    {cls.status === 'ARCHIVED' ? 'Xem bài đã nộp' : 'Tổng quan'} <Icon name="chevronRight" />
+                    {cls.status === 'ARCHIVED'&&!data.coreClassroom ? 'Xem bài đã nộp' : 'Tổng quan'} <Icon name="chevronRight" />
                   </Link>
                   {cls.status === 'ACTIVE' && (<>
                   <Link

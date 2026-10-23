@@ -25,24 +25,28 @@ export function useNotificationState(data: WorkspaceData | null, user: User, rel
   useEffect(() => {
     const expected = ++generation.current;
     let controller: NotificationReadController;
+    const pending = new Set<AbortController>();
     const receive = async (ticket: NotificationSnapshotRequest) => {
+      const request = new AbortController();
+      pending.add(request);
       try {
-        const response = await adapter.workspace.load('account.notifications', {});
+        const response = await adapter.workspace.load('account.notifications', {}, request.signal);
         if (generation.current !== expected) return;
         if (response.kind === 'unavailable') throw new ApiError('UNAVAILABLE', response.message, 503);
-        controller.receiveSnapshot(response.kind === 'ready' ? response.notifications ?? [] : [], ticket);
+        controller.receiveSnapshot(response.kind === 'ready' ? response.notifications ?? [] : [], ticket, response.kind === 'ready' ? response.notificationUnreadCount : undefined);
       } catch (error) { if (generation.current === expected) controller.rejectSnapshot(error, ticket); }
+      finally { pending.delete(request); }
     };
     controller = createNotificationReadController({ actorId, markOne: id => adapter.notifications.markAsRead(id), markAll: () => adapter.notifications.markAllAsRead(), reload: receive });
     controllerRef.current = controller;
     const unsubscribe = controller.subscribe(() => { if (generation.current === expected) setState(controller.getState()); });
     const snapshot = snapshotRef.current;
-    controller.receiveSnapshot(snapshot?.kind === 'ready' ? snapshot.notifications ?? [] : []);
+    controller.receiveSnapshot(snapshot?.kind === 'ready' ? snapshot.notifications ?? [] : [], undefined, snapshot?.kind === 'ready' ? snapshot.notificationUnreadCount : undefined);
     setState(controller.getState()); setFilter('all'); setSelectedId(null); setAccessNotice(null);
-    return () => { ++generation.current; unsubscribe(); controller.dispose(); if (controllerRef.current === controller) controllerRef.current = null; };
+    return () => { ++generation.current; for (const request of pending) request.abort(); pending.clear(); unsubscribe(); controller.dispose(); if (controllerRef.current === controller) controllerRef.current = null; };
   }, [actorId]);
 
-  useEffect(() => { if (data?.kind === 'ready') controllerRef.current?.receiveSnapshot(data.notifications ?? []); else if (data?.kind === 'empty') controllerRef.current?.receiveSnapshot([]); }, [data, actorId]);
+  useEffect(() => { if (data?.kind === 'ready') controllerRef.current?.receiveSnapshot(data.notifications ?? [],undefined,data.notificationUnreadCount); else if (data?.kind === 'empty') controllerRef.current?.receiveSnapshot([]); }, [data, actorId]);
 
   const currentState = state.actorId === actorId ? state : emptyState(actorId);
   const items = filter === 'unread' ? currentState.items.filter(item => !item.isRead) : currentState.items;

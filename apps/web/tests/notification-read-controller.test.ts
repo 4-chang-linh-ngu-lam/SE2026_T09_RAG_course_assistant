@@ -27,6 +27,25 @@ function harness() {
   return { controller, calls, requests, gate: () => gate, next: () => { gate = deferred(); return gate; } };
 }
 
+test('Core global unread count survives partial rows and changes only on a new snapshot',async()=>{
+  const h=harness();h.controller.receiveSnapshot([item('one')],undefined,8);
+  assert.equal(h.controller.getState().unreadCount,8);
+  const pending=h.controller.markOne('one');h.gate().resolve();await pending;
+  assert.equal(h.controller.getState().items[0].isRead,true);
+  assert.equal(h.controller.getState().unreadCount,8);
+  h.controller.receiveSnapshot([item('one',true)],h.requests[0],7);
+  assert.equal(h.controller.getState().unreadCount,7);
+  assert.equal(h.controller.receiveSnapshot([],undefined,-1),false);
+  assert.equal(h.controller.getState().unreadCount,7);
+});
+
+test('mark-all covers the actual inbox when a fresh global count includes unloaded rows',async()=>{
+  const h=harness();h.controller.receiveSnapshot([],undefined,3);
+  const pending=h.controller.markAll();assert.deepEqual(h.calls,['all']);h.gate().resolve();
+  assert.equal(await pending,'confirmed');assert.equal(h.controller.getState().unreadCount,3);
+  h.controller.receiveSnapshot([],h.requests[0],0);assert.equal(h.controller.getState().unreadCount,0);
+});
+
 test('pending mutation remains unread; only confirmed ACK derives read state and reloads', async () => {
   const h = harness();
   const pending = h.controller.markOne('one');

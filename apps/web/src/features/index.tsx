@@ -20,6 +20,11 @@ import { Feature as Classroom } from './classroom';
 import { Feature as Social } from './social';
 import { Feature as Notification } from './notification';
 import { Feature as Administration } from './administration';
+import {adapter} from '@/lib/data';
+import {usesCoreAdminUi} from '@/lib/core-admin-routing';
+import {coreManagementRoutes,type CoreManagementRoute} from '@/lib/core-management-controller';
+const CoreAdmin=dynamic(()=>import('./administration/core-admin-feature').then(m=>m.CoreAdminFeature));
+const CoreManagement=dynamic(()=>import('./administration/core-management-feature').then(m=>m.CoreManagementFeature));
 const Document = dynamic(() => import('./document').then(m => m.Feature));
 const Tutor = dynamic(() => import('./tutor').then(m => m.Feature));
 const Learning = dynamic(() => import('./learning').then(m => m.Feature));
@@ -46,6 +51,10 @@ const accountRoutes = new Set(['a.accounts','a.account','a.legacy','a.staffInvit
 
 export function FeatureEntry(props: Props) {
   const id = props.route.id;
+  if(adapter.source==='live'&&id==='s.home')return <StudentClassesFeature route={props.route} data={props.data} reload={props.reload}/>;
+  if(adapter.source==='live'&&id==='t.home')return <TeacherClassesFeature route={props.route} data={props.data} reload={props.reload}/>;
+  if(adapter.source==='live'&&(coreManagementRoutes as readonly string[]).includes(id))return <CoreManagement routeId={id as CoreManagementRoute} params={props.params}/>;
+  if(usesCoreAdminUi(adapter.source,id))return <CoreAdmin key={JSON.stringify([id,props.user.id,props.user.school_id,props.user.roles])} routeId={id}/>;
 
   // Identity owned routes
   if (id === 'account.profile') return <ProfileFeature />;

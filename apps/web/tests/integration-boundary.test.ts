@@ -76,7 +76,7 @@ test('configured public origin works behind an internal proxy URL', async () => 
 test('only implemented public Core operations enter the proxy', () => {
   assert.equal(isImplementedOperation('POST', '/auth/login'), true);
   assert.equal(isImplementedOperation('POST', '/auth/register'), false);
-  assert.equal(isImplementedOperation('GET', '/classes'), false);
+  assert.equal(isImplementedOperation('GET', '/classes'), true);
   assert.equal(isImplementedOperation('GET', '/internal/v1/classes/x/access'), false);
   assert.equal(isImplementedOperation('POST', '/admin/students/../../auth/login/activation-codes'), false);
 });
@@ -101,7 +101,7 @@ test('missing configuration, cross-origin mutation and uncontracted paths are cl
   let calls = 0; const fetcher = (async () => { calls++; return Response.json({}); }) as typeof fetch;
   assert.equal((await createCoreProxy(() => undefined, fetcher)(new Request('http://local/api/v1/users/me'), ['users','me'])).status, 503);
   assert.equal((await createCoreProxy(() => 'http://core', fetcher)(new Request('http://local/api/v1/auth/login', { method: 'POST', headers: { Origin: 'http://evil' } }), ['auth','login'])).status, 403);
-  assert.equal((await createCoreProxy(() => 'http://core', fetcher)(new Request('http://local/api/v1/classes'), ['classes'])).status, 404); assert.equal(calls, 0);
+  assert.equal((await createCoreProxy(() => 'http://core', fetcher)(new Request('http://local/api/v1/documents'), ['documents'])).status, 404); assert.equal(calls, 0);
 });
 test('return target rejects external URLs, unknown paths and wrong roles', () => {
   assert.equal(safeReturnTo('//evil/path', ['STUDENT'], '/student'), '/student');

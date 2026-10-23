@@ -6,6 +6,7 @@ import type { PracticeAuthoringPort } from '../practice-authoring';
 import type { AccountsPort } from '../accounts';
 import type { AssignmentPort } from '../assignment';
 import type { AssessmentPort } from '../assessment';
+import type {CoreApiPort} from '../api/core-contract';
 import type {
   CalendarEvent,
   DataRequest,
@@ -31,6 +32,7 @@ import type {
 } from '../domain';
 
 export interface DataAdapter {
+  core?:CoreApiPort; // Approved Core wire operations; preview uses its own domain ports.
   personalData: PersonalDataPort;
   practiceAuthoring: PracticeAuthoringPort;
   accounts: AccountsPort;
@@ -58,12 +60,13 @@ export interface DataAdapter {
     updatePost(classId: string, postId: string, content: string): Promise<FeedPost>;
     deletePost(classId: string, postId: string): Promise<void>;
     createComment(classId: string, postId: string, content: string): Promise<FeedComment>;
+    updateComment(classId:string,postId:string,commentId:string,content:string):Promise<FeedComment>;
     deleteComment(classId: string, postId: string, commentId: string): Promise<void>;
   };
   calendar: {
     createEvent(event: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent>;
-    updateEvent(id: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent>;
-    deleteEvent(id: string): Promise<void>;
+    updateEvent(classId: string, id: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent>;
+    deleteEvent(classId: string, id: string): Promise<void>;
   };
   notifications: {
     markAsRead(id: string): Promise<void>;

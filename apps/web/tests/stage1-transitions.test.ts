@@ -19,31 +19,29 @@ import { inspectSource } from '../scripts/boundary-policy.mjs';
 const STUDENT_LOGIN = { username: 'minh.anh10a1', password: 'ValidPassword123!' };
 const TEACHER_LOGIN = { email: 'ha.nguyen@lumi.example', password: 'ValidPassword123!' };
 
-test('live staff invitation uses approved password-reset contract; uncontracted social/calendar mutations remain unavailable', async () => {
+test('staff invitation uses reset contract; approved Social writes require a confirmed session', async () => {
   const sent: {url: string; method: string | undefined; body: unknown}[] = [];
   const identity = createLiveIdentity({ fetcher: (async (url, init) => { sent.push({ url: String(url), method: init?.method, body: JSON.parse(String(init?.body)) }); return new Response(null, { status: 204 }); }) as typeof fetch });
   await identity.acceptInvitation('token-123', 'NewPass123456!');
   assert.deepEqual(sent, [{ url: '/api/v1/auth/password/reset', method: 'POST', body: { token: 'token-123', new_password: 'NewPass123456!' } }]);
   await assert.rejects(
     () => liveAdapter.social.createPost('class-1', 'Test content'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
+    (err: unknown) => err instanceof ApiError && err.status === 401 && err.code === 'SESSION_UNCONFIRMED'
   );
   await assert.rejects(
     () => liveAdapter.social.updatePost('class-1', 'post-1', 'Updated content'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
+    (err: unknown) => err instanceof ApiError && err.status === 401 && err.code === 'SESSION_UNCONFIRMED'
   );
   await assert.rejects(
     () => liveAdapter.calendar.createEvent({
+      classId:'00000000-0000-4000-8000-000000000001',
       title: 'Họp phụ huynh',
       category: 'CLASS',
       date: '2026-10-20',
       start: '2026-10-20T08:00:00Z',
+      end:'2026-10-20T09:00:00Z',
     }),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.notifications.markAsRead('notif-1'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
+    (err: unknown) => err instanceof ApiError && err.status === 401 && err.code === 'SESSION_UNCONFIRMED'
   );
 });
 
@@ -128,11 +126,11 @@ test('preview adapter: calendar role checks and read-only deadline immutability'
 
   // Read-only learning deadline cannot be updated or deleted
   await assert.rejects(
-    () => mockAdapter.calendar.updateEvent('cal-2', { title: 'Đổi hạn nộp' }),
+    () => mockAdapter.calendar.updateEvent('00000000-0000-4000-8000-000000000101', 'cal-2', { title: 'Đổi hạn nộp' }),
     (err: unknown) => err instanceof ApiError && err.status === 403
   );
   await assert.rejects(
-    () => mockAdapter.calendar.deleteEvent('cal-2'),
+    () => mockAdapter.calendar.deleteEvent('00000000-0000-4000-8000-000000000101', 'cal-2'),
     (err: unknown) => err instanceof ApiError && err.status === 403
   );
 });
@@ -445,7 +443,9 @@ test('preview adapter: teacher can update and delete editable events, while read
   assert.equal(created.end, '2026-10-25T10:00:00Z');
 
   // Teacher can update the event
-  const updated = await mockAdapter.calendar.updateEvent(created.id, {
+  await assert.rejects(() => mockAdapter.calendar.updateEvent('00000000-0000-4000-8000-000000000102', created.id, {title:'Wrong class'}), (error: unknown) => error instanceof ApiError && error.status === 404);
+  await assert.rejects(() => mockAdapter.calendar.deleteEvent('00000000-0000-4000-8000-000000000102', created.id), (error: unknown) => error instanceof ApiError && error.status === 404);
+  const updated = await mockAdapter.calendar.updateEvent(created.classId!, created.id, {
     title: 'Sự kiện đã cập nhật',
     description: 'Nội dung mới sau khi sửa',
     start: '2026-10-25T08:30:00Z',
@@ -461,27 +461,27 @@ test('preview adapter: teacher can update and delete editable events, while read
   // Student cannot update teacher event
   await mockAdapter.identity.login(STUDENT_LOGIN);
   await assert.rejects(
-    () => mockAdapter.calendar.updateEvent(created.id, { title: 'Học sinh sửa trái phép' }),
+    () => mockAdapter.calendar.updateEvent(created.classId!, created.id, { title: 'Học sinh sửa trái phép' }),
     (err: unknown) => err instanceof ApiError && err.status === 403
   );
 
   // Student cannot delete teacher event
   await assert.rejects(
-    () => mockAdapter.calendar.deleteEvent(created.id),
+    () => mockAdapter.calendar.deleteEvent(created.classId!, created.id),
     (err: unknown) => err instanceof ApiError && err.status === 403
   );
 
   // Switch back to teacher and delete the event
   await mockAdapter.identity.login(TEACHER_LOGIN);
-  await mockAdapter.calendar.deleteEvent(created.id);
+  await mockAdapter.calendar.deleteEvent(created.classId!, created.id);
 
   // Attempting to delete or update again throws 404 NOT_FOUND
   await assert.rejects(
-    () => mockAdapter.calendar.deleteEvent(created.id),
+    () => mockAdapter.calendar.deleteEvent(created.classId!, created.id),
     (err: unknown) => err instanceof ApiError && err.status === 404
   );
   await assert.rejects(
-    () => mockAdapter.calendar.updateEvent(created.id, { title: 'Không tồn tại' }),
+    () => mockAdapter.calendar.updateEvent(created.classId!, created.id, { title: 'Không tồn tại' }),
     (err: unknown) => err instanceof ApiError && err.status === 404
   );
 });

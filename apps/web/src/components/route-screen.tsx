@@ -9,6 +9,7 @@ import {canOpenRoute,SAFE_ROUTE_QUERY_KEYS,withSafeRouteQuery} from '@/lib/navig
 import {canonicalParams,featureOwnsRead,resourceParamsKey} from '@/lib/route-load-plan';
 import type {Role,RouteParams,WorkspaceData} from '@/lib/domain';
 import {errorMessage} from '@/lib/api/errors';
+import {sameResourceId} from '@/lib/api/operations';
 import {useSession} from './session-provider';
 import {Brand,StatePanel} from './ui';
 import {PageShell} from './shell';
@@ -37,7 +38,7 @@ function RouteScreenInner({routeId,params}:{routeId:RouteId;params:RouteParams})
   const [domain,setDomain]=useState<{key:string;value:ClassSummaryState}|null>(null);
   const publicRoute=route.allowedRoles.includes('public');
   const publish=useCallback((value:ClassSummaryState)=>{
-    if(value.summary&&params.classId&&value.summary.id!==params.classId)return;
+    if(value.summary&&params.classId&&!sameResourceId(value.summary.id,params.classId))return;
     setDomain(previous=>previous?.key===summaryKey&&JSON.stringify(previous.value)===JSON.stringify(value)?previous:{key:summaryKey,value});
   },[summaryKey,params.classId]);
 

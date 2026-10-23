@@ -1,5 +1,6 @@
 import {getRoute} from '@/config/routes';
 import type {RouteParams} from '@/lib/domain';
+import {canonicalResourceId} from './api/operations';
 
 const featureOwned = new Set([
   'account.profile','account.requests','a.newStudent',
@@ -13,7 +14,7 @@ const featureOwned = new Set([
 
 export function featureOwnsRead(routeId: string): boolean { return featureOwned.has(routeId); }
 export function canonicalParams(params: RouteParams): string {
-  return JSON.stringify(Object.fromEntries(Object.entries(params).sort(([a],[b])=>a.localeCompare(b))));
+  return JSON.stringify(Object.fromEntries(Object.entries(params).map(([key,value])=>[key,key.endsWith('Id')?canonicalResourceId(value):value]).sort(([a],[b])=>a.localeCompare(b))));
 }
 
 /** Resource identity, distinct from position/filter UI. Reader pages may arrive in one versioned model. */

@@ -35,7 +35,7 @@ export type NotificationReadDependencies = {
 export interface NotificationReadController {
   getState(): NotificationReadState;
   subscribe(listener: () => void): () => void;
-  receiveSnapshot(items: readonly NotificationItem[], request?: NotificationSnapshotRequest): boolean;
+  receiveSnapshot(items: readonly NotificationItem[], request?: NotificationSnapshotRequest, unreadCount?: number): boolean;
   rejectSnapshot(error: unknown, request: NotificationSnapshotRequest): void;
   markOne(id: string): Promise<NotificationReadResult>;
   markAll(): Promise<NotificationReadResult>;
@@ -51,6 +51,7 @@ export function createNotificationReadController(deps: NotificationReadDependenc
   const listeners = new Set<() => void>();
   const acknowledged = new Set<string>();
   let incoming: NotificationItem[] = [];
+  let serverUnreadCount: number | null = null;
   let issue: NotificationReadIssue | null = null;
   let snapshotError: string | null = null;
   let busy = false;
@@ -62,7 +63,9 @@ export function createNotificationReadController(deps: NotificationReadDependenc
 
   function derive(): NotificationReadState {
     const items = incoming.map(item => Object.freeze({ ...item, isRead: item.isRead || acknowledged.has(item.id) }));
-    return Object.freeze({ actorId, items: Object.freeze(items), unreadCount: items.filter(item => !item.isRead).length,
+    // A global server count is updated only by a fresh snapshot. A row ACK must
+    // not turn a partial page's visible count into a fabricated inbox total.
+    return Object.freeze({ actorId, items: Object.freeze(items), unreadCount: serverUnreadCount ?? items.filter(item => !item.isRead).length,
       busy, reconciling: activeSnapshot?.purpose === 'reconcile', issue, snapshotError });
   }
   function emit() {
@@ -97,11 +100,13 @@ export function createNotificationReadController(deps: NotificationReadDependenc
     if (activeSnapshot?.purpose === 'reconcile') return activeSnapshot;
     return requestSnapshot('reconcile');
   }
-  function receiveSnapshot(items: readonly NotificationItem[], request?: NotificationSnapshotRequest) {
+  function receiveSnapshot(items: readonly NotificationItem[], request?: NotificationSnapshotRequest, unreadCount?: number) {
     if (disposed || (request && !matches(request))) return false;
+    if (unreadCount !== undefined && (!Number.isSafeInteger(unreadCount) || unreadCount < 0)) return false;
     const byId = new Map<string, NotificationItem>();
     for (const item of items) if (actorId && item.userId === actorId) byId.set(item.id, { ...item });
     incoming = [...byId.values()];
+    serverUnreadCount = unreadCount ?? null;
     snapshotError = null;
     if (request) {
       activeSnapshot = null;
@@ -124,7 +129,7 @@ export function createNotificationReadController(deps: NotificationReadDependenc
     if (disposed || !actorId || busy || issue?.outcome === 'unknown' || activeSnapshot?.purpose === 'reconcile') return 'ignored';
     const unread = state.items.filter(item => !item.isRead);
     const ids = target.kind === 'one' ? [target.id] : [...target.ids];
-    if (!ids.length || ids.some(id => !unread.some(item => item.id === id))) return 'ignored';
+    if ((!ids.length && (target.kind === 'one' || state.unreadCount === 0)) || ids.some(id => !unread.some(item => item.id === id))) return 'ignored';
     const requestOperation = ++operation;
     busy = true;
     issue = null;
@@ -169,6 +174,7 @@ export function createNotificationReadController(deps: NotificationReadDependenc
       snapshotSequence++;
       activeSnapshot = null;
       incoming = [];
+      serverUnreadCount = null;
       acknowledged.clear();
       issue = null;
       snapshotError = null;

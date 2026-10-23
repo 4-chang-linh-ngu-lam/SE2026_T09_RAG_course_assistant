@@ -623,8 +623,7 @@ export const adapter: DataAdapter = {
       if (postIndex === -1) throw new ApiError('NOT_FOUND', 'Không tìm thấy bài viết.', 404);
 
       const target = feedPosts[postIndex];
-      const isTeacher = user.roles.includes('LECTURER');
-      if (!isTeacher && target.authorId !== user.id) {
+      if (target.authorId !== user.id) {
         throw new ApiError('FORBIDDEN', 'Bạn không có quyền chỉnh sửa bài viết này.', 403);
       }
 
@@ -684,6 +683,14 @@ export const adapter: DataAdapter = {
       post.comments.push(newComment);
       return structuredClone(newComment);
     },
+    async updateComment(classId,postId,commentId,content){
+      const user=signedIn();requireClassInteraction(classId,user);
+      if(!content.trim()||content.length>10000)throw new ApiError('VALIDATION_ERROR','Nội dung bình luận chưa hợp lệ.',422);
+      const post=feedPosts.find(value=>value.id===postId&&value.classId===classId),comment=post?.comments.find(value=>value.id===commentId);
+      if(!comment)throw new ApiError('NOT_FOUND','Không tìm thấy bình luận.',404);
+      if(comment.authorId!==user.id)throw new ApiError('FORBIDDEN','Chỉ tác giả được sửa bình luận.',403);
+      comment.content=content.trim();return structuredClone(comment);
+    },
     async deleteComment(classId, postId, commentId) {
       const user = signedIn();
       requireClassInteraction(classId, user);
@@ -731,12 +738,12 @@ export const adapter: DataAdapter = {
       calendarEvents = [...calendarEvents, newEvent];
       return structuredClone(newEvent);
     },
-    async updateEvent(id, patch) {
+    async updateEvent(classId, id, patch) {
       const user = signedIn();
       if (!user.roles.includes('LECTURER')) {
         throw new ApiError('FORBIDDEN', 'Chỉ giáo viên phụ trách mới có quyền chỉnh sửa sự kiện lịch.', 403);
       }
-      const existing = calendarEvents.find(e => e.id === id);
+      const existing = calendarEvents.find(e => e.id === id && e.classId === classId);
       if (!existing) throw new ApiError('NOT_FOUND', 'Không tìm thấy sự kiện.', 404);
       if (!existing.classId) throw new ApiError('FORBIDDEN', 'Sự kiện chung của nhà trường ở chế độ chỉ đọc.', 403);
       requireClassInteraction(existing.classId, user, true);
@@ -771,12 +778,12 @@ export const adapter: DataAdapter = {
       calendarEvents[idx] = updated;
       return structuredClone(updated);
     },
-    async deleteEvent(id) {
+    async deleteEvent(classId, id) {
       const user = signedIn();
       if (!user.roles.includes('LECTURER')) {
         throw new ApiError('FORBIDDEN', 'Chỉ giáo viên phụ trách mới có quyền xóa sự kiện lịch.', 403);
       }
-      const existing = calendarEvents.find(e => e.id === id);
+      const existing = calendarEvents.find(e => e.id === id && e.classId === classId);
       if (!existing) throw new ApiError('NOT_FOUND', 'Không tìm thấy sự kiện.', 404);
       if (!existing.classId) throw new ApiError('FORBIDDEN', 'Sự kiện chung của nhà trường ở chế độ chỉ đọc.', 403);
       requireClassInteraction(existing.classId, user, true);
@@ -2691,5 +2698,5 @@ export function resetStage3aMockStores(): void {
 // These wrappers observe acknowledged writes; they do not introduce retries.
 adapter.learning = auditedPort(adapter.learning, previewContext, 'practice', ['createPracticeDraft','savePracticeEditorDraft','reviewEditorQuestion','publishPractice']);
 adapter.document = auditedPort(adapter.document, previewContext, 'document', ['uploadDocument','uploadVersion','retryProcessing','shareDocument','revokeShare','deleteDocument']);
-adapter.social = auditedPort(adapter.social, previewContext, 'social', ['createPost','updatePost','deletePost','createComment','deleteComment']);
+adapter.social = auditedPort(adapter.social, previewContext, 'social', ['createPost','updatePost','deletePost','createComment','updateComment','deleteComment']);
 adapter.calendar = auditedPort(adapter.calendar, previewContext, 'calendar', ['createEvent','updateEvent','deleteEvent']);

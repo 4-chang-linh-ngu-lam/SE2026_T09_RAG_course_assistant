@@ -52,6 +52,11 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
   const activities = overview?.upcomingActivities ?? [];
   const classId = summary.id;
   const readOnly = summary.status !== 'ACTIVE';
+  if(data.coreClassroom)return <StatePanel title={summary.name} message={`${summary.metadata}${readOnly?' · Lớp đã lưu trữ, nội dung chỉ đọc.':''}`}>
+    <Link className="button" href={routeHref('t.feed',{classId})!}>Bảng tin lớp</Link>
+    <Link className="button" href={routeHref('t.calendar',{classId})!}>Lịch lớp</Link>
+    <p className="muted">Tài liệu, bài tập và chấm điểm đang chờ kết nối dịch vụ tương ứng.</p>
+  </StatePanel>;
 
   return (
     <div className="teacher-overview-container">

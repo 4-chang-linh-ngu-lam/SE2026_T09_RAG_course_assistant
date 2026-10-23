@@ -14,6 +14,7 @@ export type ClassSummary = {
   status: 'ACTIVE' | 'ARCHIVED';
   metadata: string;
   teachingRole?: 'PRIMARY' | 'ASSISTING';
+  isAssignedTeacher?:boolean; // Known assignment, role label absent from Core ClassResponse.
   teacherName?: string;
   studentCount?: number;
   membershipStatus?: 'ACTIVE' | 'ENDED';
@@ -24,7 +25,7 @@ export type FeedComment = {
   postId: string;
   authorId: string;
   authorName: string;
-  authorRole: 'TEACHER' | 'STUDENT';
+  authorRole?: 'TEACHER' | 'STUDENT';
   authorClass?: string;
   content: string;
   createdAt: string;
@@ -36,7 +37,7 @@ export type FeedPost = {
   classId: string;
   authorId: string;
   authorName: string;
-  authorRole: 'TEACHER' | 'STUDENT';
+  authorRole?: 'TEACHER' | 'STUDENT';
   authorAvatar?: string;
   title?: string;
   content: string;
@@ -605,6 +606,7 @@ export type TeacherPracticeEditorModel = {
 export type WorkspaceData =
   | {
       kind: 'ready';
+      coreClassroom?:true; // Core metadata only; other-service summaries are not loaded.
       classes?: ClassSummary[];
       classSummary?: ClassSummary;
       rows?: { id: string; title: string; detail: string; href?: string; status?: string }[];
@@ -616,6 +618,7 @@ export type WorkspaceData =
       feedPosts?: FeedPost[];
       calendarEvents?: CalendarEvent[];
       notifications?: NotificationItem[];
+      notificationUnreadCount?: number; // Core's global inbox count, independent of loaded rows.
       historyData?: HistoryClassData;
       displayDate?: string;
       // Stage 2 specific view models:

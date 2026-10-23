@@ -5,7 +5,7 @@ Use `$lumi-frontend-orchestrator` when coordinating or delegating frontend work 
 - Read `docs/FRONTEND.md`, the repository's `docs/architect/BUSINESS_RULES.md`, and `src/lib/data/integrations.ts` before editing relevant features.
 - `app/**/page.tsx` are minimal route entry points; implement actual UI in `src/features`, shared `src/components`, or explicitly owned libraries.
 - No direct business network calls or fixture imports from feature pages. Use `src/lib/data/port.ts` through `src/lib/data/index.ts`. Preserve the `@data-adapter` single entry and `next.config.mjs` live/mock isolation.
-- Only Identity endpoints documented in `src/lib/api/operations.ts` may be called in the current integration snapshot. Contract approval is required before extending service proxy/decoders.
+- The approved Core surface is the exact 63 operations in `src/lib/api/operations.ts`: Identity, Notifications, Classroom, Social/Calendar and Administration/import, including eight metadata GETs authorized when completing Core. See `docs/CORE_MISSING_READS_PROPOSAL_2026-10-22.md` and Core API_CONTRACT. Further endpoints/services require their own contract approval; health/internal/register stay outside the browser proxy.
 - Keep `NEXT_PUBLIC_DATA_MODE=mock` limited to local preview; no mock production build, fixture fallback, fake persisted success or fabricated evidence.
 - Keep session, permission and API failure semantics; the server enforces roles and ownership. Never display Student join code/self-register or invent new roles.
 - Write meaningful loading, error, empty, 401/403/409, validation and responsive/keyboard states appropriate to the task.

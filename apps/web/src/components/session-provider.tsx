@@ -28,16 +28,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [reload, install]);
   async function login(input: Login) {
     const id = ++generation.current;
-    const user = await adapter.identity.login(input);
-    if (id !== generation.current || user.status !== 'ACTIVE') throw new Error('Session changed');
-    install(user); return user;
+    draftStore.bindActor(null);
+    setSession({ status: 'signed-out', user: null, error: null });
+    try {
+      const user = await adapter.identity.login(input);
+      if (id !== generation.current || user.status !== 'ACTIVE') throw new Error('Session changed');
+      install(user); return user;
+    } catch (error) {
+      if (id === generation.current) setSession({ status: 'signed-out', user: null, error: errorMessage(error) });
+      throw error;
+    }
   }
   async function logout(all = false) {
     const id = ++generation.current;
     // Invalidate draft writers before React unmounts their previous session.
     draftStore.bindActor(null);
-    try { await (all ? adapter.identity.logoutAll() : adapter.identity.logout()); }
-    finally { if (id === generation.current) install(null); }
+    try { await (all ? adapter.identity.logoutAll() : adapter.identity.logout()); if (id === generation.current) install(null); }
+    catch (error) {
+      if (id === generation.current) setSession({ status: 'signed-out', user: null, error: all ? 'Đã thoát trên thiết bị này. Chưa xác nhận được việc thu hồi mọi phiên; hãy đăng nhập lại để kiểm tra.' : errorMessage(error) });
+      throw error;
+    }
   }
   async function saveProfile(name: string | null) {
     const id = generation.current;

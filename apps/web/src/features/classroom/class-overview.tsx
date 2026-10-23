@@ -52,6 +52,11 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
   const materials = overview?.recentMaterials ?? [];
   const activities = overview?.upcomingActivities ?? [];
   const classId = summary.id;
+  if(data.coreClassroom)return <StatePanel title={summary.name} message={`${summary.metadata}${summary.status==='ARCHIVED'?' · Lớp đã lưu trữ, nội dung chỉ đọc.':''}`}>
+    <Link className="button" href={routeHref('s.feed',{classId})!}>Bảng tin lớp</Link>
+    <Link className="button" href={routeHref('s.calendar',{classId})!}>Lịch lớp</Link>
+    <p className="muted">Tài liệu, bài tập và lịch sử học tập đang chờ kết nối dịch vụ tương ứng.</p>
+  </StatePanel>;
 
   return (
     <div className="class-overview-container">

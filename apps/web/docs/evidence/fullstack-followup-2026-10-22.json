@@ -1,0 +1,82 @@
+{
+    "live_allowlisted_operations":  17,
+    "recorded_at":  "2026-10-22T18:41:17.9111252+07:00",
+    "failure_cleanup":  {
+                            "containers_removed":  true,
+                            "created_disposable_database_volume":  true,
+                            "expected_exit":  1,
+                            "volume_removed":  true,
+                            "scenario":  "controlled-build-failure-after-database-create",
+                            "credential_file_removed":  true,
+                            "actual_exit":  1
+                        },
+    "new_api_contract_approval":  "pending",
+    "uncommitted_worktree":  true,
+    "integration_command":  "npm.cmd run test:core",
+    "integration_exit":  0,
+    "real_smtp_verified":  false,
+    "short_diagnostics":  [
+                              {
+                                  "wrong_scope_responses":  0,
+                                  "acceptance":  false,
+                                  "client_p95_ms":  3564.3231069998365,
+                                  "variant":  "per-user HTTPX pools",
+                                  "backend_p95_ms":  367.75492200013105,
+                                  "users":  100,
+                                  "configured_seconds":  20,
+                                  "requests":  633,
+                                  "success_ratio":  1.0,
+                                  "core_thresholds":  true
+                              },
+                              {
+                                  "wrong_scope_responses":  0,
+                                  "acceptance":  false,
+                                  "client_p95_ms":  5087.029942000299,
+                                  "variant":  "temporary sniffio support",
+                                  "backend_p95_ms":  179.34344099921873,
+                                  "users":  100,
+                                  "configured_seconds":  20,
+                                  "requests":  1008,
+                                  "success_ratio":  1.0,
+                                  "core_thresholds":  true
+                              },
+                              {
+                                  "wrong_scope_responses":  0,
+                                  "acceptance":  false,
+                                  "client_p95_ms":  1535.3034399995522,
+                                  "variant":  "temporary HTTPX2 client override",
+                                  "backend_p95_ms":  596.3739410008202,
+                                  "users":  100,
+                                  "configured_seconds":  20,
+                                  "requests":  1254,
+                                  "success_ratio":  1.0,
+                                  "core_thresholds":  false
+                              }
+                          ],
+    "performance_resolved":  false,
+    "integration":  {
+                        "notificationGroups":  7,
+                        "securityGroups":  8,
+                        "productionCompose":  true,
+                        "nonRoot":  true,
+                        "installedPackage":  true,
+                        "migrationCheck":  true,
+                        "seedRepeat":  true,
+                        "dbOutageRecovery":  true,
+                        "syntheticOnly":  true,
+                        "browserInteraction":  false,
+                        "realSmtpVerified":  false
+                    },
+    "browser_interaction":  false,
+    "success_cleanup":  {
+                            "credential_file_removed":  true,
+                            "compose_cleanup_command_exit":  0
+                        },
+    "web_baseline":  {
+                         "exit":  0,
+                         "skipped":  0,
+                         "tests":  266,
+                         "failures":  0
+                     },
+    "source_head":  "9e7669cbec9d21cd076f8b7b54411cec0ab1b7c8"
+}

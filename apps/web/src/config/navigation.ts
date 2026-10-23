@@ -57,6 +57,10 @@ export const sidebars = {
       "a.accounts"
     ],
     [
+      "Mời nhân sự",
+      "a.staffInvite"
+    ],
+    [
       "Nhập danh sách",
       "a.importNew"
     ],

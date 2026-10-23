@@ -1,0 +1,137 @@
+{
+    "recorded_at_utc":  "2026-10-22T19:32:58.5371515+00:00",
+    "branch":  "frontend1",
+    "head":  "9e7669cbec9d21cd076f8b7b54411cec0ab1b7c8",
+    "existing_dirty_worktree_preserved":  true,
+    "status":  "functional-regressions-passed-performance-not-met",
+    "backend":  {
+                    "distinct_selected_cases":  115,
+                    "suites":  [
+                                   {
+                                       "suite":  "focused.xml",
+                                       "cases":  53,
+                                       "failures":  0,
+                                       "skips":  0
+                                   },
+                                   {
+                                       "suite":  "contracts-auth.xml",
+                                       "cases":  62,
+                                       "failures":  0,
+                                       "skips":  0
+                                   }
+                               ],
+                    "full_suite_rerun":  false
+                },
+    "frontend":  {
+                     "command":  "npm.cmd run check",
+                     "tests":  317,
+                     "passed":  317,
+                     "failed":  0,
+                     "skipped":  0,
+                     "boundary_and_typescript_passed":  true
+                 },
+    "http_integration":  {
+                             "coreGroups":  7,
+                             "coreOperations":  46,
+                             "adminViewsRendered":  3,
+                             "managementViewsRendered":  10,
+                             "notificationGroups":  7,
+                             "securityGroups":  8,
+                             "syntheticTlsSmtp":  true,
+                             "productionCompose":  true,
+                             "nonRoot":  true,
+                             "installedPackage":  true,
+                             "migrationCheck":  true,
+                             "seedRepeat":  true,
+                             "dbOutageRecovery":  true,
+                             "syntheticOnly":  true,
+                             "browserInteraction":  false,
+                             "realSmtpVerified":  false
+                         },
+    "lint":  {
+                 "ruff_check":  "passed",
+                 "ruff_format":  "passed",
+                 "python_files":  141
+             },
+    "workflow":  {
+                     "yaml_parse":  "passed",
+                     "duplicate_keys":  false,
+                     "manual_load_default_off":  true,
+                     "permissions_read_only":  true,
+                     "remote_run_verified":  false
+                 },
+    "powershell_runner":  {
+                              "parse_errors":  0,
+                              "existing_evidence_refused":  true,
+                              "existing_evidence_unchanged":  true
+                          },
+    "load":  {
+                 "artifact":  "services/core/test-evidence/core-runtime-2026-10-23/core-load.json",
+                 "artifact_sha256":  "1fcc4de4ffb0165b55de682251270056e3ee7603560414c0256ee5cb6b194699",
+                 "source_sha256":  "731277e87ed4354df8a5838994e21facdf39619d3242ce4660801cfcef6563ea",
+                 "application_sha256":  "554be09af6a41af09c45a39a08be96e5f65b5d89a49441f576bf87d6975b52c1",
+                 "users":  100,
+                 "configured_seconds":  600,
+                 "elapsed_seconds":  601.9770722430039,
+                 "requests":  34757,
+                 "status_counts":  {
+                                       "200":  34756,
+                                       "503":  1
+                                   },
+                 "client_error_counts":  {
+
+                                         },
+                 "success_ratio":  0.9999712288172167,
+                 "backend_p95_ms":  2430.0476470016292,
+                 "client_p95_ms":  2402.9077160012093,
+                 "wrong_scope_responses":  0,
+                 "event_loop_lag":  {
+                                        "sample_interval_ms":  10,
+                                        "client_samples":  53791,
+                                        "client_p95_ms":  3.9811849949182943,
+                                        "client_max_ms":  308.07699499768205,
+                                        "server_samples":  34917,
+                                        "server_p95_ms":  20.5025729976478,
+                                        "server_max_ms":  198.3539759987616
+                                    },
+                 "passed_core_thresholds":  false,
+                 "runner_exit_code":  1,
+                 "full_tp01_verified":  false
+             },
+    "main_runtime":  {
+                         "core_ready":  200,
+                         "web_login":  200,
+                         "proxy_without_credentials":  401,
+                         "openapi_operations":  67,
+                         "runtime_uid":  10001,
+                         "installed_package":  true,
+                         "source_matches_measured":  true,
+                         "windows_minus_core_date_seconds":  0.709,
+                         "smtp_host_configured":  false,
+                         "smtp_from_configured":  false
+                     },
+    "cleanup":  {
+                    "diagnostic_containers":  0,
+                    "diagnostic_networks":  0,
+                    "diagnostic_volumes":  0,
+                    "load_containers":  0,
+                    "load_networks":  0,
+                    "private_credential_files_removed":  true
+                },
+    "experimental_tuning_applied":  {
+                                        "gil":  false,
+                                        "app_state_factory":  false,
+                                        "admission_capacity_four":  false,
+                                        "multiple_workers":  false
+                                    },
+    "remaining":  [
+                      "Core-06 latency threshold on controlled resources",
+                      "browser click/hydration acceptance",
+                      "external SMTP configuration/delivery",
+                      "remote CI execution",
+                      "unapproved Document/AI/Learning/Intelligence contracts"
+                  ],
+    "complete_core_g2":  false,
+    "committed":  false,
+    "pushed":  false
+}

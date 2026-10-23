@@ -291,7 +291,7 @@ export function AuthView({ route }: { route: RouteDefinition }) {
                 </label>
               )}
 
-              <ErrorNotice message={error}/>
+              <ErrorNotice message={error ?? session.error}/>
 
               <button className="button primary" disabled={busy || unknown} type="submit">
                 {busy

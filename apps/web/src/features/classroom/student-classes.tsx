@@ -129,16 +129,16 @@ export function StudentClassesFeature({ route: _route, data, reload }: Props) {
         <div className="class-grid">
           {filteredClasses.map(cls => {
             const isHistorical = cls.status === 'ARCHIVED' || cls.membershipStatus === 'ENDED';
-            const destinationHref = isHistorical
+            const destinationHref = isHistorical&&!data.coreClassroom
               ? routeHref('s.history', { classId: cls.id }) ?? `/student/history/classes/${cls.id}`
               : routeHref('s.overview', { classId: cls.id }) ?? `/student/classes/${cls.id}/overview`;
 
             return (
               <article key={cls.id} className="card class-card student-class-card">
                 <div className="class-card-top">
-                  <span className={`tag ${isHistorical ? 'default' : 'primary'}`}>
+                  {cls.code&&<span className={`tag ${isHistorical ? 'default' : 'primary'}`}>
                     {cls.code}
-                  </span>
+                  </span>}
                   {cls.membershipStatus === 'ENDED' ? (
                     <span className="badge warning">Đã kết thúc ghi danh</span>
                   ) : cls.status === 'ARCHIVED' ? (

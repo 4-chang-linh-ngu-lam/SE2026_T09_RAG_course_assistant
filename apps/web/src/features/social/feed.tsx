@@ -1,7 +1,9 @@
 'use client';
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import {ApiError} from '@/lib/api/errors';
 import type { FeedComment, FeedPost, Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import { adapter, dataMode } from '@/lib/data';
+import { socialAccess } from '@/lib/social-access';
 import { Dialog, ErrorNotice, Icon, StatePanel } from '@/components/ui';
 
 type Props = {
@@ -17,9 +19,13 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   const [newPostContent, setNewPostContent] = useState('');
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [unknown,setUnknown]=useState(false);
+  useEffect(()=>{if(data?.kind==='ready'){setLocalPosts(null);setUnknown(false);setError(null);}},[data]);
   const [error, setError] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [editingComment,setEditingComment]=useState<{postId:string;comment:FeedComment}|null>(null);
+  const [commentEditContent,setCommentEditContent]=useState('');
 
   // Deletion modal state
   const [deleteTarget, setDeleteTarget] = useState<
@@ -69,17 +75,20 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   const readyData = data;
   const posts = localPosts ?? readyData.feedPosts ?? [];
   const isTeacher = role === 'LECTURER';
+  const access = socialAccess(user, readyData.classSummary, params.classId);
 
   async function handleUpdatePost(postId: string) {
-    if (!editContent.trim()) return;
+    if(busy||unknown)return;
+    if (!access.participate || !posts.some(post => post.id === postId && post.authorId === user.id && post.canEdit !== false) || !editContent.trim()) return;
     setBusy(true);
     setError(null);
     try {
       const updated = await adapter.social.updatePost(params.classId, postId, editContent.trim());
-      setLocalPosts(posts.map(p => (p.id === postId ? updated : p)));
+      setLocalPosts(posts.map(p => (p.id === postId ? {...updated,comments:p.comments} : p)));
       setEditingPostId(null);
       setEditContent('');
     } catch (err: unknown) {
+      if(err instanceof ApiError&&err.outcome==='unknown')setUnknown(true);
       setError(err instanceof Error ? err.message : 'Chưa thể cập nhật bài viết.');
     } finally {
       setBusy(false);
@@ -88,7 +97,8 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
 
   async function handleCreatePost(event: React.FormEvent) {
     event.preventDefault();
-    if (!newPostContent.trim()) return;
+    if(busy||unknown)return;
+    if (!access.participate || !newPostContent.trim()) return;
     setBusy(true);
     setError(null);
     try {
@@ -96,6 +106,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
       setLocalPosts([created, ...posts]);
       setNewPostContent('');
     } catch (err: unknown) {
+      if(err instanceof ApiError&&err.outcome==='unknown')setUnknown(true);
       setError(err instanceof Error ? err.message : 'Chưa thể đăng bài.');
     } finally {
       setBusy(false);
@@ -103,6 +114,8 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   }
 
   async function handleCreateComment(postId: string) {
+    if(busy||unknown)return;
+    if (!access.participate) return;
     const text = commentInputs[postId]?.trim();
     if (!text) return;
     setBusy(true);
@@ -118,6 +131,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
       setLocalPosts(updated);
       setCommentInputs(prev => ({ ...prev, [postId]: '' }));
     } catch (err: unknown) {
+      if(err instanceof ApiError&&err.outcome==='unknown')setUnknown(true);
       setError(err instanceof Error ? err.message : 'Chưa thể gửi phản hồi.');
     } finally {
       setBusy(false);
@@ -125,7 +139,11 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   }
 
   async function handleConfirmDelete() {
-    if (!deleteTarget) return;
+    if(busy||unknown)return;
+    if (!deleteTarget || !access.participate) return;
+    const post = posts.find(item => item.id === deleteTarget.postId);
+    const target = deleteTarget.type === 'post' ? post : post?.comments.find(item => item.id === deleteTarget.commentId);
+    if (!target || target.canDelete === false || !(access.moderate || target.authorId === user.id)) return;
     setBusy(true);
     setError(null);
     try {
@@ -145,14 +163,27 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
       }
       setDeleteTarget(null);
     } catch (err: unknown) {
+      if(err instanceof ApiError&&err.outcome==='unknown')setUnknown(true);
       setError(err instanceof Error ? err.message : 'Chưa thể xóa nội dung.');
     } finally {
       setBusy(false);
     }
   }
 
+  async function handleUpdateComment(){
+    if(busy||unknown||!access.participate||!editingComment||editingComment.comment.authorId!==user.id||!commentEditContent.trim())return;
+    setBusy(true);setError(null);
+    try{
+      const updated=await adapter.social.updateComment(params.classId,editingComment.postId,editingComment.comment.id,commentEditContent.trim());
+      setLocalPosts(posts.map(post=>post.id===editingComment.postId?{...post,comments:post.comments.map(comment=>comment.id===updated.id?updated:comment)}:post));
+      setEditingComment(null);setCommentEditContent('');
+    }catch(err){if(err instanceof ApiError&&err.outcome==='unknown')setUnknown(true);setError(err instanceof Error?err.message:'Chưa thể sửa bình luận.');}
+    finally{setBusy(false);}
+  }
+
   return (
     <div className="feed-container">
+      {unknown&&<p className="notice">Chưa xác định kết quả thao tác. Tải trạng thái hiện tại và kiểm tra nội dung trước khi gửi thao tác mới. <button className="button" onClick={reload}>Tải lại bảng tin</button></p>}
       {/* Composer Card */}
       <section className="card padded feed-composer-card">
         <div className="feed-composer-header">
@@ -187,7 +218,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
             <button
               className="button primary"
               type="submit"
-              disabled={busy || !newPostContent.trim()}
+              disabled={busy || !access.participate || !newPostContent.trim()}
             >
               <Icon name="send"/> {isTeacher ? 'Đăng thông báo' : 'Đăng bài viết'}
             </button>
@@ -203,7 +234,8 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
           </div>
         ) : (
           posts.map(post => {
-            const canDeletePost = isTeacher || post.authorId === user.id;
+            const canEditPost = access.participate && post.authorId === user.id && post.canEdit !== false;
+            const canDeletePost = access.participate && post.canDelete !== false && (access.moderate || post.authorId === user.id);
             return (
               <article key={post.id} className={`card padded feed-post-card ${post.isAnnouncement ? 'announcement-post' : ''}`}>
                 <div className="feed-post-top">
@@ -214,16 +246,16 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                     <div>
                       <div className="feed-author-name-row">
                         <strong>{post.authorName}</strong>
-                        <span className={`tag ${post.authorRole === 'TEACHER' ? 'tag-amber' : 'tag-blue'}`}>
+                        {post.authorRole&&<span className={`tag ${post.authorRole === 'TEACHER' ? 'tag-amber' : 'tag-blue'}`}>
                           {post.authorRole === 'TEACHER' ? 'Giáo viên' : 'Học sinh'}
-                        </span>
+                        </span>}
                       </div>
                       <time className="muted">{formatDateTime(post.createdAt)}</time>
                     </div>
                   </div>
 
                   <div className="feed-post-actions">
-                    {canDeletePost && (
+                    {canEditPost && (
                       <button
                         className="icon-button"
                         type="button"
@@ -301,7 +333,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
 
                   <div className="feed-comments-list">
                     {post.comments.map(comment => {
-                      const canDeleteComment = isTeacher || comment.authorId === user.id;
+                      const canDeleteComment = access.participate && comment.canDelete !== false && (access.moderate || comment.authorId === user.id);
                       return (
                         <div key={comment.id} className="feed-comment-item">
                           <div className="feed-comment-main">
@@ -309,14 +341,15 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                               <strong>{comment.authorName}</strong>
                               {comment.authorRole === 'TEACHER' ? (
                                 <span className="tag tag-amber">Giáo viên</span>
-                              ) : (
+                              ) : comment.authorRole==='STUDENT' ? (
                                 <span className="tag">{comment.authorClass ?? 'Học sinh'}</span>
-                              )}
+                              ) : null}
                               <time className="muted">{formatDateTime(comment.createdAt)}</time>
                             </div>
                             <p className="feed-comment-text">{comment.content}</p>
                           </div>
 
+                          {access.participate&&comment.authorId===user.id&&<button className="icon-button" type="button" aria-label="Sửa bình luận" title="Sửa bình luận" disabled={busy||unknown} onClick={()=>{setEditingComment({postId:post.id,comment});setCommentEditContent(comment.content);}}><Icon name="edit"/></button>}
                           {canDeleteComment && (
                             <button
                               className="icon-button"
@@ -360,7 +393,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                     <button
                       className="button primary"
                       type="button"
-                      disabled={busy || !commentInputs[post.id]?.trim()}
+                      disabled={busy || !access.participate || !commentInputs[post.id]?.trim()}
                       onClick={() => void handleCreateComment(post.id)}
                     >
                       Gửi
@@ -374,6 +407,14 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
       </div>
 
       {/* Delete Confirmation Dialog */}
+      <Dialog busy={busy} open={Boolean(editingComment)} title="Sửa bình luận" onClose={()=>setEditingComment(null)}>
+        <form className="form-stack" onSubmit={event=>{event.preventDefault();void handleUpdateComment();}}>
+          <label>Nội dung bình luận<textarea value={commentEditContent} onChange={event=>setCommentEditContent(event.target.value)} maxLength={10000} required/></label>
+          <ErrorNotice message={error}/>
+          {unknown&&<p className="notice">Chưa rõ kết quả. Đóng và tải lại bảng tin để đối chiếu.</p>}
+          <button className="button primary" disabled={busy||unknown||!access.participate||!commentEditContent.trim()}>Lưu bình luận</button>
+        </form>
+      </Dialog>
       <Dialog
         busy={busy}
         open={!!deleteTarget}

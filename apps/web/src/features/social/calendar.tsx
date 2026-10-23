@@ -4,6 +4,8 @@ import Link from 'next/link';
 import type { CalendarEvent, Role, RouteParams, WorkspaceData } from '@/lib/domain';
 import { adapter } from '@/lib/data';
 import { Dialog, ErrorNotice, Icon, StatePanel } from '@/components/ui';
+import { calendarInputRange, calendarEditRange } from '@/lib/calendar-input';
+import {ApiError} from '@/lib/api/errors';
 import {
   generateCalendarGrid,
   generateWeekDays,
@@ -48,6 +50,8 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
   // Delete state
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [unknown,setUnknown]=useState(false);
+  useEffect(()=>{if(data?.kind==='ready'){setLocalEvents(null);setUnknown(false);setFormError(null);setEditError(null);setDeleteError(null);}},[data]);
 
   const contextKey = `${isGlobal ? 'global' : params.classId ?? 'class'}:${role}`;
   const initializedContextRef = useRef<string | null>(null);
@@ -72,6 +76,10 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
         });
         setSelectedEventId(null);
         setSelectedDate(null);
+        setLocalEvents(null);
+        setCreateDialogOpen(false);
+        setEditDialogOpen(false);
+        setDeleteDialogOpen(false);
       }
     }
   }, [data, contextKey]);
@@ -121,9 +129,9 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
     (selectedEventId ? monthEvents.find(e => e.id === selectedEventId) : null) ??
     monthEvents[0] ??
     null;
-  const isTeacher = role === 'LECTURER';
-
   const assignedClasses = readyData?.classes ?? (readyData?.classSummary ? [readyData.classSummary] : []);
+  const canManage=(classId:string|undefined)=>role==='LECTURER'&&assignedClasses.some(c=>c.id===classId&&c.status==='ACTIVE'&&(c.teachingRole==='PRIMARY'||c.teachingRole==='ASSISTING'||c.isAssignedTeacher===true));
+  const isTeacher=assignedClasses.some(c=>canManage(c.id));
   const todayDateStr = getInitialCalendarState(readyData?.displayDate).todayDate;
 
   function prevMonth() {
@@ -175,6 +183,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
 
   async function handleCreateEvent(e: React.FormEvent) {
     e.preventDefault();
+    if(busy||unknown)return;
     if (!newTitle.trim()) {
       setFormError('Vui lòng nhập tiêu đề sự kiện.');
       return;
@@ -185,21 +194,23 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
     setBusy(true);
     setFormError(null);
     try {
+      if (!targetClassId) throw new Error('Chọn lớp được phân công để tạo sự kiện.');
+      if(!canManage(targetClassId))throw new Error('Bạn chưa có phân công hiện hành trong lớp này.');
+      const range = calendarInputRange(newDate, newTimeRange);
       const created = await adapter.calendar.createEvent({
-        classId: targetClassId || undefined,
+        classId: targetClassId,
         className: targetClass?.name ?? 'Lớp học',
         title: newTitle.trim(),
         description: newDescription.trim() || undefined,
         category: 'CLASS',
-        date: newDate,
-        start: `${newDate}T07:00:00Z`,
-        timeRange: newTimeRange.trim() || undefined,
+        ...range,
         teacherName: isTeacher ? 'Giáo viên phụ trách' : undefined,
       });
       setLocalEvents([...events, created]);
       setSelectedEventId(created.id);
       setCreateDialogOpen(false);
     } catch (err: unknown) {
+      if(err instanceof ApiError&&err.outcome==='unknown')setUnknown(true);
       setFormError(err instanceof Error ? err.message : 'Chưa thể tạo sự kiện.');
     } finally {
       setBusy(false);
@@ -208,6 +219,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
 
   async function handleUpdateEvent(e: React.FormEvent) {
     e.preventDefault();
+    if(busy||unknown||!canManage(selectedEvent?.classId)||selectedEvent?.readOnly)return;
     if (!selectedEvent) return;
     if (!editTitle.trim()) {
       setEditError('Vui lòng nhập tiêu đề sự kiện.');
@@ -216,16 +228,18 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
     setBusy(true);
     setEditError(null);
     try {
-      const updated = await adapter.calendar.updateEvent(selectedEvent.id, {
+      if (!selectedEvent.classId) throw new Error('Thiếu ngữ cảnh lớp của sự kiện.');
+      const range = calendarEditRange(selectedEvent, editDate, editTimeRange);
+      const updated = await adapter.calendar.updateEvent(selectedEvent.classId, selectedEvent.id, {
         title: editTitle.trim(),
-        date: editDate,
-        timeRange: editTimeRange.trim() || undefined,
-        description: editDescription.trim() || undefined,
-        location: editLocation.trim() || undefined,
+        ...range,
+        description: editDescription.trim(),
+        ...(adapter.source==='mock'?{location:editLocation.trim()||undefined}:{}),
       });
-      setLocalEvents(prev => (prev ?? events).map(ev => (ev.id === updated.id ? updated : ev)));
+      setLocalEvents(prev => (prev ?? events).map(ev => (ev.id === updated.id ? {...ev,...updated} : ev)));
       setEditDialogOpen(false);
     } catch (err: unknown) {
+      if(err instanceof ApiError&&err.outcome==='unknown')setUnknown(true);
       setEditError(err instanceof Error ? err.message : 'Chưa thể cập nhật sự kiện.');
     } finally {
       setBusy(false);
@@ -233,15 +247,18 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
   }
 
   async function handleDeleteEvent() {
+    if(busy||unknown||!canManage(selectedEvent?.classId)||selectedEvent?.readOnly)return;
     if (!selectedEvent) return;
     setBusy(true);
     setDeleteError(null);
     try {
-      await adapter.calendar.deleteEvent(selectedEvent.id);
+      if (!selectedEvent.classId) throw new Error('Thiếu ngữ cảnh lớp của sự kiện.');
+      await adapter.calendar.deleteEvent(selectedEvent.classId, selectedEvent.id);
       setLocalEvents(prev => (prev ?? events).filter(ev => ev.id !== selectedEvent.id));
       setSelectedEventId(null);
       setDeleteDialogOpen(false);
     } catch (err: unknown) {
+      if(err instanceof ApiError&&err.outcome==='unknown')setUnknown(true);
       setDeleteError(err instanceof Error ? err.message : 'Chưa thể xóa sự kiện.');
     } finally {
       setBusy(false);
@@ -285,7 +302,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
   };
 
   const isSelectedEventEditable = Boolean(
-    isTeacher &&
+    canManage(selectedEvent?.classId) &&
       selectedEvent &&
       !selectedEvent.readOnly &&
       selectedEvent.category !== 'ASSIGNMENT' &&
@@ -296,8 +313,9 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
 
   return (
     <div className="calendar-feature">
+      {unknown&&<p className="notice">Chưa xác định kết quả thao tác. Tải lịch hiện tại và kiểm tra sự kiện trước khi gửi thao tác mới. <button className="button" onClick={reload}>Tải lại lịch</button></p>}
       {/* Calendar Toolbar */}
-      <div className="calendar-toolbar card padded">
+      <div className="cal-top-card card">
         <div className="cal-nav-group">
           <button className="icon-button" type="button" aria-label="Tháng trước" onClick={prevMonth}>
             <Icon name="chevronLeft" />
@@ -318,10 +336,10 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
         <div className="cal-controls-right">
           {/* Legend */}
           <div className="cal-legend" aria-label="Chú thích màu">
-            <span className="legend-item"><span className="dot dot-blue" />Sự kiện lớp</span>
-            <span className="legend-item"><span className="dot dot-amber" />Bài tập</span>
-            <span className="legend-item"><span className="dot dot-red" />Kiểm tra</span>
-            <span className="legend-item"><span className="dot dot-green" />Hoạt động khác</span>
+            <span className="cal-legend-item"><span className="cal-dot blue" />Sự kiện lớp</span>
+            <span className="cal-legend-item"><span className="cal-dot amber" />Bài tập</span>
+            <span className="cal-legend-item"><span className="cal-dot red" />Kiểm tra</span>
+            <span className="cal-legend-item"><span className="cal-dot green" />Hoạt động khác</span>
           </div>
 
           {/* View switcher */}
@@ -366,12 +384,12 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
       </div>
 
       {/* Main Grid + Detail Sidebar */}
-      <div className="calendar-main-grid">
+      <div className="cal-main-grid">
         {/* Left Column: Month / Week / List View */}
         <div className="cal-calendar-pane card">
           {viewMode === 'month' && (
             <div className="cal-month-table">
-              <div className="cal-weekdays-header">
+              <div className="cal-days-header">
                 <div>Thứ Hai (T2)</div>
                 <div>Thứ Ba (T3)</div>
                 <div>Thứ Tư (T4)</div>
@@ -381,7 +399,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
                 <div>Chủ Nhật (CN)</div>
               </div>
 
-              <div className="cal-days-grid">
+              <div className="cal-month-grid">
                 {calendarDays.map((cell, idx) => {
                   const dayEvents = events.filter(e => e.date === cell.dateString);
                   return (
@@ -395,7 +413,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
                       }}
                     >
                       <div className="cal-day-header">
-                        <span className="cal-day-number">{cell.dayNumber}</span>
+                        <span className="cal-day-num">{cell.dayNumber}</span>
                         {cell.isToday && <span className="today-chip">Hôm nay</span>}
                       </div>
                       <div className="cal-day-events">
@@ -432,7 +450,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
 
           {viewMode === 'week' && (
             <div className="cal-month-table">
-              <div className="cal-weekdays-header">
+              <div className="cal-days-header">
                 <div>Thứ Hai (T2)</div>
                 <div>Thứ Ba (T3)</div>
                 <div>Thứ Tư (T4)</div>
@@ -442,7 +460,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
                 <div>Chủ Nhật (CN)</div>
               </div>
 
-              <div className="cal-days-grid" style={{ gridTemplateRows: '1fr' }}>
+              <div className="cal-month-grid" style={{ gridTemplateRows: '1fr' }}>
                 {weekDays.map((cell, idx) => {
                   const dayEvents = events.filter(e => e.date === cell.dateString);
                   return (
@@ -457,7 +475,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
                       }}
                     >
                       <div className="cal-day-header">
-                        <span className="cal-day-number">{cell.dayNumber}</span>
+                        <span className="cal-day-num">{cell.dayNumber}</span>
                         {cell.isToday && <span className="today-chip">Hôm nay</span>}
                       </div>
                       <div className="cal-day-events">
@@ -533,7 +551,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
         {/* Right Column: Selected Event Detail Panel */}
         <aside className="cal-detail-aside">
           {selectedEvent ? (
-            <div className="card padded cal-detail-card">
+            <div className="card cal-event-detail-card">
               <div className="cal-detail-top">
                 <span className={`tag ${categoryColor[selectedEvent.category] ?? 'cal-badge-blue'}`}>
                   {categoryLabel[selectedEvent.category] ?? selectedEvent.category}
@@ -745,14 +763,14 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
             />
           </label>
 
-          <label htmlFor="edit-location">
+          {adapter.source==='mock'&&<label htmlFor="edit-location">
             Địa điểm
             <input
               id="edit-location"
               value={editLocation}
               onChange={e => setEditLocation(e.target.value)}
             />
-          </label>
+          </label>}
 
           <ErrorNotice message={editError} />
 

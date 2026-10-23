@@ -12,7 +12,7 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_DATA_MODE=live
-COPY --from=build --chown=node:node /app/package.json /app/package-lock.json /app/next.config.mjs ./
+COPY --from=build --chown=node:node /app/package.json /app/package-lock.json /app/next.config.mjs /app/server.mjs ./
 COPY --from=build --chown=node:node /app/config ./config
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/.next ./.next
