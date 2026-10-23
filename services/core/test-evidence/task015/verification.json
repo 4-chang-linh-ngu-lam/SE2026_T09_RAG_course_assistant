@@ -1,0 +1,42 @@
+{
+  "scope": "Backend Core only; official Web E2E excluded by user",
+  "recorded_date": "2026-10-19",
+  "branch": "feature/task-015-backend-security-tests",
+  "workspace_changes_committed": false,
+  "full_suite": {
+    "passed": 342,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 651.17,
+    "postgresql": "16.14",
+    "python": "3.12.14",
+    "coverage_enabled": true
+  },
+  "coverage": {
+    "line_percent": 93.51,
+    "branch_percent": 78.28,
+    "combined_percent": 90.80321285140562,
+    "identity_public_gate_percent": 100,
+    "identity_public_gate_tests": 17
+  },
+  "checks": {
+    "ruff_check": "passed",
+    "ruff_format_files": 139,
+    "git_diff_check": "passed",
+    "core_ci_yaml": "validated; not remotely run",
+    "apps_web_changes": false
+  },
+  "performance_report": "core-load-2026-10-19.json",
+  "runtime_report": "runtime.json",
+  "rule_report": "rule-results.json",
+  "full_core_g2_verified": false,
+  "additional_checks": {
+    "strengthened_full_manual_membership_comparison": {
+      "passed": 3,
+      "failed": 0,
+      "duration_seconds": 39.37,
+      "operations": 300,
+      "workers_per_scenario": 16
+    }
+  }
+}

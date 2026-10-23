@@ -1,14 +1,13 @@
 from alembic import context
 from sqlalchemy import engine_from_config, pool, text
 
-from app.common.audit import AuditEvent  # noqa: F401 -- register audit metadata for Alembic
 from app.common.config import settings
-from app.common.db import Base
-from app.modules.identity import models as identity_models  # noqa: F401 -- register Identity tables
+from app.maintenance.migration_safety import MIGRATION_LOCK, guard_downgrade, removed_revisions
+from app.model_registry import load_metadata
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
-target_metadata = Base.metadata
+target_metadata = load_metadata()
 
 
 def include_name(name, type_, parent_names):
@@ -17,6 +16,11 @@ def include_name(name, type_, parent_names):
 
 
 def run_migrations_offline() -> None:
+    starting = context.get_starting_revision_argument()
+    if starting is not None and removed_revisions(
+        context.script, starting, context.get_revision_argument()
+    ):
+        raise RuntimeError("Offline downgrade cannot validate data safety; use online migrations")
     context.configure(
         url=settings.database_url,
         target_metadata=target_metadata,
@@ -33,12 +37,10 @@ def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-    with connectable.connect() as connection:
+    with connectable.connect() as connection, connection.begin():
+        connection.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": MIGRATION_LOCK})
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS core"))
-        connection.commit()
-        connection.execute(text("SET search_path TO public"))
-        # End SQLAlchemy's implicit transaction so Alembic owns and commits its DDL transaction.
-        connection.commit()
+        connection.execute(text("SET LOCAL search_path TO public"))
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
@@ -46,8 +48,19 @@ def run_migrations_online() -> None:
             include_schemas=True,
             include_name=include_name,
         )
+        try:
+            destination = context.get_revision_argument()
+        except KeyError:  # check/autogenerate do not request a revision transition.
+            destination = "head"
         with context.begin_transaction():
+            guard_downgrade(
+                connection,
+                context.script,
+                context.get_context().get_current_revision(),
+                destination,
+            )
             context.run_migrations()
+    connectable.dispose()
 
 
 if context.is_offline_mode():

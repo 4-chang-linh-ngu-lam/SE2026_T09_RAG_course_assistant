@@ -1,5 +1,11 @@
 # Core FastAPI service
 
+Ưu tiên hiện tại là kết nối chức năng Web–Core: [bản sửa và nghiệm thu mới nhất](../../apps/web/docs/CORE_WEB_CONNECTION_FIXES_2026-10-23.md) ghi nhận 324 Web tests, build live, 22 nhóm HTTP và 5 nhóm thao tác Chrome đạt sau reset kernel/RTC WSL đã được duyệt. Tối ưu hiệu năng để sau; lượt này không sửa backend hay chạy lại toàn bộ backend suite.
+
+Trạng thái Core/Web và bằng chứng ngày 23/10/2026: [báo cáo hoàn thiện](../../apps/web/docs/CORE_COMPLETION_2026-10-23.md). Nghiệm thu giữ riêng backend, HTTP/render, browser, SMTP ngoài và hiệu năng client; không dùng một gate để chứng nhận các phần khác.
+
+Tiếp nối cùng ngày: [runtime/CI, sửa phương pháp tải và trạng thái nghiệm thu mới](../../apps/web/docs/CORE_RUNTIME_FOLLOWUP_2026-10-23.md). Runner Windows tạo fixture Docker riêng tại `tests/performance/run-class-list-load.ps1`; không bind thư viện Python từ ổ Windows để đo tải.
+
 Chuẩn bị môi trường theo `.env.example` tại root repo (chỉ mẫu local, không chứa credential production), rồi chạy tại root: `docker compose up --build -d`. Dùng Docker Compose v2 trở lên, Linux containers. Compose chờ PostgreSQL healthy → chạy service `migrate` một lần → chỉ khởi động Core khi migration thành công → khởi động Web khi Core healthy. Không sửa/xóa volume có sẵn để xử lý lỗi migration.
 
 - Liveness: http://localhost:8000/health/live
@@ -8,9 +14,154 @@ Chuẩn bị môi trường theo `.env.example` tại root repo (chỉ mẫu loc
 - Migration: `docker compose exec core alembic upgrade head`
 - Test cục bộ: `cd services/core && pip install -e '.[dev]' && pytest -q`
 
+## Kết nối Core Docker với Web local (Windows)
+
+Dùng cách này khi phát triển `apps/web` bằng Node trên máy, còn Core/PostgreSQL chạy trong Docker. Tại root repo, chuẩn bị `.env` được Git bỏ qua theo mẫu `.env.example`: DB credentials phải khớp `DATABASE_URL` với hostname `db`; đặt `SECRET_KEY`, `INTERNAL_SERVICE_SECRET`, `CORE_PROXY_SECRET` ngẫu nhiên riêng, mỗi secret ít nhất 32 ký tự. Với database dev mới có thể chọn `POSTGRES_DB=dev_lumi` và đổi tên DB cuối `DATABASE_URL` tương ứng. Giữ `CORS_ORIGINS=["http://localhost:3000"]`, `COOKIE_SECURE=false` cho HTTP local.
+
+```powershell
+# Chạy từ root repo; chỉ dựng backend, không dựng Web container.
+docker compose up --build -d db migrate core
+docker compose ps -a
+Invoke-RestMethod http://localhost:8000/health/ready
+docker compose exec -T core python -m alembic current
+```
+
+Trong `apps/web/.env.local` (cũng được Git bỏ qua):
+
+```dotenv
+NEXT_PUBLIC_DATA_MODE=live
+CORE_API_URL=http://localhost:8000
+WEB_ORIGIN=http://localhost:3000
+# CORE_PROXY_SECRET=<cùng key server-only riêng đã cấu hình ở Core>
+```
+
+```powershell
+# Chạy trong terminal riêng từ root repo.
+Set-Location apps/web
+npm.cmd run dev -- --hostname localhost --port 3000
+```
+
+Mở Web tại `http://localhost:3000/login` và Swagger tại `http://localhost:8000/docs`. Browser gọi `/api/v1` trên cổng 3000; Next proxy chuyển tiếp các operation Identity được cho phép tới Core. Dùng đúng origin `http://localhost:3000` để cookie/Origin checks khớp cấu hình. Sau khi sửa code backend, chạy lại lệnh Compose có `--build`; image hiện tại không mount source để tự reload. Dừng backend bằng `docker compose stop core db`; giữ volume để giữ dữ liệu.
+
+Đặt `CORE_PROXY_SECRET` cùng giá trị trong `.env` root và `.env.local` của Web trước khi chạy live. `npm run dev`/`npm start` dùng Node listener ký IP từ socket; Core xác minh context ngắn hạn để không gom mọi browser vào bucket của Next proxy. Không dùng `next dev` trực tiếp hoặc tin `X-Forwarded-For` do caller tự gửi. Signature không cấp quyền user/service. Chi tiết và review owner tại [API Contract](../../docs/architect/microservices-v1/core/API_CONTRACT.md#danh-tính-client-qua-web-proxy-security-fix-2026-10-22).
+
+Database mới chưa có tài khoản; tạo dữ liệu dev theo [runbook seed](migrations/README.md#seed-chính-thức-cho-devtest), với mật khẩu Admin do người chạy cung cấp. Health/401 chỉ xác nhận kết nối, chưa chứng nhận đăng nhập. Phạm vi Core đã duyệt hiện có **63 operation** ở Web (67 trong OpenAPI tính cả register bị chặn, health và internal), gồm [tám GET metadata](../../apps/web/docs/CORE_MISSING_READS_PROPOSAL_2026-10-22.md) cho quản trị tài khoản/lớp. Account DTO chỉ có bảy trường an toàn; Administration gọi Identity public interface. Danh mục, roster, phân công, ghi danh, lifecycle và status/roles dùng dữ liệu/phiên bản thực, không ép mô hình preview. Import history, invitation history/resend/revoke và executor/download dữ liệu cá nhân chưa có contract. Xem [API matrix](../../apps/web/docs/CORE_API_MATRIX_2026-10-22.md); không tự mở endpoint ngoài phạm vi được duyệt.
+
+Nếu JWT thỉnh thoảng bị 401 ngay sau login, kiểm tra đồng hồ Windows/WSL trước khi đổi logic xác thực. Trong môi trường local ngày 22/10/2026, Windows Time dừng và Windows nhanh hơn NTP khoảng 12,6 giây; NTP Ubuntu tác động cùng đồng hồ kernel WSL/Docker gây bước nhảy thời gian. Health DB vẫn 200 trong tình huống này. Không bỏ kiểm tra `iat` hoặc tăng leeway để che lỗi đồng hồ.
+
+```powershell
+# Chẩn đoán; không cần ghi token hoặc nội dung request.
+Get-Service W32Time
+w32tm /stripchart /computer:ntp.ubuntu.com /dataonly /samples:3
+wsl.exe -d Ubuntu -u root -- timedatectl timesync-status --no-pager
+
+# Chạy trong PowerShell Administrator để khởi động và đồng bộ nguồn đã cấu hình.
+Start-Service W32Time
+w32tm /resync /rediscover
+w32tm /query /status
+```
+
+Giữ nguyên chính sách thời gian của domain/Group Policy nếu máy được quản lý. Sau đồng bộ, kiểm tra lại NTP Ubuntu và đồng hồ Docker trong ít nhất một chu kỳ poll; không coi lệnh resync thành công là bằng chứng clock đã hết nhảy.
+
+Với máy dev Windows/WSL dùng đồng hồ kernel chung cho Ubuntu và Docker, chỉ để một nguồn điều chỉnh giờ. Khi đã xác nhận Windows `Leap Indicator: 0`, nguồn NTP hợp lệ và clock ổn định, giữ Windows Time chạy tự động và ngừng NTP Ubuntu đang cạnh tranh:
+
+```powershell
+# PowerShell Administrator; giữ nguyên server NTP đã được cấu hình.
+Set-Service W32Time -StartupType Automatic
+wsl.exe -d Ubuntu -u root -- timedatectl set-ntp false
+wsl.exe -d Ubuntu -u root -- timedatectl show -p NTP
+```
+
+Đây là hướng dẫn riêng cho môi trường Windows/WSL này, không áp dụng việc tắt NTP cho Linux server độc lập. Lần chẩn đoán 23/10/2026 xác nhận lại `ImmatureSignatureError` và offset Ubuntu khoảng1,28 giây khi W32Time dừng; xem [Web–Core connection follow-up](../../apps/web/docs/CORE_WEB_CONNECTION_FIXES_2026-10-23.md). Đo lại sau bước chỉnh giờ ban đầu trước khi kiểm thử JWT.
+
 Health contract: `/health/live` trả `{status:"live"}` (thay `{status:"ok"}` từ skeleton theo TASK-016); `/health/ready` trả `{status:"ready",db:"connected"}` khi kết nối và quyền USAGE schema `core` hợp lệ, ngược lại trả 503 error envelope. Liveness không phụ thuộc DB. Timeout kết nối/pool cấu hình bằng `DATABASE_CONNECT_TIMEOUT_SECONDS` và `DATABASE_POOL_TIMEOUT_SECONDS` (mặc định 3 giây).
 
-Common, Identity auth/profile/data requests và hai API Admin cấp tài khoản/mã Student đã triển khai. Classroom, Social, Notification và các API quản trị còn lại chưa triển khai. Migration 0001 khởi tạo baseline; 0002 tạo `core.audit_events`; 0003 tạo bốn bảng xác thực Identity; 0004 tạo `core.data_requests`; 0005 thêm CORRECTION; 0006 thêm username/school_id/activated_at và email nullable; 0007 thêm Student token purposes. Không dùng mật khẩu DB mặc định trong production.
+Common, Identity, Classroom Admin/access, Social, Notification và Administration backend đã triển khai. Data-request fulfillment thiếu policy/executor giữ IN_REVIEW, không tự xóa/xuất dữ liệu liên service. Migration 0001 khởi tạo baseline; 0002 tạo `core.audit_events`; 0003 tạo bốn bảng xác thực Identity; 0004 tạo `core.data_requests`; 0005 thêm CORRECTION; 0006 thêm username/school_id/activated_at và email nullable; 0007 thêm Student token purposes; 0008 tạo Classroom theo Lumi; 0009 tạo outbox; 0010 tạo feed, comments và calendar; 0011 tạo inbox và envelope/retry; 0012 thêm audit school scope/index và import drafts/results. Không dùng mật khẩu DB mặc định trong production.
+
+## Classroom (TASK-005–008)
+
+- Admin cùng trường tạo môn, lớp hành chính, roster, lớp môn học và phân công PRIMARY/ASSISTING. Học sinh không tự join/leave; giáo viên không tự tạo lớp, mời/chuyển chủ hay sửa roster. API thực tế theo [Core API Contract](../../docs/architect/microservices-v1/core/API_CONTRACT.md).
+- `AUTO` đồng bộ membership từ roster; `MANUAL` do Admin quản lý. Đổi MANUAL→AUTO cần preview và xác nhận đúng `class_version`/`roster_version`, stale trả 409. Chuyển học sinh giữa lớp MANUAL hoặc giữa hai lớp hành chính cùng năm/khối ghi mốc UTC và giữ từng đợt membership; AUTO đi theo roster. Lớp ARCHIVED chỉ đọc hoạt động chung, quyền lịch sử cá nhân vẫn kiểm tra riêng.
+- School row chỉ được tạo từ `school_id` đã có trong Identity của Admin; không tự map user cũ thiếu trường. Backend kiểm tra role/status/trường hiện hành; các service khác dùng `classroom.public.check_class_action` hoặc internal API với `X-Service-Key` và scope `core:check_access`. Document/Learning/AI vẫn phải kiểm tra quyền nguồn, chủ dữ liệu lịch sử và phân công bài nộp tương ứng.
+- Mutation quản trị quan trọng yêu cầu `X-Admin-Reason` thuộc `ADMIN_INTERVENTION`, `POLICY_VIOLATION`, `USER_REQUEST`; audit ghi reason_code đã kiểm tra. Outbox và snapshot người nhận ghi cùng transaction; worker Notification xử lý sau commit. Classroom HTTP Idempotency-Key hiện dùng RAM một process, còn cần cơ chế bền vững nếu chạy nhiều worker. Import CSV/XLSX đã có durable preview_id; mapping School legacy và policy Learning đối với attempt dở còn pending.
+- Kiểm tra contract/unit: `pytest tests/classroom/test_contract.py -W error`. Integration cần `TEST_DATABASE_URL` trỏ đến PostgreSQL test riêng: `pytest tests/classroom/test_integration.py -W error`; thiếu DB thì test bị skip và không được tính là bằng chứng đã chạy.
+
+## Social (TASK-009–011)
+
+- Feed: `GET/POST /api/v1/classes/{class_id}/posts`, `PATCH/DELETE /api/v1/classes/{class_id}/posts/{post_id}`. Comments lồng dưới post với GET/POST/PATCH/DELETE. Calendar dùng `GET/POST /api/v1/classes/{class_id}/calendar` và `PATCH/DELETE .../{event_id}`. Không có detail GET cho post và không có HTTP endpoint đồng bộ Learning.
+- Tất cả quyền lớp đi qua `classroom.public.check_class_action`; Comments chỉ xác minh post qua `social.feed.public.get_visible_post_ref`, không import model/repository Feed. Author response chỉ có `id,display_name`; Identity được batch lookup một lần mỗi trang, user không còn tồn tại trả tên null.
+- Người mất membership/assignment hiện hành không đọc hoặc ghi Social. ARCHIVED vẫn đọc, mọi ghi trả 409. Admin không được đọc; Admin cùng trường chỉ moderation DELETE, ghi audit reason code `POLICY_VIOLATION`. Post/comment soft-delete; CORE calendar event hard-delete; LEARNING projection read-only qua API.
+- Cursor là UUID bản ghi cuối trang nhưng repository tra timestamp trong đúng parent trước khi tiếp tục: Feed sắp `created_at DESC,id DESC`; Comments `created_at ASC,id ASC`; Calendar `starts_at ASC,id ASC`. Cursor parent khác trả 400.
+- Tạo post ghi `SOCIAL_POST_CREATED`; tạo comment cho tác giả khác ghi `SOCIAL_COMMENT_CREATED`; tạo/cập nhật projection deadline ghi `CALENDAR_DEADLINE_CHANGED`. Outbox và snapshot người nhận cùng transaction, payload không chứa body; recipient/delivery theo TASK-012 bên dưới.
+- Public Feed interface: `get_visible_post_ref(class_id, post_id, *, session=None) -> PostRefDTO | None`, chỉ trả `{id,class_id,author_id}` cho post chưa xóa. Internal Calendar helper `upsert_learning_deadline(...)` đang chờ contract TASK-019; event trùng/cũ không ghi đè.
+- Test nhanh: `pytest tests/social -q -W error`. Integration/migration: đặt `TEST_DATABASE_URL` tới PostgreSQL test riêng rồi chạy `pytest tests/integration/test_social.py -q -W error`; không có DB thì bị skip và không được tính là bằng chứng PostgreSQL.
+
+## Notification (TASK-012)
+
+- API đã đăng ký: `GET /api/v1/notifications?limit=&cursor=` → `{items,unread_count,next_cursor}`; `PATCH /api/v1/notifications/{id}/read` → `{id,read:true}`; `POST /api/v1/notifications/read-all` → 204. Bearer authentication lấy user hiện hành từ Identity; chỉ đọc/sửa inbox của chính mình. ID người khác/không tồn tại trả 404, cursor ngoài inbox trả 400. Response có `Cache-Control: no-store`.
+- Outbox thuộc Common: `record_outbox_event(session, *, event_type, aggregate_id, payload_json, schema_version=2, aggregate_version=None)` thêm event có UUID ổn định, không commit. `aggregate_version` mặc định lấy `payload.version`. V1 được dành cho event cũ không có snapshot người nhận và worker bỏ qua; V2 producer phải ghi snapshot cùng mutation trong một transaction. Lỗi enqueue phải rollback mutation. Không đưa token, activation/reset code hoặc nội dung riêng tư vào event.
+- `notification.public.snapshot_audience(session, class_id)` trả `{school_id,recipient_ids}` từ `classroom.public.get_notification_audience(class_id, *, session=None, homeroom=False) -> NotificationAudienceDTO | None`. Classroom bổ sung người vừa kết thúc membership/assignment vào snapshot thông báo thay đổi. Worker kiểm tra lại trường của từng người nhận qua Identity public; Social còn kiểm tra quyền lớp hiện hành và post chưa xóa. Thông báo chỉ chứa ID/phiên bản, không cấp quyền mở nguồn.
+- Worker riêng chạy tự động trong Compose sau migration: `docker compose logs notification-worker`. Chạy cục bộ tại `services/core`: `python -m app.modules.notification.worker`; xử lý một batch: `python -m app.modules.notification.worker --once --batch-size 100`. Poll mặc định 2 giây; không cần broker hoặc SMTP. Nhiều worker dùng `FOR UPDATE SKIP LOCKED`; insert inbox và `published_at` commit cùng nhau. Crash rollback cả hai, retry không tạo bản sao nhờ unique dedup key.
+- Retry dùng thời gian PostgreSQL, backoff 2..300 giây, không tự loại event sau một số lần thử. `attempts/available_at/last_error_code` hỗ trợ vận hành; log chỉ có event UUID và mã lỗi cố định. Event không thuộc allowlist để nguyên cho consumer tương ứng, envelope/payload không hợp lệ được giữ lại để kiểm tra và retry.
+- Inbox sắp theo sequence giao nhận giảm dần. Worker và API khóa transaction theo recipient; read-all chốt watermark sau khi lấy khóa, chỉ đánh dấu các thông báo đến trước ranh giới đó. Thông báo commit sau read-all vẫn unread. Event phiên bản cũ/trùng không ghi đè thông báo đã nhận; replay cùng type/aggregate/version được dedup, sự kiện không có version dùng event UUID.
+- Test: `pytest tests/notification -q -W error`. Test PostgreSQL cần `TEST_DATABASE_URL` trỏ server test riêng và account có `CREATEDB`: mỗi test tạo database tên `notification_test_<UUID>` rồi xóa đúng database đó. Không đặt biến này tới server production. Không có DB thì integration bị skip. Phạm vi API/schema/event tại [Core contract](../../docs/architect/microservices-v1/core/API_CONTRACT.md); Administration, SMTP credential delivery và Learning service đầy đủ còn ngoài task này.
+
+## Administration (TASK-013)
+
+- Chỉ Admin ACTIVE, email verified và school scope hiện hành. Staff create, role/status, audit và data-request API theo [Core contract](../../docs/architect/microservices-v1/core/API_CONTRACT.md#administration--implemented-task-013); Student create/issue-code tiếp tục dùng hai route Identity hiện có. Mutation yêu cầu header reason code, không nhận lý do tự do. Mọi response no-store; Identity/Classroom public chịu trách nhiệm audit nghiệp vụ, không ghi trùng ở Administration.
+- `POST /admin/users` nhận staff email + ADMIN/LECTURER, SMTP invitation không trả token. SMTP lỗi rollback user/invitation/audit; vẫn có giới hạn callback trước commit đã nêu ở Identity, chưa có credential outbox. PATCH status/PUT roles thu hồi phiên; không mở ACTIVE để bỏ qua activation hoặc tự chuyển credential Student/staff.
+- Role/status mutations có advisory transaction lock chung trước user locks, chống gỡ/khóa Admin ACTIVE cuối cùng đã verify và có school scope, kể cả cạnh tranh. School scope của actor/target lấy từ DB. Audit API chỉ trả `AuditEvent.school_id` cùng trường, lọc actor/action/time, cursor trong đúng filter, metadata allowlist; audit legacy thiếu scope vẫn giữ nguyên và bị ẩn, không tự suy mapping.
+- `POST /admin/students/imports/preview`: `{format:"CSV"|"XLSX",content_base64,homeroom_class_id?}`. Header `username` bắt buộc, `display_name,user_id` tùy chọn. Giới hạn 100 dòng, file 2 MB; XLSX một sheet, không formula, XML entity/DTD hoặc archive vượt giới hạn. Parser dùng openpyxl/defusedxml. Preview trả lỗi từng dòng, phát hiện trùng/cross-school, không phản chiếu input nhạy cảm.
+- Preview hợp lệ hết hạn 30 phút, lưu DB theo actor/school và fingerprints, không raw upload/code. `POST /admin/students/imports/confirm {preview_id}` recheck trạng thái/roster, commit cả batch accounts + tùy chọn append roster + AUTO sync/audit/outbox. Lỗi bất kỳ bước nào rollback tất cả; roster cũ được giữ, không ảnh hưởng MANUAL. `user_id` cho phép gọi helper chuyển username legacy, giữ UUID/hash/status và revoke phiên.
+- Confirm đầu trả mã chỉ cho tài khoản Student mới tạo; response code không vào durable results/cache/log. Retry/restart cùng preview trả user IDs/outcomes và `code:null`, `replayed:true`. Nếu mất response mã, cấp lại bằng route activation-codes đã có. Re-import username đã tồn tại dùng EXISTING, không tự reset code hoặc ghi đè display_name. Kết thúc confirm xóa staging rows, giữ kết quả ID/outcome; TTL preview không phải retention pháp lý.
+- Data-request ACCESS/EXPORT/CORRECTION/DELETE: list/detail theo trường, IN_REVIEW hoặc REJECTED có audit; quyết định terminal yêu cầu xác nhận đã kiểm tra danh tính. Theo lựa chọn người dùng 2026-10-18, yêu cầu COMPLETED khi chưa có policy/executor trả trạng thái thực IN_REVIEW, `resolution_note:POLICY_PENDING`, audit DEFERRED; cờ xác nhận không thay hành động thực tế. Note dùng mã allowlist trong contract, không chứa raw reason/chat. Không tự đọc chat, xóa hoặc xuất dữ liệu liên service.
+- Identity public mở rộng: `admin_actor`, `admin_update_user_roles`, `admin_check_student_import`, `admin_list_data_requests`, `admin_get_data_request`, `admin_resolve_data_request`; DTO/command export từ `identity.public`. `admin_create_user/admin_set_user_status` nhận thêm reason_code tùy chọn, giữ tương thích caller cũ. Explicit session do caller commit/rollback. Classroom public `admin_preview_roster/admin_append_roster` dùng session caller, không commit giữa import.
+- Kiểm thử: `pytest tests/administration -q -W error`; đặt TEST_DATABASE_URL tới PostgreSQL test riêng/account CREATEDB để chạy thật. Mỗi test tạo/xóa database `administration_test_<UUID>`. Ngày 2026-10-18: **38 test Administration**, **290 test toàn Core** đạt PostgreSQL 16, không skip; gate `identity.public` đạt 100% branch coverage. Đây là bằng chứng backend local, chưa thay thế CI/review/Web E2E.
+- Docker Core build + runtime smoke đạt: wheel trong site-packages, UID 10001, XLSX protection, Administration OpenAPI, migration/no drift và Notification worker --once trên PostgreSQL test.
+
+## Migrations và seed (TASK-014)
+
+Quy trình nâng cấp/rollback, mapping School và seed chính thức tại [runbook](migrations/README.md).
+Metadata tập trung tại `app/model_registry.py`; head hiện tại `0012`, không tạo revision
+rỗng hoặc sửa revision đã áp dụng. Online downgrade có guard giữ dữ liệu và transaction
+chung. CLI `python -m app.maintenance --help` có report, plan/apply mapping theo manifest
+và seed-dev cho database riêng `dev_`/`test_`. Mapping thực/FK users.school_id còn cần
+owner duyệt; không tự gán trường, kích hoạt hoặc mở LOCKED.
+
+Seed cần `CORE_SEED_ADMIN_PASSWORD` riêng qua môi trường, không có credential mặc định.
+Tạo School/Admin, staff invitation và Student activation, lớp khối 6–12 AUTO/MANUAL,
+PRIMARY/ASSISTING bằng workflow sở hữu, giữ audit/outbox; chạy lặp không reset dữ liệu.
+Test `pytest tests/maintenance -q -W error -p no:cacheprovider` cần PostgreSQL 16 test
+riêng và account CREATEDB. CI có migration/check/report trước tests; Compose vẫn chạy
+migrate trước Core/worker, không tự seed lúc startup.
+
+Kiểm chứng 2026-10-19: **313 test toàn Core**, gồm **23 test maintenance**, đạt trên
+PostgreSQL 16, không skip; Identity public gate **100%**, Ruff lint/format đạt.
+Docker wheel/non-root + migration/check + seed/repeat/report đạt. Xem TASK-014 để
+phân biệt bằng chứng local với review mapping dữ liệu thực và remote CI còn chờ.
+
+## Backend security/integration (TASK-015)
+
+[Test guide và ma trận](tests/README.md) mô tả backend-only scope, PostgreSQL 16,
+HTTP/public workflows, 100 thao tác cạnh tranh cho mỗi sync/transfer/import,
+module-boundary guard và script đo tải 10 phút. `tests/security/evidence.py` tạo
+Rule ID → scenario → kết quả từ JUnit; missing/skip không được ghi là đã xác minh.
+CI lưu evidence, có job đo tải riêng qua workflow_dispatch. Chưa có remote CI run
+khi chưa push; Web E2E và các service chưa triển khai được ghi rõ ngoài phạm vi/pending.
+
+Regression đã phát hiện/sửa: cache Classroom recheck tài nguyên hiện hành trước
+replay; request DB được queue trước dependency sync để tránh pool/thread starvation.
+Pool cấu hình `DATABASE_POOL_SIZE=5`, `DATABASE_MAX_OVERFLOW=10`, timeout mặc định
+3 giây; capacity request mỗi process chừa một slot khi có thể, queue quá hạn trả
+no-store 503/Retry-After. Health/OpenAPI bypass gate. Profile đo Core-06 dùng 15+0
+để giữ kết nối thay vì tạo/đóng overflow; báo cáo tách backend p95 khỏi client p95.
+
+Ngày 2026-10-19: **342 test đạt PostgreSQL 16**, không skip, coverage tổng **91%**,
+Identity public **100%**, lint/format **139 file** và backend Compose outage/recovery
+đạt. Bài đo 10 phút/100 user có backend p95 **96.51 ms**, success **99.9912%**;
+client p95 **15.58 giây** trên máy dùng chung với coverage/build, không suy ra hiệu
+năng end-user hoặc full TP-01. [Bằng chứng an toàn](test-evidence/task015/verification.json)
+và [chi tiết phạm vi](tests/README.md); chưa có remote CI/review.
 
 ## Common foundation (TASK-001)
 
@@ -19,9 +170,9 @@ Common, Identity auth/profile/data requests và hai API Admin cấp tài khoản
 - `get_current_user` dùng `get_user_lookup` để lấy `CurrentUser` hiện hành. Bootstrap đã nối dependency này với `identity.public.get_identity_user_lookup` truy vấn DB. Ứng dụng không dùng bootstrap vẫn fail closed khi chưa nối lookup. `require_roles` dùng role hiện hành từ lookup; quyền theo lớp vẫn do Classroom kiểm tra.
 - Request nội bộ dùng `X-Service-Key`, so sánh constant-time với `INTERNAL_SERVICE_SECRET`; dependency trả scope `core:check_access`. Endpoint nội bộ phải kiểm tra action/quyền lớp; không dùng JWT người dùng thay credential service.
 - Mọi response có `X-Correlation-ID` UUID; giữ UUID hợp lệ từ request hoặc sinh mới. Lỗi HTTP/validation/server trả envelope `error` và không phản chiếu input nhạy cảm. Resource ngoài quyền cần chủ động trả `AppError(404)`.
-- `get_pagination` giới hạn 1..100 (mặc định 20). Cursor mã hóa UUID cuối; truy vấn phải sắp xếp theo UUID và lọc `id > cursor`, lấy `limit + 1` để xác định `next_cursor`. Cursor không cấp quyền truy cập.
+- `get_pagination` giới hạn 1..100 (mặc định 20). Cursor mã hóa UUID cuối. Truy vấn sắp UUID trực tiếp lọc `id > cursor`; consumer có thứ tự nghiệp vụ khác phải tra UUID trong đúng scope để lấy tuple sắp xếp ổn định (Social dùng thời gian + ID). Luôn lấy `limit + 1` để xác định `next_cursor`; cursor không cấp quyền truy cập.
 - `get_db` cung cấp session; `transaction(session)` commit/rollback unit of work do caller sở hữu. Không lồng transaction này vào transaction khác. UUID dùng `uuid4` phía Python và `gen_random_uuid()` có sẵn trên PostgreSQL 16, không cần extension `uuid-ossp`.
-- `record_audit` thêm event vào cùng transaction, không tự commit. Chỉ truyền action/target type định danh từ code và `AuditMetadata` đã allowlist; không truyền mô tả tự do, token, mật khẩu, nội dung chat/tài liệu. Mở rộng metadata phải review theo K5/F7.
+- `record_audit` thêm event vào cùng transaction, không tự commit; school_id tùy chọn lấy từ backend, audit không có scope bị ẩn khỏi Admin API. Chỉ truyền action/target type định danh từ code và `AuditMetadata` allowlist (có changed_fields/reason_code và identity_verified cho data review); không truyền mô tả tự do, token, mật khẩu, nội dung chat/tài liệu. Mở rộng metadata phải review theo K5/F7.
 
 Kiểm tra tại `services/core`: `ruff check app/common/`, `pytest tests/test_common.py -W error`; kiểm tra toàn Core: `ruff check app tests migrations`, `pytest -W error`.
 
@@ -61,7 +212,7 @@ Kiểm thử HTTP/security/SMTP giả: `pytest tests/identity/test_router.py tes
 
 ## Identity public interface và data requests (TASK-004)
 
-Module khác chỉ import từ `app.modules.identity.public`; `UserSummaryDTO` gồm `id,email,username,school_id,status`, không chứa ORM/hash; email có thể null, username/school_id có thể null cho tài khoản chưa chuyển đổi. Public read functions: `get_user_summary`, `get_users_summaries`, `verify_user_active`, `get_user_roles`, `check_user_is_lecturer`. Batch fetch dùng một query, bỏ ID không tồn tại, không đọc hash; check lecturer yêu cầu trạng thái ACTIVE và role hiện hành. Tất cả nhận `session=` tùy chọn; khi bỏ qua, interface tự mở/đóng session. DB errors được truyền lên, không tự cấp quyền khi không xác minh được. Summary/role không thay thế kiểm tra quyền tài nguyên/trường của consumer.
+Module khác chỉ import từ `app.modules.identity.public`; `UserSummaryDTO` gồm `id,email,username,school_id,display_name,status`, không chứa ORM/hash; email/display_name có thể null, username/school_id có thể null cho tài khoản chưa chuyển đổi. Public read functions: `get_user_summary`, `get_users_summaries`, `verify_user_active`, `get_user_roles`, `check_user_is_lecturer`. Batch fetch dùng một query, bỏ ID không tồn tại, không đọc hash; check lecturer yêu cầu trạng thái ACTIVE và role hiện hành. Tất cả nhận `session=` tùy chọn; khi bỏ qua, interface tự mở/đóng session. DB errors được truyền lên, không tự cấp quyền khi không xác minh được. Consumer Social chỉ đưa `id` và `display_name` vào author response, không đưa email/username đăng nhập ra feed. Summary/role không thay thế kiểm tra quyền tài nguyên/trường của consumer.
 
 `admin_create_user(email, roles, *, actor_id, correlation_id, session=None, deliver=None)` là helper email legacy, trả `(UserSummaryDTO, SecretStr)`; tài khoản mới kế thừa school_id của actor. `admin_set_user_status(user_id, status, *, actor_id, correlation_id, session=None)` nhận ACTIVE/LOCKED và yêu cầu cùng trường. Actor phải ACTIVE đã xác minh, có ADMIN hiện hành; lấy actor từ backend authentication, không từ body browser. Thiếu school_id hoặc khác trường trả 404; tài khoản cũ phải được gán trường theo mapping được duyệt trước khi gọi Admin helpers. Hai thao tác ghi audit tối thiểu cùng transaction; không tạo audit trùng ở consumer. Nếu cung cấp session, caller commit/rollback; nếu không, interface tự commit. Actor/target được khóa theo UUID để tránh đảo thứ tự lock.
 
@@ -75,7 +226,7 @@ Email invitation qua `admin_create_user` chỉ nhận role ADMIN/LECTURER, từ 
 - Admin nhận mã một lần qua response no-store, giao trực tiếp qua kênh an toàn; không lưu/log hoặc đọc lại qua API. Mất response tạo tài khoản: username unique ngăn tạo trùng, Admin gọi issue-code để cấp mã mới. Create/issue-code/activate không nhận Idempotency-Key.
 - Python public: `admin_create_student(username, *, actor_id, correlation_id, display_name=None, session=None) -> StudentCode`; `admin_issue_student_code(user_id, *, actor_id, correlation_id, identity_verified=False, session=None) -> StudentCode`; `admin_assign_student_username(user_id, username, *, actor_id, correlation_id, session=None) -> UserSummaryDTO`. StudentCode chỉ chứa DTO/SecretStr/expiry/purpose, không ORM; repr giấu code. Transaction ownership giống Admin helpers hiện có.
 - Không tự chuyển Student cũ: Admin cùng trường gán username qua public helper (consumer Administration). UUID/email/hash/dữ liệu/status được giữ; ACTIVE/LOCKED phải đã verify email, đặt activated_at; LOCKED không tự mở, pending vẫn cần activation. Thu hồi phiên/token email cũ, audit cùng transaction. Username đã gán không được đổi qua helper; cùng username là no-op. Student không thể tiếp tục email login/forgot/verify/reset dù còn email lịch sử.
-- Migration không tự gán school_id; phải có mapping được duyệt trước khi dùng Admin helpers. School/FK và bulk CSV/Excel workflow còn thuộc Classroom/Administration. Public summary/role không tự cấp quyền tài nguyên.
+- Migration không tự gán school_id; phải có mapping được duyệt trước khi dùng Admin helpers. Bulk CSV/XLSX workflow và legacy username đã được Administration nối qua public interface; School/FK mapping dữ liệu cũ vẫn cần phương án được duyệt. Public summary/role không tự cấp quyền tài nguyên.
 
 Data request API:
 
@@ -91,7 +242,7 @@ Coverage public interface: `pytest tests/identity/test_public.py -W error --cov=
 ## Docker, migration và CI (TASK-016)
 
 - Core image multi-stage Python 3.12-slim: builder tạo wheel có `app`, runtime chỉ cài wheel/dependencies và copy migrations. Runtime UID/GID 10001, root filesystem read-only, `/tmp` tmpfs, drop capabilities/no-new-privileges. Một Uvicorn worker vì limiter/idempotency còn process-local; proxy headers tắt đến khi có cấu hình proxy tin cậy. Không tự tăng worker khi chưa có backend limiter/cache dùng chung.
-- PostgreSQL 16 dùng named volume `pgdata` theo project, port chỉ bind loopback. Các port cấu hình bằng `POSTGRES_PORT` (5432), `CORE_PORT` (8000), `WEB_PORT` (3000); cập nhật `NEXT_PUBLIC_CORE_API_URL` và `CORS_ORIGINS` tương ứng khi đổi port. `CORE_IMAGE` tùy chọn cho tag test độc lập, mặc định `rag-course-core:local`.
+- PostgreSQL 16 dùng named volume `pgdata` theo project, port chỉ bind loopback. Các port cấu hình bằng `POSTGRES_PORT` (5432), `CORE_PORT` (8000), `WEB_PORT` (3000); cập nhật `CORE_API_URL` phía Web server, `WEB_ORIGIN` và `CORS_ORIGINS` tương ứng khi đổi port. `CORE_IMAGE` tùy chọn cho tag test độc lập, mặc định `rag-course-core:local`.
 - DB credentials và `DATABASE_URL` cần khớp; URL-encode ký tự đặc biệt trong credential. Các default trong mẫu chỉ dùng local. Thay môi trường không tự đổi credential của volume PostgreSQL đã khởi tạo. Stack này chưa phải cấu hình production HA hoặc phân quyền DB cho cả năm service.
 - Kiểm tra cấu hình bằng `docker compose config --quiet` (không xuất nội dung secret). Xem trạng thái bằng `docker compose ps -a`; retry migration sau khi sửa nguyên nhân bằng `docker compose run --rm migrate`. Thay đổi schema luôn tạo revision mới; không sửa migration đã áp dụng.
 - `.github/workflows/core-ci.yml` chạy trên mọi PR và push main/feature/fix/codex: lint/format, PostgreSQL 16, upgrade/drift check, OpenAPI snapshot, toàn bộ tests có DB và coverage/JUnit artifact, public coverage 100%, Web build và Compose smoke riêng. Smoke kiểm tra non-root/package/migration/health/Web, dừng DB rồi kiểm tra 503/live và phục hồi. Cleanup chỉ project CI riêng, không prune Docker toàn cục.

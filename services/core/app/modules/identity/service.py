@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -23,6 +24,7 @@ from app.common.security import (
     hash_refresh_token,
     verify_password,
 )
+from app.modules.identity.admin_security import ensure_other_admin, lock_admin_changes
 from app.modules.identity.models import (
     AuthSession,
     DataRequest,
@@ -303,9 +305,13 @@ class IdentityService:
             return self.get_profile(user_id)
 
     def reset_password(
-        self, request: ResetPasswordRequest, *, correlation_id: UUID | None = None
+        self,
+        request: ResetPasswordRequest,
+        *,
+        correlation_id: UUID | None = None,
+        commit: bool = True,
     ) -> None:
-        with transaction(self.session):
+        with transaction(self.session) if commit else nullcontext(self.session):
             user, token = self._lock_one_time_token(
                 request.token.get_secret_value(),
                 (
@@ -367,6 +373,7 @@ class IdentityService:
         actor_id: UUID,
         correlation_id: UUID,
         deliver: Callable[[TokenDelivery], None] | None = None,
+        reason_code: str = "ADMIN_INTERVENTION",
     ) -> tuple[UserSummaryDTO, SecretStr]:
         """Caller owns commit; savepoint keeps user, invitation and audit atomic."""
         try:
@@ -395,6 +402,7 @@ class IdentityService:
                 record_audit(
                     self.session,
                     actor_id=actor_id,
+                    school_id=actor.school_id,
                     action="ADMIN_CREATE_USER",
                     target_type="USER",
                     target_id=user.id,
@@ -402,18 +410,12 @@ class IdentityService:
                     metadata_json=AuditMetadata(
                         changed_fields=["roles", "status"],
                         new_status=user.status.value,
-                        reason_code="ADMIN_INTERVENTION",
+                        reason_code=reason_code,
                     ),
                 )
                 if deliver is not None:
                     deliver(delivery)
-                return UserSummaryDTO(
-                    id=user.id,
-                    email=user.email,
-                    username=user.username,
-                    school_id=user.school_id,
-                    status=user.status,
-                ), delivery.token
+                return self._summary(user), delivery.token
         except IntegrityError as exc:
             if (
                 getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
@@ -429,8 +431,10 @@ class IdentityService:
         *,
         actor_id: UUID,
         correlation_id: UUID,
+        reason_code: str = "ADMIN_INTERVENTION",
     ) -> None:
         with self.session.begin_nested():
+            lock_admin_changes(self.session)
             users = self.repository.lock_users([actor_id, user_id])
             self._require_admin(users.get(actor_id))
             user = users.get(user_id)
@@ -439,10 +443,15 @@ class IdentityService:
             actor = users[actor_id]
             require_school_scope(actor.school_id, user.school_id)
             previous = user.status.value
+            if status == UserStatus.LOCKED and Role.ADMIN in self.repository.get_user_roles(
+                user.id
+            ):
+                ensure_other_admin(self.session, user.id)
             self._apply_status(user, status)
             record_audit(
                 self.session,
                 actor_id=actor_id,
+                school_id=user.school_id,
                 action="ADMIN_SET_USER_STATUS",
                 target_type="USER",
                 target_id=user.id,
@@ -451,7 +460,7 @@ class IdentityService:
                     changed_fields=["status"],
                     previous_status=previous,
                     new_status=user.status.value,
-                    reason_code="ADMIN_INTERVENTION",
+                    reason_code=reason_code,
                 ),
             )
 
@@ -573,8 +582,10 @@ class IdentityService:
             )
             return result
 
-    def activate_student(self, request: ActivateStudentRequest, *, correlation_id: UUID) -> None:
-        with transaction(self.session):
+    def activate_student(
+        self, request: ActivateStudentRequest, *, correlation_id: UUID, commit: bool = True
+    ) -> None:
+        with transaction(self.session) if commit else nullcontext(self.session):
             user, token = self._lock_one_time_token(
                 request.activation_code.get_secret_value(), TokenPurpose.STUDENT_ACTIVATION
             )
@@ -617,6 +628,7 @@ class IdentityService:
             email=user.email,
             username=user.username,
             school_id=user.school_id,
+            display_name=user.display_name,
             status=user.status,
         )
 
@@ -656,6 +668,7 @@ class IdentityService:
         record_audit(
             self.session,
             actor_id=actor_id,
+            school_id=user.school_id,
             action=action,
             target_type="USER",
             target_id=user.id,

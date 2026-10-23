@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     database_connect_timeout_seconds: int = Field(default=3, gt=0)
     database_pool_timeout_seconds: int = Field(default=3, gt=0)
+    database_pool_size: int = Field(default=5, gt=0)
+    database_max_overflow: int = Field(default=10, ge=0)
     # Health/migrations can start without keys; authentication fails closed until configured.
     secret_key: SecretStr | None = Field(default=None, min_length=32)
     algorithm: Literal["HS256"] = "HS256"
@@ -21,6 +23,8 @@ class Settings(BaseSettings):
     admin_invitation_expire_hours: int = Field(default=24, gt=0)
     student_activation_expire_hours: int = Field(default=24, gt=0)
     internal_service_secret: SecretStr | None = Field(default=None, min_length=32)
+    # Distinct server-only Web attestation key; never grants a user/service role.
+    core_proxy_secret: SecretStr | None = Field(default=None, min_length=32)
     cookie_secure: bool = True
     cookie_httponly: Literal[True] = True
     cookie_samesite: Literal["lax"] = "lax"

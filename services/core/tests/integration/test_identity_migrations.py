@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
@@ -87,7 +88,10 @@ def test_upgrade_preserves_legacy_identity_and_supports_no_email(migration_db):
             )
             == 1
         )
-        assert connection.scalar(text("SELECT version_num FROM core.alembic_version")) == "0007"
+        assert (
+            connection.scalar(text("SELECT version_num FROM core.alembic_version"))
+            == ScriptDirectory.from_config(config).get_current_head()
+        )
 
 
 def test_new_identity_migration_round_trip(migration_db):

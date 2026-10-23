@@ -10,6 +10,32 @@ from sqlalchemy.orm import Session
 
 from app.common.auth_dependencies import CurrentUser, UserLookup
 from app.common.db import SessionLocal, get_db, transaction
+from app.modules.identity.admin_public import (
+    admin_actor,
+    admin_check_student_import,
+    admin_get_data_request,
+    admin_get_user,
+    admin_list_data_requests,
+    admin_list_users,
+    admin_resolve_data_request,
+    admin_update_user_roles,
+)
+from app.modules.identity.admin_schemas import (
+    AdminReason,
+    AdminUserReadDTO,
+    DataResolutionCommand,
+    ResolutionNote,
+    RoleUpdateCommand,
+    StudentImportCheck,
+    StudentImportRow,
+)
+from app.modules.identity.email_delivery import get_token_sender
+from app.modules.identity.idempotency import Mutation, get_mutation
+from app.modules.identity.maintenance import (
+    bootstrap_dev_identity,
+    maintenance_assign_school,
+    maintenance_identity_report,
+)
 from app.modules.identity.models import RoleAssignment as _RoleAssignment
 from app.modules.identity.models import User as _User
 from app.modules.identity.models import UserStatus as _UserStatus
@@ -20,25 +46,47 @@ from app.modules.identity.schemas import AdminSetStatusRequest as _AdminSetStatu
 from app.modules.identity.schemas import (
     AssignStudentUsernameRequest as _AssignStudentUsernameRequest,
 )
-from app.modules.identity.schemas import UserSummaryDTO
+from app.modules.identity.schemas import DataRequestResponse, UserSummaryDTO
 from app.modules.identity.service import IdentityService as _IdentityService
 from app.modules.identity.service import StudentCode, TokenDelivery
 
 __all__ = [
+    "AdminReason",
+    "AdminUserReadDTO",
+    "DataRequestResponse",
+    "DataResolutionCommand",
+    "Mutation",
+    "ResolutionNote",
+    "RoleUpdateCommand",
     "StudentCode",
+    "StudentImportCheck",
+    "StudentImportRow",
     "TokenDelivery",
     "UserSummaryDTO",
+    "admin_actor",
     "admin_assign_student_username",
+    "admin_check_student_import",
     "admin_create_student",
     "admin_create_user",
+    "admin_get_data_request",
+    "admin_get_user",
     "admin_issue_student_code",
+    "admin_list_data_requests",
+    "admin_list_users",
+    "admin_resolve_data_request",
     "admin_set_user_status",
+    "admin_update_user_roles",
+    "bootstrap_dev_identity",
     "check_user_is_lecturer",
     "get_current_user_snapshot",
     "get_identity_user_lookup",
+    "get_mutation",
+    "get_token_sender",
     "get_user_roles",
     "get_user_summary",
     "get_users_summaries",
+    "maintenance_assign_school",
+    "maintenance_identity_report",
     "verify_user_active",
 ]
 
@@ -88,11 +136,16 @@ def admin_create_user(
     correlation_id: UUID,
     session: Session | None = None,
     deliver: Callable[[TokenDelivery], None] | None = None,
+    reason_code: str | None = None,
 ) -> tuple[UserSummaryDTO, SecretStr]:
     request = _AdminCreateUserRequest(email=email, roles=roles)
     with _session_scope(session, write=True) as db:
         return _IdentityService(db).admin_create_user(
-            request, actor_id=actor_id, correlation_id=correlation_id, deliver=deliver
+            request,
+            actor_id=actor_id,
+            correlation_id=correlation_id,
+            deliver=deliver,
+            **({"reason_code": reason_code} if reason_code is not None else {}),
         )
 
 
@@ -103,11 +156,16 @@ def admin_set_user_status(
     actor_id: UUID,
     correlation_id: UUID,
     session: Session | None = None,
+    reason_code: str | None = None,
 ) -> None:
     request = _AdminSetStatusRequest(status=status)
     with _session_scope(session, write=True) as db:
         _IdentityService(db).admin_set_user_status(
-            user_id, _UserStatus(request.status), actor_id=actor_id, correlation_id=correlation_id
+            user_id,
+            _UserStatus(request.status),
+            actor_id=actor_id,
+            correlation_id=correlation_id,
+            **({"reason_code": reason_code} if reason_code is not None else {}),
         )
 
 
@@ -179,6 +237,12 @@ def get_current_user_snapshot(session: Session, user_id: UUID) -> CurrentUser | 
 
 def get_identity_user_lookup(session: Annotated[Session, Depends(get_db)]) -> UserLookup:
     def lookup(user_id: UUID) -> CurrentUser | None:
-        return get_current_user_snapshot(session, user_id)
+        # Authentication must release its connection before the sync endpoint
+        # waits for a worker thread. Sharing the endpoint's lazy Session here
+        # can exhaust the pool with requests whose handlers have not run yet.
+        # Reuse its bind (including a caller-owned test transaction), not its
+        # unit of work; only the materialized DTO leaves this short read scope.
+        with Session(bind=session.get_bind(), autoflush=False, expire_on_commit=False) as lookup_db:
+            return get_current_user_snapshot(lookup_db, user_id)
 
     return lookup

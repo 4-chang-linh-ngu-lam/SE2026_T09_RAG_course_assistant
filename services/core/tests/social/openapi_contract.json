@@ -1,0 +1,12 @@
+{
+  "paths": {
+    "/api/v1/classes/{class_id}/calendar": ["get", "post"],
+    "/api/v1/classes/{class_id}/calendar/{event_id}": ["delete", "patch"],
+    "/api/v1/classes/{class_id}/posts": ["get", "post"],
+    "/api/v1/classes/{class_id}/posts/{post_id}": ["delete", "patch"],
+    "/api/v1/classes/{class_id}/posts/{post_id}/comments": ["get", "post"],
+    "/api/v1/classes/{class_id}/posts/{post_id}/comments/{comment_id}": ["delete", "patch"]
+  },
+  "author_properties": ["display_name", "id"],
+  "calendar_origin": ["CORE", "LEARNING"]
+}

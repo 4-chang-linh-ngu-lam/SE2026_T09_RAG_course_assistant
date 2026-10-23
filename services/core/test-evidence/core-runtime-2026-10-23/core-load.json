@@ -1,0 +1,76 @@
+{
+  "recorded_at_utc": "2026-10-22T19:10:55.673785+00:00",
+  "scope": "Core class-list HTTP API only; TP-01 Core subset, not full mixed-service TP-01",
+  "pending_services": [
+    "Document fixtures (20 x 10 MB/class)",
+    "Learning (30 questions/assessment)",
+    "AI",
+    "Learner Intelligence"
+  ],
+  "source_sha256": "731277e87ed4354df8a5838994e21facdf39619d3242ce4660801cfcef6563ea",
+  "application_sha256": "554be09af6a41af09c45a39a08be96e5f65b5d89a49441f576bf87d6975b52c1",
+  "environment": {
+    "os": "Linux",
+    "cpu": "",
+    "logical_cpus": 12,
+    "ram_bytes": 8186015744,
+    "python": "3.12.15",
+    "packages": {
+      "fastapi": "0.161.0",
+      "starlette": "1.9.0",
+      "httpx": "0.28.1",
+      "httpcore": "1.0.9",
+      "anyio": "4.15.1",
+      "uvicorn": "0.54.0"
+    },
+    "load_runtime": "image-linux-filesystem",
+    "application_artifact": "source-tree",
+    "postgresql": "16.14",
+    "migration": "0012",
+    "http": "Uvicorn one worker, loopback HTTP",
+    "process_isolation": "spawned server; separate interpreter/GIL and DB pool",
+    "server_pid": 56,
+    "load_generator_pid": 1,
+    "database": "Dedicated disposable PostgreSQL; route supplied by test environment",
+    "pool_size": 15,
+    "max_overflow": 0,
+    "queue_broker": "none; Core transactional outbox",
+    "ai_model": "not involved",
+    "region": "local",
+    "background_activity": "Shared development host; no CPU/RAM reservation"
+  },
+  "load": {
+    "users": 100,
+    "classes": 10,
+    "students_per_class": 50,
+    "warmup_seconds": 30,
+    "configured_seconds": 600,
+    "elapsed_seconds": 601.9770722430039,
+    "think_seconds": 1.0,
+    "schedule": "closed-loop users, evenly staggered within one think interval; one persistent HTTP client/pool per user through warmup/measurement"
+  },
+  "requests": 34757,
+  "status_counts": {
+    "200": 34756,
+    "503": 1
+  },
+  "client_error_counts": {},
+  "client_error_reasons": {},
+  "event_loop_lag": {
+    "sample_interval_ms": 10,
+    "client_samples": 53791,
+    "client_p95_ms": 3.9811849949182943,
+    "client_max_ms": 308.07699499768205,
+    "server_samples": 34917,
+    "server_p95_ms": 20.5025729976478,
+    "server_max_ms": 198.3539759987616
+  },
+  "success_ratio": 0.9999712288172167,
+  "backend_samples": 34757,
+  "backend_p95_ms": 2430.0476470016292,
+  "client_p95_ms": 2402.9077160012093,
+  "client_max_ms": 3466.536444997473,
+  "wrong_scope_responses": 0,
+  "passed_core_thresholds": false,
+  "full_tp01_verified": false
+}

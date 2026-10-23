@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.modules.identity.admin_schemas import AdminUserReadDTO
 from app.modules.identity.models import (
     AuthSession,
     DataRequest,
@@ -31,13 +32,59 @@ class IdentityRepository:
             query = query.with_for_update().execution_options(populate_existing=True)
         return self.session.scalar(query)
 
+    def admin_user_projection(self, school_id: UUID, user_id: UUID) -> AdminUserReadDTO | None:
+        users = self._admin_user_projections(
+            select(User.id).where(User.school_id == school_id, User.id == user_id)
+        )
+        return users[0] if users else None
+
+    def admin_user_projections(
+        self, school_id: UUID, *, limit: int, cursor: UUID | None
+    ) -> list[AdminUserReadDTO]:
+        query = select(User.id).where(User.school_id == school_id)
+        if cursor is not None:
+            query = query.where(User.id > cursor)
+        # Limit accounts before joining roles so a multi-role account stays complete.
+        return self._admin_user_projections(query.order_by(User.id).limit(limit + 1))
+
+    def _admin_user_projections(self, ids) -> list[AdminUserReadDTO]:
+        rows = self.session.execute(
+            select(
+                User.id,
+                User.email,
+                User.username,
+                User.school_id,
+                User.display_name,
+                User.status,
+                RoleAssignment.role,
+            )
+            .outerjoin(RoleAssignment, RoleAssignment.user_id == User.id)
+            .where(User.id.in_(ids))
+            .order_by(User.id, RoleAssignment.role)
+        ).all()
+        accounts = {}
+        for row in rows:
+            if row.id not in accounts:
+                accounts[row.id] = AdminUserReadDTO(
+                    id=row.id,
+                    email=row.email,
+                    username=row.username,
+                    school_id=row.school_id,
+                    display_name=row.display_name,
+                    status=row.status,
+                    roles=[],
+                )
+            if row.role is not None:
+                accounts[row.id].roles.append(str(row.role))
+        return list(accounts.values())
+
     def get_users_summaries(self, user_ids: list[UUID]) -> dict[UUID, UserSummaryDTO]:
         if not user_ids:
             return {}
         rows = self.session.execute(
-            select(User.id, User.email, User.username, User.school_id, User.status).where(
-                User.id.in_(user_ids)
-            )
+            select(
+                User.id, User.email, User.username, User.school_id, User.display_name, User.status
+            ).where(User.id.in_(user_ids))
         ).all()
         return {
             row.id: UserSummaryDTO(
@@ -45,6 +92,7 @@ class IdentityRepository:
                 email=row.email,
                 username=row.username,
                 school_id=row.school_id,
+                display_name=row.display_name,
                 status=row.status,
             )
             for row in rows

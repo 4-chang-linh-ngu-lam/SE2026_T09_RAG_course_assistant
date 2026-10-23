@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from typing import Annotated
 from unittest.mock import Mock
@@ -21,7 +22,7 @@ from app.common.auth_dependencies import (
 )
 from app.common.config import Settings, settings
 from app.common.db import transaction
-from app.common.errors import AppError, register_error_handlers
+from app.common.errors import AppError, CorrelationIdMiddleware, register_error_handlers
 from app.common.pagination import Page, Pagination, decode_cursor, encode_cursor, get_pagination
 from app.common.security import (
     create_access_token,
@@ -187,6 +188,67 @@ def test_correlation_id(test_app, header):
     assert str(UUID(returned)) == returned
     if header not in (None, "invalid"):
         assert returned == header
+
+
+def test_correlation_preserves_streaming_and_dependency_cleanup_on_cancellation():
+    async def scenario():
+        correlation_id, messages = str(uuid4()), []
+        started, cleaned = asyncio.Event(), asyncio.Event()
+
+        async def app(scope, receive, send):
+            assert scope["state"]["correlation_id"] == correlation_id
+            try:
+                await send({"type": "http.response.start", "status": 200, "headers": []})
+                await send({"type": "http.response.body", "body": b"part", "more_body": True})
+                started.set()
+                await receive()
+            finally:
+                cleaned.set()
+
+        async def receive():
+            await asyncio.Event().wait()
+
+        async def send(message):
+            messages.append(message)
+
+        task = asyncio.create_task(
+            CorrelationIdMiddleware(app)(
+                {
+                    "type": "http",
+                    "headers": [(b"x-correlation-id", correlation_id.encode())],
+                },
+                receive,
+                send,
+            )
+        )
+        await started.wait()
+        assert messages[1]["more_body"] is True
+        assert dict(messages[0]["headers"])[b"x-correlation-id"].decode() == correlation_id
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert cleaned.is_set()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("scope_type", ["lifespan", "websocket"])
+def test_correlation_leaves_non_http_messages_untouched(scope_type):
+    scope, message, sent = {"type": scope_type}, {"type": "synthetic"}, []
+
+    async def app(actual_scope, receive, send):
+        assert actual_scope is scope
+        await send(message)
+
+    async def unused():
+        pass
+
+    async def capture(actual_message):
+        sent.append(actual_message)
+
+    asyncio.run(CorrelationIdMiddleware(app)(scope, unused, capture))
+    assert sent == [message]
+    assert "state" not in scope
 
 
 def test_errors_redact_details(test_app):

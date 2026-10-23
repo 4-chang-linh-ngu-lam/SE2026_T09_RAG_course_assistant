@@ -1,3 +1,7 @@
+import base64
+import hashlib
+import hmac
+import json
 import smtplib
 from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
@@ -58,6 +62,85 @@ def test_client_ip_does_not_trust_forwarded_headers():
     assert client_identity(request({"X-Forwarded-For": "attacker", "X-Real-IP": "attacker"})) == (
         "127.0.0.1"
     )
+
+
+def attested_request(ip, *, key, at=100, method="POST", path="/api/v1/auth/login", **changes):
+    claim = {"v": 1, "ip": ip, "at": at, "method": method, "path": path, **changes}
+    payload = base64.urlsafe_b64encode(json.dumps(claim).encode()).decode().rstrip("=")
+    signature = hmac.new(key.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    result = request({"x-lumi-client-context": payload + "." + signature})
+    result.scope.update(method="POST", path="/api/v1/auth/login", scheme="http", query_string=b"")
+    return result
+
+
+@pytest.fixture
+def proxy_key(monkeypatch):
+    value = "test-only-proxy-key-" + "x" * 32
+    monkeypatch.setattr(settings, "core_proxy_secret", SecretStr(value))
+    monkeypatch.setattr("app.modules.identity.http_security.time.time", lambda: 100)
+    return value
+
+
+@pytest.mark.parametrize(
+    "ip,expected",
+    [("192.0.2.1", "192.0.2.1"), ("2001:db8::1", "2001:db8::1"), ("::ffff:192.0.2.1", "192.0.2.1")],
+)
+def test_verified_proxy_context_uses_attested_client_not_proxy_peer(proxy_key, ip, expected):
+    assert client_identity(attested_request(ip, key=proxy_key)) == expected
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"at": 69},
+        {"at": 131},
+        {"at": True},
+        {"v": True},
+        {"v": 2},
+        {"method": "GET"},
+        {"path": "/api/v1/auth/refresh"},
+        {"ip": "attacker"},
+        {"ip": "fe80::1%scope"},
+    ],
+)
+def test_invalid_or_replayed_proxy_context_is_rejected(proxy_key, changes):
+    params = {"ip": "192.0.2.1", "key": proxy_key, **changes}
+    with pytest.raises(AppError) as raised:
+        client_identity(attested_request(**params))
+    assert raised.value.status_code == 403
+
+
+def test_forged_duplicate_and_unconfigured_proxy_context_fail_closed(monkeypatch, proxy_key):
+    forged = attested_request("192.0.2.1", key="wrong-key-" + "y" * 32)
+    duplicate = attested_request("192.0.2.1", key=proxy_key)
+    duplicate.scope["headers"] *= 2
+    for value in (forged, duplicate, request({"x-lumi-client-context": "forged"})):
+        with pytest.raises(AppError) as raised:
+            client_identity(value)
+        assert raised.value.status_code == 403
+    monkeypatch.setattr(settings, "core_proxy_secret", None)
+    with pytest.raises(AppError) as raised:
+        client_identity(attested_request("192.0.2.1", key=proxy_key))
+    assert raised.value.status_code == 503
+
+
+def test_attested_clients_have_separate_ip_buckets_but_keep_identifier_limit(proxy_key):
+    limiter = RateLimiter(lambda: 0)
+    first = client_identity(attested_request("192.0.2.1", key=proxy_key))
+    second = client_identity(attested_request("192.0.2.2", key=proxy_key))
+    for index in range(5):
+        with pytest.raises(AppError), limiter.login_attempt(first, f"synthetic-{index}"):
+            raise AppError(401)
+    with limiter.login_attempt(second, "unrelated-account"):
+        pass
+    for ip, account in ((first, "another-account"), (second, "synthetic-0")):
+        if account == "synthetic-0":
+            for _ in range(4):
+                with pytest.raises(AppError), limiter.login_attempt(second, account):
+                    raise AppError(401)
+        with pytest.raises(AppError) as raised, limiter.login_attempt(ip, account):
+            pass
+        assert raised.value.status_code == 429
 
 
 def test_login_limiter_counts_failures_by_ip_and_email():

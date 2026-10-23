@@ -10,6 +10,7 @@ def identity_contract() -> dict:
         path: value
         for path, value in spec["paths"].items()
         if path.startswith(("/api/v1/auth/", "/api/v1/users/me", "/api/v1/admin/students"))
+        and "/imports/" not in path
     }
     needed = set()
 
@@ -54,6 +55,9 @@ def test_openapi_auth_contract_shapes():
         "$ref"
     ].endswith("/ErrorEnvelope")
     assert "CORRECTION" in contract["schemas"]["DataRequestType"]["enum"]
+    summary = contract["schemas"]["UserSummaryDTO"]
+    assert "display_name" in summary["properties"]
+    assert "display_name" not in summary["required"]
     assert [entry["required"] for entry in contract["schemas"]["LoginRequest"]["oneOf"]] == [
         ["email"],
         ["username"],

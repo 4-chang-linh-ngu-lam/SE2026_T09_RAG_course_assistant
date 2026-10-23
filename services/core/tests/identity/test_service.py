@@ -110,6 +110,31 @@ def raw(tokens):
     return tokens.refresh_token.get_secret_value()
 
 
+def test_auth_lookup_releases_connection_before_endpoint_and_reads_current_status(identity, engine):
+    session, _, register = identity
+    _, registered = register()
+    user_id = registered.response.user_id
+    constrained = create_engine(
+        engine.url, hide_parameters=True, pool_size=1, max_overflow=0, pool_timeout=0.1
+    )
+    try:
+        with Session(constrained) as endpoint_session:
+            lookup = public.get_identity_user_lookup(endpoint_session)
+            assert lookup(user_id).status == "ACTIVE"
+            assert not endpoint_session.in_transaction()
+            assert constrained.pool.checkedout() == 0
+            # The endpoint can acquire the only connection without waiting for
+            # request-dependency teardown or increasing pool/thread limits.
+            assert endpoint_session.scalar(select(User.id).where(User.id == user_id)) == user_id
+            endpoint_session.rollback()
+            session.get(User, user_id).status = UserStatus.LOCKED
+            session.commit()
+            assert lookup(user_id).status == "LOCKED"
+            assert constrained.pool.checkedout() == 0
+    finally:
+        constrained.dispose()
+
+
 def expect_error(status, operation):
     with pytest.raises(AppError) as raised:
         operation()
@@ -448,6 +473,8 @@ def test_public_batch_fetch_reads_one_query_without_hashes(identity, engine):
     _, first = register()
     _, second = register(active=False)
     ids = [first.response.user_id, second.response.user_id]
+    session.get(User, ids[0]).display_name = "Student One"
+    session.flush()
     queries = []
 
     def capture(connection, cursor, statement, parameters, context, executemany):
@@ -460,6 +487,8 @@ def test_public_batch_fetch_reads_one_query_without_hashes(identity, engine):
         event.remove(engine, "before_cursor_execute", capture)
     assert set(summaries) == set(ids)
     assert len(queries) == 1 and "password_hash" not in queries[0]
+    assert summaries[ids[0]].display_name == "Student One"
+    assert summaries[ids[1]].display_name is None
     assert summaries[ids[1]].status == "PENDING_VERIFICATION"
     assert public.get_users_summaries([], session=session) == {}
     assert public.verify_user_active(ids[0], session=session)

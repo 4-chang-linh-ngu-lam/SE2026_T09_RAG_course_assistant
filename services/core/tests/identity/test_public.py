@@ -31,7 +31,14 @@ def test_summary_batch_and_roles_only_use_public_dtos(boundary):
     assert public.get_user_summary(user_id, session=db) == dto
     assert public.get_users_summaries([user_id, user_id], session=db) == {user_id: dto}
     assert public.verify_user_active(user_id)
-    assert set(dto.model_dump()) == {"id", "email", "username", "school_id", "status"}
+    assert set(dto.model_dump()) == {
+        "id",
+        "email",
+        "username",
+        "school_id",
+        "display_name",
+        "status",
+    }
     repository.get_users_summaries.return_value = {}
     assert public.get_user_summary(uuid4()) is None
     assert not public.verify_user_active(uuid4(), session=db)
@@ -50,11 +57,17 @@ def test_student_summary_without_email_preserves_school(boundary):
     _, repository, _ = boundary
     user_id, school_id = uuid4(), uuid4()
     dto = public.UserSummaryDTO(
-        id=user_id, email=None, username="student.test", school_id=school_id, status="ACTIVE"
+        id=user_id,
+        email=None,
+        username="student.test",
+        school_id=school_id,
+        display_name="Học sinh kiểm thử",
+        status="ACTIVE",
     )
     repository.get_users_summaries.return_value = {user_id: dto}
     assert public.get_user_summary(user_id) == dto
     assert dto.model_dump()["email"] is None
+    assert dto.display_name == "Học sinh kiểm thử"
     assert "hash" not in dto.model_dump()
 
 
@@ -82,7 +95,17 @@ def test_snapshot_lecturer_and_dependency_lookup(boundary, status, role, expecte
     snapshot = public.get_current_user_snapshot(db, user_id)
     assert snapshot.school_id == row.school_id
     assert snapshot.roles == ([role] if role else [])
-    assert public.get_identity_user_lookup(db)(user_id) == snapshot
+    lookup_db = MagicMock(spec=Session)
+    lookup_db.__enter__.return_value = lookup_db
+    lookup_db.execute.return_value.all.return_value = [row]
+    with pytest.MonkeyPatch.context() as patch:
+        factory = Mock(return_value=lookup_db)
+        patch.setattr(public, "Session", factory)
+        assert public.get_identity_user_lookup(db)(user_id) == snapshot
+        factory.assert_called_once_with(
+            bind=db.get_bind.return_value, autoflush=False, expire_on_commit=False
+        )
+        lookup_db.__exit__.assert_called_once()
     assert public.check_user_is_lecturer(user_id, session=db) is expected
     db.execute.return_value.all.return_value = []
     assert public.get_current_user_snapshot(db, uuid4()) is None
@@ -131,6 +154,30 @@ def test_public_errors_propagate_without_fail_open(boundary):
             "user@example.com", ["LECTURER"], actor_id=uuid4(), correlation_id=uuid4()
         )
     db.rollback.assert_called_once()
+
+
+def test_admin_reason_codes_forward_to_owner_without_new_transaction(boundary):
+    db, _, service = boundary
+    actor_id, user_id, correlation_id = uuid4(), uuid4(), uuid4()
+    public.admin_create_user(
+        "staff@example.com",
+        ["LECTURER"],
+        actor_id=actor_id,
+        correlation_id=correlation_id,
+        reason_code="USER_REQUEST",
+        session=db,
+    )
+    assert service.admin_create_user.call_args.kwargs["reason_code"] == "USER_REQUEST"
+    public.admin_set_user_status(
+        user_id,
+        "LOCKED",
+        actor_id=actor_id,
+        correlation_id=correlation_id,
+        reason_code="POLICY_VIOLATION",
+        session=db,
+    )
+    assert service.admin_set_user_status.call_args.kwargs["reason_code"] == "POLICY_VIOLATION"
+    db.commit.assert_not_called()
 
 
 @pytest.mark.parametrize("owned", [True, False])

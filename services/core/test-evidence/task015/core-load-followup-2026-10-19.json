@@ -1,0 +1,51 @@
+{
+  "recorded_at_utc": "2026-10-18T19:58:53.695402+00:00",
+  "scope": "Core class-list HTTP API only; TP-01 Core subset, not full mixed-service TP-01",
+  "pending_services": [
+    "Document fixtures (20 x 10 MB/class)",
+    "Learning (30 questions/assessment)",
+    "AI",
+    "Learner Intelligence"
+  ],
+  "source_sha256": "ad4f07e63963eff1ca7002422d401d138eb9baa7b8bb182b2f26d14a4194f80c",
+  "application_sha256": "0569fe7cf61aa8cbdff7e2bca82e5e432dc7469e910621593e93b0e4dfe37b7a",
+  "environment": {
+    "os": "Windows",
+    "cpu": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+    "logical_cpus": 16,
+    "ram_bytes": 8259358720,
+    "python": "3.12.14",
+    "postgresql": "16.15",
+    "migration": "0012",
+    "http": "Uvicorn one worker, loopback HTTP",
+    "database": "PostgreSQL Docker on loopback",
+    "pool_size": 15,
+    "max_overflow": 0,
+    "queue_broker": "none; Core transactional outbox",
+    "ai_model": "not involved",
+    "region": "local",
+    "background_activity": "Shared development workstation; backend tests/build checks may run during part of measurement; no resource isolation"
+  },
+  "load": {
+    "users": 100,
+    "classes": 10,
+    "students_per_class": 50,
+    "warmup_seconds": 30,
+    "configured_seconds": 600,
+    "elapsed_seconds": 601.0033914000014,
+    "think_seconds": 1,
+    "schedule": "closed-loop users, evenly staggered within one think interval; same HTTP connection pool through warmup/measurement"
+  },
+  "requests": 56229,
+  "status_counts": {
+    "200": 56229
+  },
+  "success_ratio": 1.0,
+  "backend_samples": 56229,
+  "backend_p95_ms": 18.785500000376487,
+  "client_p95_ms": 1170.627700001205,
+  "client_max_ms": 9993.474700000661,
+  "wrong_scope_responses": 0,
+  "passed_core_thresholds": true,
+  "full_tp01_verified": false
+}

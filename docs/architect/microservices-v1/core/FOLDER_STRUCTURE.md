@@ -1,6 +1,6 @@
 # Quy ước tổ chức mã nguồn Core Service
 
-**Trạng thái:** BASELINE QUY ƯỚC THƯ MỤC; skeleton/Common/Identity đã có triển khai, các module khác trong cây là mục tiêu. **Phạm vi:** `services/core/` trong **một monorepo**; Core là **một FastAPI microservice**, không tách module nội bộ thành các service riêng.
+**Trạng thái:** BASELINE QUY ƯỚC THƯ MỤC; cập nhật 23/10/2026: Common, Identity, Classroom, Social/Calendar, Notification và Administration/import đã có triển khai. Cây dưới đây vẫn chứa mục tiêu lịch sử; đối chiếu source/API_CONTRACT cho file và endpoint thực tế. **Phạm vi:** `services/core/` trong **một monorepo**; Core là **một FastAPI microservice**, không tách module nội bộ thành các service riêng.
 
 ## 1. Mục tiêu và cách đọc
 - Người mới biết đặt file ở đâu, mỗi thư mục chịu trách nhiệm gì, ai thường sửa.
