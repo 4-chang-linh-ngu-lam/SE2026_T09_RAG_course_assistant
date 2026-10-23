@@ -1,5 +1,7 @@
 # Lumi Web
 
+For a reproducible local live demo, public **development-only** Admin credentials and the full Admin/Student/Teacher test walkthrough, start with the [repository README](../../README.md#core-web-demo). Its separate demo stack uses Web port 3100; existing local accounts on 3000 keep their own credentials.
+
 Current functional Web–Core work: [connection fixes, 23 October 2026](docs/CORE_WEB_CONNECTION_FIXES_2026-10-23.md). Earlier implementation evidence: [Core completion report](docs/CORE_COMPLETION_2026-10-23.md). Performance optimization is deferred under the current scope.
 
 Next.js frontend scaffold in the product monorepo. Route/layout coverage is not completion of the 104 designs. Feature ownership and unimplemented integrations are explicit in `docs/FRONTEND.md` and `src/lib/data/integrations.ts`.
