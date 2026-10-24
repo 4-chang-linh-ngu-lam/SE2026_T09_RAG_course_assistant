@@ -131,6 +131,8 @@ export function createNotificationReadController(deps: NotificationReadDependenc
     const ids = target.kind === 'one' ? [target.id] : [...target.ids];
     if ((!ids.length && (target.kind === 'one' || state.unreadCount === 0)) || ids.some(id => !unread.some(item => item.id === id))) return 'ignored';
     const requestOperation = ++operation;
+    // A GET started before this write cannot acknowledge or undo its outcome.
+    activeSnapshot = null;
     busy = true;
     issue = null;
     emit();

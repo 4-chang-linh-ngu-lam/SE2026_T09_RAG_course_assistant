@@ -1,6 +1,7 @@
 import type { DataAdapter } from './port';
 import type { User } from '../domain';
 import { createHttpClient } from '../api/http';
+import {createDocumentHttpClient} from '../api/document-http';
 import { ApiError } from '../api/errors';
 import { decodeCode, decodeMutation, decodeRequest, decodeRequests, decodeToken, decodeUser } from '../api/decoders';
 import { notifyAuthenticationLost } from '../auth-events';
@@ -164,6 +165,7 @@ export function createLiveCoreSession(options: SessionOptions = {}) {
     issueCode: (userId, identityVerified) => authenticated(async request => decodeMutation(decodeCode, await request('issueStudentCode', { userId, body: identityVerified ? { identity_verified: true } : {} })), true),
   };
   return {identity, getActorId: () => actorId,
+    documentAuthenticated:<T>(run:(request:ReturnType<typeof createDocumentHttpClient>)=>Promise<T>,mutation=false)=>authenticated(async()=>{const captured=token;return run(createDocumentHttpClient(()=>captured,options.fetcher));},mutation),
     authenticated: <T>(run: (request: ReturnType<typeof createHttpClient>) => Promise<T>, mutation = false) => authenticated(run, mutation)};
 }
 

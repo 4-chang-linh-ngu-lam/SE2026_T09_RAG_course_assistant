@@ -37,8 +37,10 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_course:change-me-local-only@db:5432/rag_course}
       CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       SECRET_KEY:
       INTERNAL_SERVICE_SECRET:
+      DOCUMENT_EVENTS_SERVICE_SECRET:
       CORE_PROXY_SECRET:
       COOKIE_SECURE:
       STUDENT_ACTIVATION_EXPIRE_HOURS: ${STUDENT_ACTIVATION_EXPIRE_HOURS:-24}
@@ -94,6 +96,7 @@ services:
 
     environment:
       CORE_API_URL: http://core:8000
+      DOCUMENT_API_URL: http://document:8200
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       NEXT_PUBLIC_DATA_MODE: live
       CORE_PROXY_SECRET:
@@ -102,5 +105,81 @@ services:
     depends_on:
       core:
         condition: service_healthy
+  document-bootstrap:
+    profiles: [document]
+    image: ${DOCUMENT_IMAGE:-rag-course-document:local}
+    build: ./services/document
+    command: ["python", "-m", "app.bootstrap_db"]
+    environment:
+      DATABASE_URL: ${DOCUMENT_DATABASE_URL:-postgresql+psycopg://document:configure-a-separate-random-password@db:5432/rag_course}
+      DOCUMENT_ADMIN_DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_course:change-me-local-only@db:5432/rag_course}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  document-migrate:
+    profiles: [document]
+    image: ${DOCUMENT_IMAGE:-rag-course-document:local}
+    build: ./services/document
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: ${DOCUMENT_DATABASE_URL:-postgresql+psycopg://document:configure-a-separate-random-password@db:5432/rag_course}
+    depends_on:
+      document-bootstrap:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  document:
+    profiles: [document]
+    image: ${DOCUMENT_IMAGE:-rag-course-document:local}
+    build: ./services/document
+    environment: &document-environment
+      DATABASE_URL: ${DOCUMENT_DATABASE_URL:-postgresql+psycopg://document:configure-a-separate-random-password@db:5432/rag_course}
+      CORE_API_URL: http://core:8000
+      INTERNAL_SERVICE_SECRET:
+      DOCUMENT_EVENTS_SERVICE_SECRET:
+      DOCUMENT_INTERNAL_SERVICE_SECRET:
+      DOCUMENT_EVENT_READER_SECRET:
+      STORAGE_ROOT: /data/documents
+    volumes: [document-files:/data/documents]
+    ports: ["127.0.0.1:${DOCUMENT_PORT:-8200}:8200"]
+    depends_on:
+      document-migrate:
+        condition: service_completed_successfully
+      core:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/health/ready', timeout=8)"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+  document-worker:
+    profiles: [document]
+    image: ${DOCUMENT_IMAGE:-rag-course-document:local}
+    build: ./services/document
+    command: ["python", "-m", "app.worker"]
+    environment: *document-environment
+    volumes: [document-files:/data/documents]
+    depends_on:
+      document-migrate:
+        condition: service_completed_successfully
+      core:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
 volumes:
   pgdata:
+  document-files:

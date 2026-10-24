@@ -15,7 +15,7 @@ test('route read identity ignores position but respects resource/version/convers
  assert.notEqual(resourceParamsKey('s.reader',{classId:'c',documentId:'d',version:'1'}),resourceParamsKey('s.reader',{classId:'c',documentId:'d',version:'2'}));
  assert.notEqual(resourceParamsKey('s.tutor',{classId:'c',conversationId:'1'}),resourceParamsKey('s.tutor',{classId:'c',conversationId:'2'}));
  assert.notEqual(resourceParamsKey('s.assignments',{classId:'c'}),resourceParamsKey('s.assignments',{classId:'d'}));
- assert.ok(featureOwnsRead('s.progress'));assert.ok(featureOwnsRead('a.importNew'));assert.ok(featureOwnsRead('t.practiceEditor'));assert.ok(!featureOwnsRead('s.reader'));
+ assert.ok(featureOwnsRead('s.progress'));assert.ok(featureOwnsRead('a.importNew'));assert.ok(featureOwnsRead('t.practiceEditor'));assert.ok(featureOwnsRead('s.reader'));
 });
 
 test('Practice restores pending snapshot before explicit check/finish barrier',async()=>{

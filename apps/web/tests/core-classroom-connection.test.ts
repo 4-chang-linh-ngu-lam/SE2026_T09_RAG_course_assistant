@@ -73,3 +73,29 @@ test('pagination rejects repeated UUIDs even when the next page changes their le
   let page=0;
   await assert.rejects(allCorePages(async()=>++page===1?{items:[{id}],next_cursor:'AAAAAAAAAAAAAAAAAAAAAA'}:{items:[{id:id.toUpperCase()}],next_cursor:null},new AbortController().signal),error=>error instanceof ApiError&&error.code==='CONTRACT_MISMATCH');
 });
+
+test('deleted post during comment fan-out is skipped only after rechecking current class content access',async()=>{
+  for(const revoked of [false,true]){
+    let postReads=0;
+    const second='abcdefab-1234-4000-8000-123456abcdea';
+    const session=createLiveCoreSession({onLost(){},fetcher:async(input)=>{
+      const url=new URL(String(input),'http://local'),path=url.pathname;
+      if(path.endsWith('/login'))return Response.json({access_token:'synthetic',token_type:'bearer',expires_in:900});
+      if(path.endsWith('/users/me'))return Response.json({id:userId,email:null,username:'synthetic',display_name:null,school_id:school,status:'ACTIVE',roles:['STUDENT']});
+      if(path.endsWith('/classes/'+id))return Response.json(klass);
+      if(path.endsWith('/posts')){
+        if(++postReads>1){assert.equal(url.searchParams.get('limit'),'1');return revoked?Response.json({error:{code:'NOT_FOUND',message:'Not found'}},{status:404}):Response.json({items:[],next_cursor:null});}
+        const items=[id,second].map(postId=>({id:postId,class_id:id,author:{id:userId,display_name:null},body:'Synthetic post',created_at:'2026-10-23T00:00:00Z',updated_at:'2026-10-23T00:00:00Z'}));
+        return Response.json({items,next_cursor:null});
+      }
+      if(path.endsWith('/posts/'+id+'/comments'))return Response.json({error:{code:'NOT_FOUND',message:'Not found'}},{status:404});
+      if(path.endsWith('/posts/'+second+'/comments'))return Response.json({items:[],next_cursor:null});
+      throw new Error('Unexpected operation');
+    }});
+    await session.identity.login({username:'synthetic',password:'synthetic-only'});
+    const workspace=createLiveClassroomSocial(session,createLiveCoreApi(session));
+    if(revoked)await assert.rejects(workspace.load('s.feed',{classId:id}),error=>error instanceof ApiError&&error.status===404);
+    else {const data=await workspace.load('s.feed',{classId:id});assert.equal(data.kind,'ready');if(data.kind==='ready'){assert.deepEqual(data.feedPosts?.map(post=>post.id),[second]);assert.match(data.feedPosts![0].authorName,/^Thành viên /);}}
+    assert.equal(postReads,2);
+  }
+});

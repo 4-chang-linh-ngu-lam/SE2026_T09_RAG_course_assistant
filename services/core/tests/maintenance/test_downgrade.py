@@ -10,6 +10,11 @@ from sqlalchemy import text
 @pytest.mark.parametrize(
     "insert,target,match",
     [
+        (
+            "INSERT INTO core.document_event_receipts(payload_hash) VALUES (repeat('a',64))",
+            "0012",
+            "core.document_event_receipts",
+        ),
         ("INSERT INTO core.schools(name) VALUES ('Preserved')", "0007", "core.schools"),
         (
             "INSERT INTO core.users(email,password_hash,username) VALUES ('test@example.com','test-hash','preserved')",

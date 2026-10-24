@@ -27,6 +27,15 @@ function harness() {
   return { controller, calls, requests, gate: () => gate, next: () => { gate = deferred(); return gate; } };
 }
 
+test('a GET started before a read mutation cannot replace its acknowledgement or reconcile an unknown result',async()=>{
+  const h=harness();const stale=h.controller.refresh()!;
+  const pending=h.controller.markOne('one');
+  assert.equal(h.controller.receiveSnapshot([item('one')],stale,2),false);
+  h.gate().resolve();await pending;
+  assert.equal(h.controller.receiveSnapshot([item('one')],stale,2),false);
+  assert.equal(h.controller.getState().items[0].isRead,true);
+});
+
 test('Core global unread count survives partial rows and changes only on a new snapshot',async()=>{
   const h=harness();h.controller.receiveSnapshot([item('one')],undefined,8);
   assert.equal(h.controller.getState().unreadCount,8);

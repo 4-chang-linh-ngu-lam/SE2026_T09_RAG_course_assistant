@@ -51,7 +51,7 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
     if (mutationBlocked || !revokeDoc?.canRevokeGrant || !params.classId || classSummary?.status !== 'ACTIVE') return;
     const documentId = revokeDoc.id;
     void grantAction.run({documentId, classIds:[params.classId], shared:false, classRoute:params.classId},
-      () => adapter.document.revokeShare(documentId, params.classId), () => { setRevokeDoc(null); reload(); });
+      () => adapter.document.revokeShare(documentId, params.classId,revokeDoc.grantRevision), () => { setRevokeDoc(null); reload(); });
   };
 
   return (
@@ -59,6 +59,7 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
       {!revokeDoc && (
         <GrantMutationNotice
           busy={isPending}
+          onRetryOriginal={grantAction.canRetryOriginal?()=>void grantAction.retryOriginal():undefined}
           unknown={Boolean(grantAction.unknown)}
           error={grantAction.error}
           message={grantAction.message}
@@ -146,13 +147,13 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
                     <td className="p-3">
                       <span className="badge primary text-xs">{doc.format}</span>
                     </td>
-                    <td className="p-3 text-xs">v{doc.currentVersion}</td>
+                    <td className="p-3 text-xs">{doc.currentVersion>0?`v${doc.currentVersion}`:'Chưa có bản phục vụ'}</td>
                     <td className="p-3 text-xs">
                       {doc.ownerName}
                       {doc.canManageSource && <span className="badge info text-xs ml-1.5">Của bạn</span>}
                     </td>
                     <td className="p-3">
-                      <span className="badge success text-xs">Đang phục vụ</span>
+                      <span className={`badge ${doc.currentVersion>0?'success':'warning'} text-xs`}>{doc.currentVersion>0?'Đang phục vụ':'Đang chờ xử lý nguồn'}</span>
                     </td>
                     <td className="p-3 text-right space-x-2">
                       {doc.canManageSource ? (
@@ -160,7 +161,7 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
                           Quản lý nguồn
                         </Link>
                       ) : (
-                        <button className="button small" onClick={() => setSourcePreview({classId: params.classId, documentId: doc.id, version: doc.currentVersion})}>Đọc nguồn</button>
+                        <button className="button small" disabled={doc.currentVersion<1} onClick={() => setSourcePreview({classId: params.classId, documentId: doc.id, version: doc.currentVersion})}>Đọc nguồn</button>
                       )}
 
                       <button

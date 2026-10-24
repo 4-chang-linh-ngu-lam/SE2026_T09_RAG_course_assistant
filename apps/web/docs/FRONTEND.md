@@ -1,5 +1,7 @@
 # Frontend architecture and backend handoff
 
+Latest login/email flow: [role-specific activation and emailed onboarding links](CORE_EMAIL_LINK_FLOW_2026-10-23.md). Student activation remains visible only on the Student login tab; staff follow the configured-origin email link. Verification: 329 Web tests, 51 focused backend tests, 22 HTTP groups and six real Chrome groups. Earlier reports below retain their dated scope and counts.
+
 Latest functional integration work: [Web–Core connection fixes, 23 October](CORE_WEB_CONNECTION_FIXES_2026-10-23.md). Live home/overview now use scoped Core class reads and distinguish missing other-service summaries. UUID/resource matching and management acknowledgement/reconciliation states are corrected. Performance optimization is deferred separately.
 
 Current functional acceptance (23 October 2026): [connection follow-up](CORE_WEB_CONNECTION_FIXES_2026-10-23.md) records324 Web tests, a production live build,22 HTTP groups and five real Chrome interaction groups after the approved WSL clock reset. The [runtime follow-up](CORE_RUNTIME_FOLLOWUP_2026-10-23.md) records the earlier115 selected backend regressions,317 Web tests and load-methodology investigation; the [earlier Core completion report](CORE_COMPLETION_2026-10-23.md) retains the historical full backend run. Backend suites were not rerun for these Web-only logic repairs. Performance work is deferred and external SMTP remains unverified.
@@ -68,3 +70,12 @@ Core account/classroom administration now uses the approved metadata reads and e
 `npm run dev:mock` uses Next.js 15 Turbopack to reduce initial development compilation. Both `turbopack.resolveAlias` and `webpack.resolve.alias` select the same mode-specific `@data-adapter`. The mock runner still forces mock mode and refuses production; the live build command and release scan are unchanged. Output stays in `.next-preview` for mock and `.next` for live.
 
 Stop the current server before changing compilers or restarting after this script update; never run two servers writing the same output directory. `npm run dev:mock:webpack` keeps the previous Webpack runner available for diagnosing bundler-specific issues. Neither compiler eliminates all cold compilation. Warm route GET times measure development server response, not complete click-to-content or backend latency. Keep the dev cache between ordinary restarts; do not delete `.next-preview` as a routine speed-up step.
+
+
+## Document v1 — 2026-10-23
+
+Người dùng đã duyệt gói TASK-017. Sáu workspace Document hiện contracted/live trên service độc lập và `/api/document/v1`,27 public operations có allowlist riêng; không đổi63 Core API. `document-http`, `document-decoders`, `document-proxy` và `live-document` giữ transport/DTO ngoài feature. Bearer/refresh/actor generation dùng chung Core session, không expose token getter, không gửi cookie/service credential sang Document.
+
+Upload multipart chứa bytes thật và UUID receipt bền vững. Nội dung reader là text trích xuất thật, không HTML hoặc nội dung mẫu. Foreground sync10 giây và focus/online refresh hủy kết quả cũ theo actor/resource/version; lỗi quyền xóa dữ liệu nguồn đang hiển thị. Notes/bookmarks owner-only, quote được backend che, tên nguồn/lớp lịch sử có snapshot. Các mutation mất phản hồi giữ unknown, chỉ xác nhận bằng evidence dương hoặc phát lại đúng request đã giữ theo thao tác chủ động; không tự replay. AGY Flash chỉ tạo UI/CSS/component được giới hạn, Codex giữ logic/session/quyền/API và nghiệm thu.
+
+Xem [báo cáo TASK-017](DOCUMENT_SERVICE_IMPLEMENTATION_2026-10-23.md) cho kết quả chạy thật. Những đoạn pending Document trước ngày này là lịch sử preview; AI/Learning/Learner Intelligence vẫn cần hợp đồng riêng. Không chứng nhận OCR, AI indexing, owner sign-off hoặc KPI tải từ kiểm thử chức năng.

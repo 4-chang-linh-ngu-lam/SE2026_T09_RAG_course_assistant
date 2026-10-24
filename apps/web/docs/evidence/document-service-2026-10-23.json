@@ -1,0 +1,89 @@
+{
+  "task": "TASK-017",
+  "date": "2026-10-23",
+  "base_commit": "5534e7804a0c531c1fa56600755c9b027d0487bd",
+  "working_tree_changes": true,
+  "scope": "Approved Document v1, Core notification intake and six live Web workspaces",
+  "backend": {
+    "document_passed": 25,
+    "core_full_passed": 428,
+    "core_warnings_as_errors": true,
+    "postgresql_major": 16,
+    "document_schema": "document",
+    "document_runtime_uid": 10002,
+    "core_schema_unavailable_to_document_role": true,
+    "migration_drift": false,
+    "disposable_fixture_cleaned": true
+  },
+  "frontend": {
+    "tests_passed": 346,
+    "tests_failed": 0,
+    "boundaries": "passed",
+    "typescript": "passed",
+    "live_build": "passed",
+    "release_fixture_marker_scan": "passed"
+  },
+  "integration": {
+    "coreGroups": 7,
+    "coreOperations": 46,
+    "adminViewsRendered": 3,
+    "managementViewsRendered": 10,
+    "notificationGroups": 7,
+    "securityGroups": 8,
+    "syntheticTlsSmtp": true,
+    "productionCompose": true,
+    "nonRoot": true,
+    "installedPackage": true,
+    "migrationCheck": true,
+    "seedRepeat": true,
+    "documentGroups": 6,
+    "dbOutageRecovery": true,
+    "syntheticOnly": true,
+    "browserGroups": 7,
+    "documentBrowserGroups": 6,
+    "browserInteraction": true,
+    "realSmtpVerified": false
+  },
+  "browser": {
+    "core_groups": 7,
+    "document_groups": 6,
+    "document_viewports": [
+      1440,
+      390,
+      320
+    ],
+    "uncaught_javascript_exceptions": 0,
+    "notes_mobile_overflow": "passed",
+    "historical_note_version_link": "passed",
+    "lost_upload_response_receipt": "passed",
+    "lost_note_edit_response_dialog_reconciliation": "passed",
+    "screenshots_visually_reviewed": true,
+    "profiles_cleaned": true
+  },
+  "runtime": {
+    "web_login": "http://localhost:3000/login",
+    "core_readiness": "http://localhost:8000/health/ready",
+    "document_readiness": "http://localhost:8200/health/ready",
+    "readiness_http_status": 200,
+    "document_public_operations": 27,
+    "document_internal_operations": 3,
+    "core_head": "0013",
+    "document_head": "document_0003",
+    "private_environment_ignored_by_git": true
+  },
+  "git": {
+    "branch": "core_full",
+    "committed": false,
+    "pushed": false,
+    "owned_temporary_worktrees_removed": true
+  },
+  "not_certified": [
+    "AI indexing/retrieval/tutor TASK-018",
+    "OCR",
+    "performance KPIs and system-wide QAS-04/QAS-10",
+    "service-owner PR sign-off",
+    "real SMTP delivery in this task",
+    "all 104 historical UI canvases"
+  ],
+  "finalized_date": "2026-10-24"
+}

@@ -6,8 +6,9 @@ import { routeHref } from '@/config/routes';
 import type { DocumentCapabilityPolicy, DocumentFormat, DocumentItem, ProcessingStatus, WorkspaceData } from '@/lib/domain';
 import { adapter } from '@/lib/data';
 import { documentFileError, documentFileSelection } from '@/lib/document-upload';
-import { StatePanel, Icon, Dialog } from '@/components/ui';
+import { StatePanel, Icon, Dialog, useUnsavedChanges } from '@/components/ui';
 import '../library.css';
+import {useDocumentWrite} from '../use-document-write';
 
 type Props = {
   route: RouteDefinition;
@@ -29,7 +30,11 @@ export function TeacherLibraryView({ data, reload }: Props) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isRetryPending, startTransition] = useTransition();
+  const uploadWrite=useDocumentWrite('library-upload');
+  const uploadRequest=useRef<string|null>(null);
+  const isPending=isRetryPending||uploadWrite.blocked;
+  useUnsavedChanges(uploadOpen&&Boolean(selectedFile||title.trim()||description.trim()));
 
   if (!data) {
     return <StatePanel busy title="Đang tải thư viện tài liệu…" />;
@@ -66,6 +71,7 @@ export function TeacherLibraryView({ data, reload }: Props) {
     const selection = documentFileSelection(e.target.files?.[0], capability);
     setSelectedFile(selection.file);
     setUploadError(selection.error);
+    uploadRequest.current=null;
     if (!selection.file) { e.target.value = ''; return; }
     const file = selection.file;
     if (!title) {
@@ -86,25 +92,23 @@ export function TeacherLibraryView({ data, reload }: Props) {
     const fileError = documentFileError(selectedFile, capability);
     if (fileError || !selectedFile) { setUploadError(fileError); return; }
 
-    startTransition(async () => {
-      try {
-        await adapter.document.uploadDocument({
+    const requestId=uploadRequest.current??crypto.randomUUID();uploadRequest.current=requestId;
+    void uploadWrite.run(() => adapter.document.uploadDocument({
           name: selectedFile.name,
           size: selectedFile.size,
           type: selectedFile.type,
           title: title.trim(),
           description: description.trim() || undefined,
-        });
+          file:selectedFile,requestId,
+        }), () => {
         setUploadOpen(false);
         setTitle('');
         setDescription('');
-        setSelectedFile(null);
+        clearSelectedFile();
         setUploadError(null);
+        uploadRequest.current=null;
         reload();
-      } catch (err) {
-        setUploadError(err instanceof Error ? err.message : 'Có lỗi khi tải lên tài liệu.');
-      }
-    });
+    },requestId);
   };
 
   const handleRetry = (docId: string) => {
@@ -247,7 +251,7 @@ export function TeacherLibraryView({ data, reload }: Props) {
                     <td className="p-3 text-xs">
                       {doc.sharedClassCount ? `${doc.sharedClassCount} lớp` : <span className="muted">Chưa chia sẻ</span>}
                     </td>
-                    <td className="p-3 text-xs muted">{doc.updatedAt}</td>
+                    <td className="p-3 text-xs muted">{new Date(doc.updatedAt).toLocaleString('vi-VN')}</td>
                     <td className="p-3 library-table-actions">
                       {doc.processingStatus === 'FAILED' && (
                         <button
@@ -283,6 +287,9 @@ export function TeacherLibraryView({ data, reload }: Props) {
         }}
       >
         <form id="ux-document-dialog" onSubmit={handleUploadSubmit} className="lumi-library-dialog-form">
+          {uploadWrite.error&&<p className="lumi-library-error" role="alert">{uploadWrite.error}</p>}
+          {uploadWrite.unknown&&<button type="button" className="button" disabled={uploadWrite.busy} onClick={()=>void uploadWrite.retryOriginal()}>Gửi lại cùng yêu cầu đã lưu</button>}
+          {uploadWrite.unknown&&uploadWrite.receiptId&&adapter.document.uploadReceipt&&<button type="button" className="button" disabled={uploadWrite.busy} onClick={()=>void uploadWrite.reconcile(async()=>{await adapter.document.uploadReceipt!(uploadWrite.receiptId!);return true;},()=>{setUploadOpen(false);clearSelectedFile();setTitle('');setDescription('');uploadRequest.current=null;reload();})}>Đối soát upload đã gửi</button>}
           {uploadError && (
             <div className="lumi-library-error" role="alert">
               {uploadError}

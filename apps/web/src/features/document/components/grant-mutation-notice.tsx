@@ -8,6 +8,7 @@ export interface GrantMutationNoticeProps {
   error: string | null;
   message: string | null;
   onReconcile(): void;
+  onRetryOriginal?(): void;
 }
 
 export function GrantMutationNotice({
@@ -16,6 +17,7 @@ export function GrantMutationNotice({
   error,
   message,
   onReconcile,
+  onRetryOriginal,
 }: GrantMutationNoticeProps) {
   if (!unknown && !error && !message) {
     return null;
@@ -42,6 +44,7 @@ export function GrantMutationNotice({
           >
             Kiểm tra trạng thái chia sẻ
           </button>
+          {onRetryOriginal&&<button type="button" className="button secondary small" disabled={busy} onClick={onRetryOriginal}>Gửi lại đúng yêu cầu chia sẻ đã lưu</button>}
         </div>
       )}
     </div>

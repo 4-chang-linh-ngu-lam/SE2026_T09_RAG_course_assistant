@@ -29,6 +29,7 @@ export type FeedComment = {
   authorClass?: string;
   content: string;
   createdAt: string;
+  updatedAt?: string;
   canDelete?: boolean;
 };
 
@@ -79,6 +80,10 @@ export type NotificationItem = {
   className?: string;
   targetHref?: string;
   targetLabel?: string;
+  targetKind?: 'post' | 'class' | 'calendar' | 'document';
+  documentId?: string;
+  postId?: string;
+  commentId?: string;
 };
 
 export type TutorSuggestionItem = {
@@ -204,6 +209,9 @@ export type DocumentItem = {
   description?: string;
   format: DocumentFormat;
   currentVersion: number;
+  servingVersion?: number;
+  revision?: number;
+  grantRevision?: number;
   processingStatus: ProcessingStatus;
   processingError?: string;
   ownerId: string;
@@ -229,6 +237,7 @@ export type DocumentVersion = {
   status: ProcessingStatus;
   errorMessage?: string;
   isServing?: boolean;
+  generation?: number;
 };
 
 export type ClassDocumentGrant = {
@@ -239,6 +248,7 @@ export type ClassDocumentGrant = {
   grantedAt?: string;
   servingVersion: number;
   classStatus?: ClassSummary['status'];
+  revision?: number;
 };
 
 export type PersonalNoteItem = {
@@ -250,7 +260,11 @@ export type PersonalNoteItem = {
   version?: number;
   classId: string;
   className: string;
-  classStatus: 'ACTIVE' | 'ARCHIVED';
+  classStatus?: 'ACTIVE' | 'ARCHIVED';
+  revision?: number;
+  locatorId?: string;
+  sourceAccess?: 'ALLOWED' | 'REVOKED' | 'UNAVAILABLE';
+  clientRequestId?: string;
   locator: string; // e.g. "Trang 3", "Slide 5", "Mục 2"
   pageNumber?: number;
   sourceQuote?: string;
@@ -273,6 +287,8 @@ export type BookmarkItem = {
   pageNumber?: number;
   createdAt: string;
   isSourceAccessible: boolean;
+  locatorId?: string;
+  sourceAccess?: 'ALLOWED' | 'REVOKED' | 'UNAVAILABLE';
 };
 
 export type DocumentDiagram =
@@ -283,6 +299,8 @@ export type DocumentReaderModel = {
   document: DocumentItem;
   servingVersion: number;
   viewingVersion?: number;
+  locatorLabel?: 'Trang' | 'Slide' | 'Mục';
+  bookmarks?: {version:number;locatorId:string}[];
   isSourceAccessible: boolean;
   revokedReason?: string;
   outline: { id: string; label: string; pageNumber: number }[];

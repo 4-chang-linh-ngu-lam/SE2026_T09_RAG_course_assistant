@@ -24,8 +24,8 @@ export function coreClassSummary(row:CoreClass,user:User,verified=false):ClassSu
   return {id:row.id,code:'',name:row.name,status:row.status,metadata:`Khối ${row.grade_level} · ${row.enrollment_mode==='AUTO'?'Ghi danh tự động':'Ghi danh thủ công'}`,
     ...(verified&&teacher?{isAssignedTeacher:true}:{}),...(verified&&user.roles.length===1&&user.roles[0]==='STUDENT'?{membershipStatus:'ACTIVE' as const}:{})};
 }
-export function corePost(row:CorePost):FeedPost{return {id:row.id,classId:row.class_id,authorId:row.author.id,authorName:row.author.display_name??'Người dùng',content:row.body,createdAt:row.created_at,updatedAt:row.updated_at,comments:[]};}
-export function coreComment(row:CoreComment):FeedComment{return {id:row.id,postId:row.post_id,authorId:row.author.id,authorName:row.author.display_name??'Người dùng',content:row.body,createdAt:row.created_at};}
+export function corePost(row:CorePost):FeedPost{return {id:row.id,classId:row.class_id,authorId:row.author.id,authorName:row.author.display_name??`Thành viên ${row.author.id.slice(0,8)}`,content:row.body,createdAt:row.created_at,updatedAt:row.updated_at,comments:[]};}
+export function coreComment(row:CoreComment):FeedComment{return {id:row.id,postId:row.post_id,authorId:row.author.id,authorName:row.author.display_name??`Thành viên ${row.author.id.slice(0,8)}`,content:row.body,createdAt:row.created_at,updatedAt:row.updated_at};}
 export function coreEvent(row:CoreEvent,className?:string):CalendarEvent{
   const start=new Date(row.starts_at),end=new Date(row.ends_at);
   const day=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -81,13 +81,23 @@ export function createLiveClassroomSocial(session:Session,api:CoreApiPort){
       return {kind:'ready',classSummary:summary,classes:[summary],calendarEvents:rows.map(row=>coreEvent(row,detail.name))};
     }
     const rows=await allCorePages(cursor=>{check();return api.request('posts',{classId,cursor,limit:100,signal:bounded});},bounded);
-    const posts:FeedPost[]=[];
+    const posts:FeedPost[]=[];let missingPost=false;
     for(let index=0;index<rows.length;index+=4){
       const group=await Promise.all(rows.slice(index,index+4).map(async row=>{
-        const comments=await allCorePages(cursor=>{check();return api.request('comments',{classId,postId:row.id,cursor,limit:100,signal:bounded});},bounded);
-        return {...corePost(row),comments:comments.map(coreComment)};
-      }));posts.push(...group);
+        try{
+          const comments=await allCorePages(cursor=>{check();return api.request('comments',{classId,postId:row.id,cursor,limit:100,signal:bounded});},bounded);
+          return {...corePost(row),comments:comments.map(coreComment)};
+        }catch(error){
+          // A post can be deleted between the post page and its comment page.
+          // Other failures still reject the complete snapshot; never publish partial comments.
+          if(error instanceof ApiError&&error.status===404){missingPost=true;return null;}
+          throw error;
+        }
+      }));posts.push(...group.filter((post):post is FeedPost=>post!==null));
     }
+    // A 404 can also mean current class access was revoked during fan-out.
+    // Verify the content scope again before treating it as a deleted post.
+    if(missingPost)await api.request('posts',{classId,limit:1,signal:bounded});
     check();return {kind:'ready',classSummary:summary,feedPosts:posts};
   }
   return {social,calendar,load,supports:(routeId:string)=>supported.has(routeId)};

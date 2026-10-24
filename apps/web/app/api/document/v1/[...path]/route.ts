@@ -1,0 +1,6 @@
+import {createDocumentProxy} from '@/lib/api/document-proxy';
+export const dynamic='force-dynamic';
+export const runtime='nodejs';
+const proxy=createDocumentProxy(()=>process.env.DOCUMENT_API_URL,fetch,()=>process.env.WEB_ORIGIN,()=>process.env.CORE_PROXY_SECRET);
+async function handler(request:Request,context:{params:Promise<{path:string[]}>}){return proxy(request,(await context.params).path);}
+export {handler as GET,handler as POST,handler as PATCH,handler as PUT,handler as DELETE};

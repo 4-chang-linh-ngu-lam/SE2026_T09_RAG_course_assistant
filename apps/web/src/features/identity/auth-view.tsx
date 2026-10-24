@@ -7,6 +7,7 @@ import { homeFor } from '@/config/routes';
 import { safeReturnTo } from '@/lib/navigation';
 import { adapter } from '@/lib/data';
 import { ApiError, errorMessage } from '@/lib/api/errors';
+import {readEmailCredentialLink} from '@/lib/email-credential-link';
 import { Brand, ErrorNotice, Icon } from '@/components/ui';
 import { useSession } from '@/components/session-provider';
 
@@ -34,13 +35,9 @@ export function AuthView({ route }: { route: RouteDefinition }) {
   useEffect(() => {
     if (!isReset && !isInvitation) return;
     try {
-      const url = new URL(window.location.href);
-      const token = url.searchParams.get('token');
-      if (token) {
-        setCode(token);
-        url.searchParams.delete('token');
-        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
-      }
+      const {token,cleanPath}=readEmailCredentialLink(window.location.href);
+      if(token)setCode(token);
+      window.history.replaceState(window.history.state,'',cleanPath);
     } catch {
       // Safe fallback
     }
@@ -156,7 +153,9 @@ export function AuthView({ route }: { route: RouteDefinition }) {
               : isReset
               ? 'Nhập mật khẩu mới từ 12 đến 128 ký tự để bảo mật tài khoản.'
               : isLogin
-              ? 'Chào mừng bạn quay trở lại với Lumi.'
+              ? audience === 'student'
+                ? 'Đăng nhập bằng tên đăng nhập học sinh. Nếu chưa kích hoạt, dùng mã một lần do nhà trường cấp.'
+                : 'Đăng nhập bằng email nhân sự. Nếu mới được mời, mở liên kết trong email để thiết lập mật khẩu trước.'
               : 'Chọn đối tượng tài khoản và làm theo hướng dẫn an toàn.'}
           </p>
 
@@ -323,7 +322,7 @@ export function AuthView({ route }: { route: RouteDefinition }) {
             {isLogin ? (
               <>
                 <Link id="login-recovery-link" href="/recover">Quên mật khẩu?</Link>
-                <Link href="/activate">Kích hoạt tài khoản →</Link>
+                {audience === 'student' && <Link href="/activate">Kích hoạt tài khoản học sinh →</Link>}
               </>
             ) : (
               <Link href="/login">← Về trang đăng nhập</Link>

@@ -10,7 +10,7 @@ export const integrations = {
   notification: { status: 'contracted', owner: 'Core.Notification', operations: {listSelf:'contracted',markOneRead:'contracted',markAllRead:'contracted'} },
   administration: { status: 'contracted', owner: 'Core.Administration', auditWorkspace:'live', accountsWorkspace:'live', staffInviteForm:'live', blockedReads:['staff-invitations'], accountSave:'separate-status-role-transactions' },
   bulkImport: { status: 'contracted', owner: 'Core.Administration', workspace:'live-original-file', history:'pending-contract', wire:'file-bytes-preview-id-one-time-disclosure' },
-  document: { status: 'pending-contract', owner: 'Document' },
+  document: { status: 'contracted', owner: 'Document', workspace:'live-document', contract:'TASK-017-v1', unavailableDependencies:['AI-index-TASK-018'] },
   tutor: { status: 'pending-contract', owner: 'AI' },
   learning: { status: 'pending-contract', owner: 'Learning' },
   intelligence: { status: 'pending-contract', owner: 'Learner Intelligence' },

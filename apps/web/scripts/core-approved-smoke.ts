@@ -38,12 +38,13 @@ function client(){
 }
 async function call<K extends CoreOperation>(api:CoreApiPort,id:K,options:CoreOptions<K>){phase='operation:'+id;const value=await api.request(id,options);covered.add(id);return value;}
 const rejected=(status:number)=>(error:unknown)=>error instanceof ApiError&&error.status===status&&error.outcome==='rejected';
-async function invitation(email:string){
+async function invitationLink(email:string){
   for(let attempt=0;attempt<40;attempt++){
     let raw='';try{raw=await readFile(mailPath,'utf8');}catch{}
     for(const line of raw.trim().split(/\r?\n/).filter(Boolean).reverse()){
       const message=JSON.parse(line);if(!message.recipients.includes(email))continue;
-      const token=/Your one-time token: ([A-Za-z0-9_-]+)/.exec(message.message)?.[1];if(token)return token;
+      const value=String(message.message).split(/\r?\n/).find(line=>line.startsWith(web.origin+'/staff/invitation#'));
+      if(value){const link=new URL(value);assert.equal(link.origin,web.origin);assert.equal(link.pathname,'/staff/invitation');assert.equal(link.search,'');assert.ok(new URLSearchParams(link.hash.slice(1)).get('token'));return link;}
     }
     await new Promise(resolve=>setTimeout(resolve,100));
   }
@@ -63,7 +64,7 @@ async function main(){try{
   await adminForms.invite({email,roles:['LECTURER'],reason});
   const staff=adminForms.getState().staff;assert.ok(staff);assert.equal(staff.status,'PENDING_VERIFICATION');
   const staffHtml=renderToStaticMarkup(React.createElement(CoreStaffInviteView,{state:adminForms.getState(),onSubmit:noRenderCommand}));assert.ok(staffHtml.includes(staff.id));assert.ok(staffHtml.includes(email));renderedViews.add('staff');
-  const teacher=client();phase='staff invitation acceptance';await teacher.session.identity.acceptInvitation(await invitation(email),password);
+  const teacher=client();phase='staff invitation acceptance';const teacherLink=await invitationLink(email);await teacher.session.identity.acceptInvitation(new URLSearchParams(teacherLink.hash.slice(1)).get('token')!,password);
   await teacher.session.identity.login({email,password});
   await call(admin.api,'setUserStatus',{userId:staff.id,body:{status:'LOCKED'},reason});
   await assert.rejects(teacher.api.request('classes',{}),rejected(401));
@@ -197,9 +198,13 @@ async function main(){try{
     // journey with an explicit current MANUAL enrollment, not a guessed grant.
     const currentMembers=await call(admin.api,'classMembers',{classId});
     if(!currentMembers.some(member=>member.student_id===studentA.user.id&&member.status==='ACTIVE'))await call(admin.api,'addMember',{classId,body:{student_id:studentA.user.id},reason});
+    const invitationEmail=`browser.invitation.${suffix}@fixture.example.com`,invitationPassword=randomBytes(32).toString('hex');
+    await call(admin.api,'createStaff',{body:{email:invitationEmail,roles:['LECTURER']},reason});
+    const invitationUrl=(await invitationLink(invitationEmail)).toString();
     await writeFile(process.env.CORE_BROWSER_FIXTURE_PATH,JSON.stringify({
       web:web.origin,classId,className:klass.name,studentId:studentA.user.id,
       student:studentA.credentials,teacher:{email,password},
+      invitation:{url:invitationUrl,email:invitationEmail,password:invitationPassword},
     }),{mode:0o600});
   }
   await teacher.session.identity.logout();await studentA.session.identity.logout();await studentB.session.identity.logout();await admin.session.identity.logout();

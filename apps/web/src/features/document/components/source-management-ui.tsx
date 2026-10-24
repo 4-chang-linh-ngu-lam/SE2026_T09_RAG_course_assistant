@@ -49,26 +49,35 @@ export function SourceDocumentSummary({
             <span className="lumi-source-badge lumi-source-badge-format">
               {document.format}
             </span>
-            <span className={`lumi-source-badge ${statusInfo.className}`}>
+            <span
+              className={`lumi-source-badge ${statusInfo.className}`}
+              title={document.processingError || undefined}
+            >
               <span className="lumi-source-badge-dot" aria-hidden="true" />
               <span>{statusInfo.label}</span>
             </span>
             {servingVersion ? (
-              <span className="lumi-source-badge lumi-source-badge-serving">
+              <span
+                className="lumi-source-badge lumi-source-badge-serving"
+                title={`Phiên bản v${servingVersion.versionNumber} đang được phân phối tới các lớp`}
+              >
                 <span className="lumi-source-badge-dot" aria-hidden="true" />
                 <span>Bản phục vụ: v{servingVersion.versionNumber}</span>
               </span>
             ) : (
-              <span className="lumi-source-badge lumi-source-badge-unserved">
+              <span
+                className="lumi-source-badge lumi-source-badge-unserved"
+                title="Tài liệu chưa có phiên bản nào được xử lý thành công để phục vụ"
+              >
                 <span>Chưa có bản phục vụ</span>
               </span>
             )}
           </div>
 
           <div className="lumi-source-meta-row">
-            <span>Chủ sở hữu: {document.ownerName}</span>
+            <span>Chủ sở hữu: <strong>{document.ownerName}</strong></span>
             <span className="lumi-source-meta-divider" aria-hidden="true">·</span>
-            <span>Ngày tạo: {document.createdAt}</span>
+            <span>Ngày tạo: {new Date(document.createdAt).toLocaleString('vi-VN')}</span>
             {document.locatorCountLabel && (
               <>
                 <span className="lumi-source-meta-divider" aria-hidden="true">·</span>
@@ -92,6 +101,7 @@ export function SourceDocumentSummary({
             onClick={onShare}
             disabled={busy || !canShare}
             title={!canShare ? shareUnavailableReason : undefined}
+            aria-disabled={busy || !canShare}
           >
             <Icon name="plus" />
             <span>Chia sẻ</span>
@@ -102,6 +112,7 @@ export function SourceDocumentSummary({
             className="button primary lumi-source-btn lumi-source-btn-primary"
             onClick={onUploadVersion}
             disabled={busy}
+            aria-disabled={busy}
           >
             <Icon name="upload" />
             <span>Tải phiên bản mới</span>
@@ -112,6 +123,7 @@ export function SourceDocumentSummary({
             className="button danger lumi-source-btn lumi-source-btn-danger lumi-source-btn-icon"
             onClick={onDelete}
             disabled={busy}
+            aria-disabled={busy}
             aria-label="Xóa tài liệu nguồn"
             title="Xóa tài liệu nguồn"
           >
@@ -166,6 +178,7 @@ export function SourceFailureNotice({
           className="lumi-source-btn-retry"
           onClick={() => onRetry(version.versionNumber)}
           disabled={busy}
+          aria-label={`Thử lại xử lý phiên bản v${version.versionNumber}`}
         >
           {busy ? 'Đang xử lý…' : `Thử lại xử lý v${version.versionNumber}`}
         </button>
@@ -209,7 +222,7 @@ export function SourceGrantsPanel({ grants, busy, onRevoke }: SourceGrantsPanelP
                 <div className="lumi-source-grant-info">
                   <div className="lumi-source-grant-title-line">
                     <span className="lumi-source-grant-name">{grant.className}</span>
-                    <span className="lumi-source-grant-code">({grant.classCode})</span>
+                    {grant.classCode&&<span className="lumi-source-grant-code">({grant.classCode})</span>}
                     {isArchived && (
                       <span className="lumi-source-badge lumi-source-badge-archived">
                         Lớp đã lưu trữ
@@ -222,7 +235,7 @@ export function SourceGrantsPanel({ grants, busy, onRevoke }: SourceGrantsPanelP
                     )}
                   </div>
                   <div className="lumi-source-grant-meta">
-                    <span>Phiên bản phục vụ: v{grant.servingVersion}</span>
+                    <span>Phiên bản phục vụ: <strong>v{grant.servingVersion}</strong></span>
                     {grant.grantedAt && <span>Cấp quyền: {grant.grantedAt}</span>}
                   </div>
                 </div>
@@ -232,6 +245,7 @@ export function SourceGrantsPanel({ grants, busy, onRevoke }: SourceGrantsPanelP
                   className="lumi-source-btn-revoke"
                   onClick={() => onRevoke(grant)}
                   disabled={busy || !canRevoke}
+                  aria-label={`Thu hồi chia sẻ khỏi lớp ${grant.className}`}
                   title={
                     !canRevoke
                       ? isArchived
@@ -321,16 +335,22 @@ export function SourceVersionHistory({
                       </div>
                     </td>
                     <td>{v.fileSizeFormatted}</td>
-                    <td>{v.uploadedAt}</td>
+                    <td>{new Date(v.uploadedAt).toLocaleString('vi-VN')}</td>
                     <td>
-                      <span className={`lumi-source-badge ${statusMeta.className}`}>
+                      <span
+                        className={`lumi-source-badge ${statusMeta.className}`}
+                        title={v.errorMessage || undefined}
+                      >
                         <span className="lumi-source-badge-dot" aria-hidden="true" />
                         <span>{statusMeta.label}</span>
                       </span>
                     </td>
                     <td>
                       {v.isServing ? (
-                        <span className="lumi-source-badge lumi-source-badge-serving">
+                        <span
+                          className="lumi-source-badge lumi-source-badge-serving"
+                          title="Phiên bản này đang được cung cấp cho tất cả các lớp được chia sẻ"
+                        >
                           <span className="lumi-source-badge-dot" aria-hidden="true" />
                           <span>Đang phục vụ</span>
                         </span>
@@ -348,6 +368,7 @@ export function SourceVersionHistory({
                           className="lumi-source-btn-retry"
                           onClick={() => onRetry(v.versionNumber)}
                           disabled={busy}
+                          aria-label={`Thử lại xử lý phiên bản v${v.versionNumber}`}
                         >
                           Thử lại
                         </button>

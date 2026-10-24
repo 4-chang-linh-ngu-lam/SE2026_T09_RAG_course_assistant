@@ -1,1 +1,239 @@
-.class-source-preview{max-width:850px;width:calc(100vw - 32px)}.class-source-preview .dialog-body{max-height:75vh;overflow:auto}.source-reading-page{margin:16px 0;padding:24px;line-height:1.7}.source-formula{white-space:pre-wrap;overflow-wrap:anywhere;font-family:Cambria,Georgia,serif}
+/* Scoped styles for Class Source Preview Dialog */
+
+dialog.class-source-preview {
+  max-width: 860px;
+  width: min(860px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  border-radius: 16px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0;
+  overflow: hidden;
+}
+
+.class-source-preview .dialog-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.class-source-preview .dialog-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.class-source-preview .dialog-body {
+  padding: 24px;
+  max-height: calc(85dvh - 80px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: #0f172a;
+}
+
+.class-source-preview p {
+  margin: 0;
+  line-height: 1.55;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.class-source-preview p strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.class-source-preview label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.class-source-preview select.input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-height: 42px;
+  font-size: 13px;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  flex: 1;
+  max-width: 340px;
+  transition: border-color 0.15s ease, outline 0.15s ease;
+}
+
+.class-source-preview select.input:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+/* Extracted Reading Page Card */
+.source-reading-page {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  line-height: 1.75;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+.source-reading-page h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.source-reading-page p {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.75;
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.source-formula {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-family: "Cambria Math", "STIX Two Math", Cambria, Georgia, serif;
+  font-size: 16px;
+  color: #1d4ed8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
+.class-source-preview .muted {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.class-source-preview :is(a, button, select):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.class-source-preview .state-panel .button {
+  min-height: 40px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+/* Responsive adjustments (640px, 390px, 320px) */
+@media (max-width: 640px) {
+  dialog.class-source-preview {
+    width: calc(100vw - 20px);
+    border-radius: 14px;
+  }
+
+  .class-source-preview .dialog-header {
+    padding: 14px 16px;
+  }
+
+  .class-source-preview .dialog-header h2 {
+    font-size: 16px;
+  }
+
+  .class-source-preview .dialog-body {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .class-source-preview label {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .class-source-preview select.input {
+    width: 100%;
+    max-width: 100%;
+    min-height: 44px;
+  }
+
+  .source-reading-page {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .source-reading-page h3 {
+    font-size: 16px;
+    padding-bottom: 8px;
+  }
+
+  .source-reading-page p {
+    font-size: 13px;
+  }
+
+  .source-formula {
+    font-size: 14px;
+    padding: 12px 14px;
+  }
+
+  .class-source-preview .state-panel .button {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 390px) {
+  dialog.class-source-preview {
+    width: calc(100vw - 16px);
+  }
+
+  .class-source-preview .dialog-body {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 320px) {
+  dialog.class-source-preview {
+    width: calc(100vw - 10px);
+    border-radius: 10px;
+  }
+
+  .class-source-preview .dialog-header {
+    padding: 10px 12px;
+  }
+
+  .class-source-preview .dialog-body {
+    padding: 12px;
+  }
+}

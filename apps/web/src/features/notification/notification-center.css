@@ -2,7 +2,7 @@
 
 .lumi-notification-container {
   display: grid;
-  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px;
   align-items: start;
   width: 100%;
@@ -33,8 +33,9 @@
 
 .lumi-notification-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-direction: column;
   gap: 16px;
   padding: 20px;
   border-bottom: 1px solid #e2e8f0;
@@ -66,7 +67,11 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
+
+.lumi-notification-sync-status{font-size:11px;color:#64748b;margin:7px 0 0}
+.lumi-notification-container .button,.lumi-notification-container .lumi-notification-tab{min-height:44px}
 
 .lumi-notification-btn-refresh,
 .lumi-notification-btn-markall {

@@ -59,7 +59,7 @@ export function inspectSource(name, text) {
       ts.isCallExpression(node) &&
       ((ts.isIdentifier(node.expression) && node.expression.text === 'fetch') ||
         (ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'fetch')) &&
-      !['src/lib/api/http.ts', 'src/lib/api/proxy.ts'].includes(name)
+      !['src/lib/api/http.ts', 'src/lib/api/proxy.ts', 'src/lib/api/document-http.ts', 'src/lib/api/document-proxy.ts'].includes(name)
     ) {
       fail('All network calls belong in the reviewed HTTP transport/proxy');
     }

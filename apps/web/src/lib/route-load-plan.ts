@@ -3,6 +3,8 @@ import type {RouteParams} from '@/lib/domain';
 import {canonicalResourceId} from './api/operations';
 
 const featureOwned = new Set([
+  's.feed','t.feed','account.notifications',
+  't.library','t.libraryDocument','t.documents','s.documents','s.reader','s.notes',
   'account.profile','account.requests','a.newStudent',
   'a.accounts','a.account','a.legacy','a.staffInvite','a.importNew','a.import',
   'a.catalog','a.homerooms','a.homeroom','a.classes','a.newClass','a.classSettings','a.enrollment','a.lifecycle',

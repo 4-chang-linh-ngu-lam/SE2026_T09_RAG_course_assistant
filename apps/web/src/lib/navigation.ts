@@ -1,6 +1,6 @@
 import { routes, type RouteDefinition } from '@/config/routes';
 import type { Role } from './domain';
-export const SAFE_ROUTE_QUERY_KEYS = new Set(['version', 'page', 'locator', 'section', 'conversationId', 'mode', 'format', 'search', 'sort', 'question', 'compose']);
+export const SAFE_ROUTE_QUERY_KEYS = new Set(['version', 'page', 'locator', 'section', 'conversationId', 'mode', 'format', 'search', 'sort', 'question', 'compose', 'postId', 'commentId']);
 export function withSafeRouteQuery(path: string, values: Readonly<Record<string, string | undefined>>): string {
   const query = new URLSearchParams();
   for (const key of SAFE_ROUTE_QUERY_KEYS) if (values[key] !== undefined) query.set(key, values[key]!);

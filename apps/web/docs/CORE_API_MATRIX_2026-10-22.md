@@ -1,5 +1,11 @@
 # Core HTTP implementation matrix - 2026-10-22
 
+Document follow-up (23 October): [TASK-017 implementation and live verification](DOCUMENT_SERVICE_IMPLEMENTATION_2026-10-23.md). Document uses its own approved27-operation allowlist at `/api/document/v1`; Core's63 public operations remain unchanged. A scoped Core internal event intake connects Document changes to Notifications.
+
+Class feed/notification follow-up: [23 October UI and synchronization](CORE_CLASS_FEED_NOTIFICATIONS_2026-10-23.md). Existing HTTP operations are unchanged; session-scoped foreground refresh, shared inbox state and ID-based notification targets are implemented without widening permissions.
+
+Login/email follow-up: [role-specific activation and email links](CORE_EMAIL_LINK_FLOW_2026-10-23.md). The 63-operation wire surface is unchanged; email links now open the correct existing Staff/Reset page and only the Student tab exposes Student activation.
+
 Current functional integration follow-up: [Web–Core connection fixes, 23 October](CORE_WEB_CONNECTION_FIXES_2026-10-23.md). Home/overview use the existing class reads; archived links, UUID identity and mutation reconciliation are repaired. Performance optimization is deferred under the user's current priority. The approved 63-operation wire contract is unchanged.
 
 Latest implementation and evidence: [Core completion — 23 October](CORE_COMPLETION_2026-10-23.md), including ten account/classroom management routes, three Admin forms and all63 proxy operations. Historical baselines: [Admin forms](CORE_ADMIN_FORMS_INTEGRATION_2026-10-22.md), [38 approved operations](CORE_APPROVED_INTEGRATION_2026-10-22.md) and [Web–Core verification](FULL_VERIFICATION_2026-10-22.md). HTTP/React render evidence remains separate from browser interaction and external SMTP delivery.
@@ -26,7 +32,7 @@ Updated 2026-10-23: **67 HTTP operations**, **63 allowlisted frontend operations
 |---|---|
 | Identity / Notifications | Existing live clients and inbox retained |
 | Student/teacher class list | Live scoped GET, pagination; no guessed class code, teacher role, name or count |
-| Class feed/comments | Live read/write; author-only edit, current assignment/membership guards; updateComment remains available through the typed Core port |
+| Class feed/comments | Live read/write with foreground refresh and preserved drafts; author-only post/comment edit, current assignment/membership guards; explicit unknown reconciliation |
 | Class calendar / account calendar | Live scoped read/write; LEARNING read-only, actual timezone instants, title-only edits preserve multi-day spans; Admin metadata scope cannot enumerate Social calendars |
 | Admin audit | Live read, full cursor traversal, actual actor IDs and safe reason labels |
 | Classroom administration / accounts | Eight metadata reads implemented; wire-compatible controllers use current accounts, catalog, roster, assignments and real versions. Current acceptance results are recorded separately after execution |

@@ -79,25 +79,8 @@
 .cal-event-detail-card{padding:24px;display:flex;flex-direction:column;gap:14px}
 .cal-detail-badge{align-self:flex-start}
 
-/* Feed layout */
-.feed-container{display:flex;flex-direction:column;gap:20px;max-width:840px;margin:0 auto;width:100%}
-.feed-composer-card{border-radius:12px}
-.feed-composer-header{display:flex;align-items:center;gap:12px}
-.feed-posts-stream{display:flex;flex-direction:column;gap:18px}
-.feed-post-card{border-radius:12px;transition:box-shadow .2s}
-.feed-post-card.announcement-post{border-left:4px solid var(--primary);background:#fdfeff}
-.feed-post-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
-.feed-author-info{display:flex;align-items:center;gap:12px}
-.feed-author-name-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.feed-post-actions{display:flex;align-items:center;gap:4px}
-.feed-post-content{font-size:14px;line-height:1.6;margin-bottom:16px;white-space:pre-line}
-.feed-comments-region{border-top:1px solid var(--border);padding-top:14px;margin-top:12px}
-.feed-comments-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-.feed-comment-item{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px 14px;background:#f8fafc;border-radius:8px;font-size:13px}
-.feed-comment-main{flex:1}
-.feed-comment-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;font-size:12px}
-.feed-comment-text{margin:0;line-height:1.4}
-.feed-comment-input-row{display:flex;gap:8px;margin-top:12px}
+/* Keep long account identifiers inside the shell columns. */
+.actor{max-width:100%;min-width:0}.actor .avatar{flex-shrink:0}.actor-copy{min-width:0;overflow:hidden}.actor-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.topbar>a:last-child{min-width:0;max-width:min(36vw,300px)}.sidebar-footer>a{display:block;min-width:0}
 
 /* Classroom Home & Overview */
 .home-section{margin-bottom:28px}

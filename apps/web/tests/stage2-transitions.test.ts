@@ -19,43 +19,11 @@ const CLASS_199_ID = '00000000-0000-4000-8000-000000000199'; // TOAN9-9A1 (archi
 const DOC_1_ID = 'doc-1-ham-so-bac-hai';
 const DOC_2_ID = 'doc-2-do-thi-parabol';
 
-test('1. live adapter rejects all uncontracted document and tutor mutations honestly with 503 UNAVAILABLE', { timeout: 10000 }, async () => {
-  await assert.rejects(
-    () => liveAdapter.document.uploadDocument({ name: 'test.pdf', size: 1000, type: 'application/pdf', title: 'Test' }),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.document.uploadVersion('doc-1', { name: 'test_v2.pdf', size: 1000, type: 'application/pdf' }),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.document.retryProcessing('doc-1'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.document.shareDocument('doc-1', ['class-1']),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.document.revokeShare('doc-1', 'class-1'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.document.deleteDocument('doc-1'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.document.saveNote({ documentId: 'doc-1', classId: 'class-1', locator: 'Trang 1', noteText: 'Note' }),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.document.deleteNote('note-1'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.document.toggleBookmark('doc-1', 'class-1'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
+test('1. contracted Document rejects metadata-only uploads while Tutor remains unavailable', { timeout: 10000 }, async () => {
+  await assert.rejects(() => liveAdapter.document.uploadDocument({name:'test.pdf',size:1000,type:'application/pdf',title:'Test'}),
+    (error:unknown)=>error instanceof ApiError&&error.status===422&&error.code==='VALIDATION_ERROR');
+  await assert.rejects(() => liveAdapter.document.uploadVersion('doc-1',{name:'test.pdf',size:1000,type:'application/pdf'}),
+    (error:unknown)=>error instanceof ApiError&&error.status===422&&error.code==='VALIDATION_ERROR');
   await assert.rejects(
     () => liveAdapter.tutor.updateConfig('class-1', 'Instructions'),
     (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'

@@ -20,6 +20,7 @@ const directory=await mkdtemp(join(tmpdir(),'lumi-core-browser-'));
 const browser=spawn(required('CORE_BROWSER_EXECUTABLE'),['--headless=new','--remote-debugging-port=0','--remote-debugging-address=127.0.0.1',`--user-data-dir=${directory}`,'--no-first-run','--no-default-browser-check','--disable-sync','--disable-background-networking','about:blank'],{stdio:'ignore',windowsHide:true});
 let spawnFailed=false;browser.on('error',()=>{spawnFailed=true;});
 let phase='browser startup',passed=0,exceptionCount=0,lastAction='startup',lastPage:Cdp|undefined;
+let credentialQueryRequestObserved=false;
 const connections:Cdp[]=[],responses:{method:string;path:string;status:number}[]=[];
 const requestAuth=new Map<string,{present:boolean;fingerprint:string|null;iat:number|null;exp:number|null}>(),authDiagnostics:unknown[]=[];
 class Cdp{
@@ -31,6 +32,7 @@ class Cdp{
       if(value.id){const pending=this.pending.get(value.id);if(!pending)return;clearTimeout(pending.timer);this.pending.delete(value.id);value.error?pending.reject(new Error('CDP command failed')):pending.resolve(value.result);}
       if(value.method==='Runtime.exceptionThrown')exceptionCount++;
       if(value.method==='Network.requestWillBeSent'){
+        if(new URL(value.params.request.url).searchParams.has('token'))credentialQueryRequestObserved=true;
         const request=value.params.request,entry=Object.entries(request.headers).find(([name])=>name.toLowerCase()==='authorization'),credential=entry?String(entry[1]):'';
         let iat:number|null=null,exp:number|null=null;try{const claims=JSON.parse(Buffer.from(credential.split('.')[1],'base64url').toString());iat=claims.iat;exp=claims.exp;}catch{}
         requestAuth.set(value.params.requestId,{present:Boolean(credential),fingerprint:credential?createHash('sha256').update(credential).digest('hex').slice(0,12):null,iat,exp});
@@ -56,8 +58,15 @@ async function visible(page:Cdp,selector:string){return Boolean(await evaluate(p
 async function fill(page:Cdp,selector:string,value:string){lastPage=page;lastAction='fill:'+selector;await until(()=>visible(page,selector));await evaluate(page,`(()=>{const e=document.querySelector(${JSON.stringify(selector)});const p=e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:e instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);}
 async function click(page:Cdp,selector:string){lastPage=page;lastAction='click:'+selector;await until(async()=>Boolean(await evaluate(page,`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return e&&e.getClientRects().length>0&&!e.matches(':disabled');})()`)));await evaluate(page,`document.querySelector(${JSON.stringify(selector)}).click()`);}
 async function button(page:Cdp,text:string){lastPage=page;lastAction='button:'+text;const expression=`[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===${JSON.stringify(text)}&&e.getClientRects().length>0&&!e.matches(':disabled'))`;await until(async()=>Boolean(await evaluate(page,`Boolean(${expression})`)));await evaluate(page,`(${expression}).click()`);}
-async function text(page:Cdp,value:string){lastPage=page;lastAction='wait text';await until(async()=>Boolean(await evaluate(page,`document.body.innerText.includes(${JSON.stringify(value)})`)));}
-async function navigate(page:Cdp,path:string){lastPage=page;lastAction='navigate';await page.send('Page.navigate',{url:web.origin+path});await until(async()=>Boolean(await evaluate(page,`location.pathname===${JSON.stringify(path.split('?')[0])}&&document.readyState==='complete'`)));}
+async function text(page:Cdp,value:string){lastPage=page;lastAction='wait text';await until(async()=>Boolean(await evaluate(page,`document.body?.innerText.includes(${JSON.stringify(value)})??false`)));}
+async function navigate(page:Cdp,path:string){
+  lastPage=page;lastAction='navigate';const target=new URL(path,web.origin);assert.equal(target.origin,web.origin);
+  const navigation=await page.send('Page.navigate',{url:target.toString()});
+  await until(async()=>{
+    if(navigation.loaderId&&(await page.send('Page.getFrameTree')).frameTree.frame.loaderId!==navigation.loaderId)return false;
+    return Boolean(await evaluate(page,`location.pathname===${JSON.stringify(target.pathname)}&&document.readyState==='complete'&&Boolean(document.body)`));
+  });
+}
 function pass(label:string){passed++;console.log('PASS '+label);}
 let root:Cdp|undefined;
 try{
@@ -89,13 +98,31 @@ try{
   await navigate(admin,getRoute('a.catalog').path);await text(admin,courseName);
   pass('Admin login, hydrated course form, confirmed save and persistence after full reload');
 
+  phase='Role-specific login and emailed staff invitation link';
+  const invited=await page();await navigate(invited,'/login');await until(()=>visible(invited,'#identifier'));
+  assert.equal(await evaluate(invited,"document.querySelector('a[href=\"/activate\"]')?.textContent.includes('học sinh')"),true);
+  await click(invited,'#tab-staff');
+  assert.equal(await evaluate(invited,"Boolean(document.querySelector('a[href=\"/activate\"]'))"),false);
+  await click(invited,'#tab-student');
+  assert.equal(await evaluate(invited,"Boolean(document.querySelector('a[href=\"/activate\"]'))"),true);
+  await navigate(invited,fixture.invitation.url);await until(()=>visible(invited,'#reset-token'));
+  await until(async()=>Boolean(await evaluate(invited,"location.hash===''&&location.search===''&&document.querySelector('#reset-token').value.length>0")));
+  await fill(invited,'#password',fixture.invitation.password);await fill(invited,'#confirm-password',fixture.invitation.password);await button(invited,'Thiết lập mật khẩu & Tham gia');await text(invited,'Hoàn tất thành công');
+  await login(invited,fixture.invitation);
+  const replayed=await page();await navigate(replayed,fixture.invitation.url);await until(()=>visible(replayed,'#reset-token'));
+  await until(async()=>Boolean(await evaluate(replayed,"location.hash===''&&document.querySelector('#reset-token').value.length>0")));
+  await fill(replayed,'#password',fixture.invitation.password);await fill(replayed,'#confirm-password',fixture.invitation.password);await button(replayed,'Thiết lập mật khẩu & Tham gia');await text(replayed,'Liên kết không còn hiệu lực');
+  assert.equal(credentialQueryRequestObserved,false);
+  assert.equal(await evaluate(invited,'localStorage.length+sessionStorage.length'),0);
+  pass('Student-only activation link; emailed staff invitation autofills, scrubs URL, activates once and rejects replay');
+
   phase='Student home and class navigation';
   const student=await page();await login(student,fixture.student);await text(student,fixture.className);
   await click(student,`a[href="/student/classes/${fixture.classId}/overview"]`);await text(student,'Bảng tin lớp');
   await navigate(student,`/student/classes/${fixture.classId.toUpperCase()}/overview`);await text(student,'Bảng tin lớp');
   await click(student,`a[href="/student/classes/${fixture.classId}/feed"]`);await until(()=>visible(student,'#feed-new-post'));
   const post='Browser post '+suffix;await fill(student,'#feed-new-post',post);await button(student,'Đăng bài viết');await text(student,post);
-  await fill(student,'.feed-reply-box input','Browser comment '+suffix);await button(student,'Gửi');await text(student,'Browser comment '+suffix);
+  await fill(student,'.feed-reply-box textarea','Browser comment '+suffix);await button(student,'Gửi');await text(student,'Browser comment '+suffix);
   await click(student,'button[aria-label="Sửa bình luận"]');await fill(student,'dialog[open] textarea','Browser edited '+suffix);await button(student,'Lưu bình luận');await text(student,'Browser edited '+suffix);
   await navigate(student,`/student/classes/${fixture.classId}/feed`);await text(student,post);await text(student,'Browser edited '+suffix);
   const cookies=await student.send('Network.getCookies',{urls:[web.origin+'/api/v1/auth/refresh']});assert.ok(cookies.cookies.some((cookie:{name:string;httpOnly:boolean})=>cookie.name==='refresh_token'&&cookie.httpOnly));
@@ -118,6 +145,55 @@ try{
 
   phase='Teacher calendar UI';
   const teacher=await page();await login(teacher,fixture.teacher);await text(teacher,fixture.className);
+  phase='Two-actor class feed synchronization and notifications';
+  await navigate(student,`/student/classes/${fixture.classId}/feed`);await until(()=>visible(student,'#feed-new-post'));
+  const retainedDraft='Browser retained draft '+suffix;await fill(student,'#feed-new-post',retainedDraft);
+  await navigate(teacher,`/teacher/classes/${fixture.classId}/feed`);await until(()=>visible(teacher,'#feed-new-post'));
+  const sharedPost='Browser shared teacher post '+suffix;
+  await fill(teacher,'#feed-new-post',sharedPost);await button(teacher,'Đăng bài viết');await text(teacher,sharedPost);
+  await student.send('Page.bringToFront');await evaluate(student,"window.dispatchEvent(new Event('focus'))");await text(student,sharedPost);
+  assert.equal(await evaluate(student,"document.querySelector('#feed-new-post').value"),retainedDraft);
+  const postCard=`[...document.querySelectorAll('.feed-post-card')].find(e=>e.querySelector('.feed-post-content')?.textContent.includes(${JSON.stringify(sharedPost)}))`;
+  const commentText='Browser synchronized student reply '+suffix;
+  await evaluate(student,`(()=>{const e=(${postCard}).querySelector('.feed-reply-box textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,${JSON.stringify(commentText)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await until(async()=>Boolean(await evaluate(student,`!(${postCard}).querySelector('.feed-reply-box button').disabled`)));
+  await evaluate(student,`(${postCard}).querySelector('.feed-reply-box button').click()`);await text(student,commentText);
+  await teacher.send('Page.bringToFront');await evaluate(teacher,"window.dispatchEvent(new Event('focus'))");await text(teacher,commentText);
+  await evaluate(teacher,`(${postCard}).querySelector('button[aria-label="Sửa bài viết"]').click()`);
+  await fill(teacher,'#feed-edit-content',sharedPost+' updated');await button(teacher,'Lưu bài viết');await text(teacher,sharedPost+' updated');
+  await student.send('Page.bringToFront');await evaluate(student,"window.dispatchEvent(new Event('focus'))");await text(student,sharedPost+' updated');
+  assert.equal(await evaluate(student,"document.querySelector('#feed-new-post').value"),retainedDraft);
+  await teacher.send('Page.bringToFront');
+  await writeFile(join(required('CORE_BROWSER_ARTIFACT_DIR'),'teacher-feed-desktop.png'),Buffer.from((await teacher.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  phase='Notification center receives comment delivery';
+  await navigate(teacher,'/notifications');await text(teacher,'Phản hồi mới');
+  await until(async()=>Boolean(await evaluate(teacher,"document.querySelector('.lumi-notification-bell')?.getAttribute('aria-label')?.includes('chưa đọc')")));
+  phase='Notification manual refresh';
+  await click(teacher,'button[aria-label="Làm mới thông báo"]');
+  phase='Notification comment row selection';
+  await click(teacher,'button.lumi-notification-item[aria-label^="Phản hồi mới,"]');
+  phase='Notification target navigation';
+  await click(teacher,'.lumi-notification-btn-navigate');await text(teacher,sharedPost);await text(teacher,commentText);
+  assert.equal(await evaluate(teacher,"new URLSearchParams(location.search).has('postId')&&new URLSearchParams(location.search).has('commentId')"),true);
+  const linkedFeed=await evaluate(teacher,'location.pathname+location.search');
+  await until(async()=>Boolean(await evaluate(teacher,"document.activeElement.id==='feed-comment-'+new URLSearchParams(location.search).get('commentId')")));
+  phase='Notification mark all and shared bell';
+  await navigate(teacher,'/notifications');await click(teacher,'.lumi-notification-btn-markall');
+  await until(async()=>Boolean(await evaluate(teacher,"document.querySelector('.lumi-notification-bell')?.getAttribute('aria-label')==='Thông báo'")));
+  await teacher.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  assert.equal(await evaluate(teacher,'document.documentElement.scrollWidth<=window.innerWidth'),true);
+  await writeFile(join(required('CORE_BROWSER_ARTIFACT_DIR'),'notifications-mobile.png'),Buffer.from((await teacher.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  await teacher.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await navigate(teacher,linkedFeed);await text(teacher,commentText);
+  await evaluate(teacher,`(${postCard}).querySelector('button[aria-label="Xóa bình luận"]').click()`);await button(teacher,'Xác nhận xóa');
+  await student.send('Page.bringToFront');await evaluate(student,"window.dispatchEvent(new Event('focus'))");
+  await until(async()=>!(await evaluate(student,`document.body.innerText.includes(${JSON.stringify(commentText)})`)));
+  await teacher.send('Page.bringToFront');await evaluate(teacher,`(${postCard}).querySelector('button[aria-label="Xóa bài viết"]').click()`);await button(teacher,'Xác nhận xóa');
+  await student.send('Page.bringToFront');await evaluate(student,"window.dispatchEvent(new Event('focus'))");
+  await until(async()=>!(await evaluate(student,`document.body.innerText.includes(${JSON.stringify(sharedPost)})`)));
+  await navigate(teacher,linkedFeed);await text(teacher,'không còn khả dụng');
+  pass('Two actors synchronize create/edit/delete without reload, retain drafts, focus exact notification targets, share bell count and handle deleted content');
+  phase='Teacher calendar UI';
   phase='Teacher overview reload';
   await navigate(teacher,`/teacher/classes/${fixture.classId.toUpperCase()}/overview`);await text(teacher,'Lịch lớp');
   phase='Teacher calendar create';
@@ -140,9 +216,11 @@ try{
   assert.equal(exceptionCount,0);assert.ok(responses.some(response=>response.path.endsWith('/status')&&response.status===204));
   pass('Admin status form uses 204 acknowledgement/current reload and lock revokes the open browser session');
   console.log(JSON.stringify({passed,fixture:'synthetic',authenticatedHttp:true,browserInteraction:true,uncaughtExceptions:exceptionCount,viewports:[1440,390]}));
-}catch{
+}catch(error){
   if(lastPage)try{await writeFile(join(required('CORE_BROWSER_ARTIFACT_DIR'),'browser-failure.png'),Buffer.from((await lastPage.send('Page.captureScreenshot',{format:'png'})).data,'base64'));}catch{}
-  console.error(JSON.stringify({phase,lastAction,passed,code:'BROWSER_CHECK_FAILED',recentHttp:authDiagnostics.slice(-15)}));process.exitCode=1;
+  if(lastPage)try{console.error(JSON.stringify({dom:await evaluate(lastPage,"({path:location.pathname,feedCards:document.querySelectorAll('.feed-post-card').length,notificationRows:document.querySelectorAll('.lumi-notification-item').length,headerButtons:[...document.querySelectorAll('.lumi-notification-header button')].map(e=>({text:e.textContent.trim(),disabled:e.disabled,visible:e.getClientRects().length>0})),notificationTitles:[...document.querySelectorAll('.lumi-notification-item-title')].slice(0,2).map(e=>e.textContent),focus:document.activeElement?.tagName,bodyWidth:document.documentElement.scrollWidth,viewport:innerWidth})")}));}catch{}
+  const failureKind=error instanceof Error&&['Browser evaluation failed','Browser condition timed out','CDP command failed','CDP command timeout'].includes(error.message)?error.message:'Assertion or unexpected browser failure';
+  console.error(JSON.stringify({phase,lastAction,passed,code:'BROWSER_CHECK_FAILED',failureKind,recentHttp:authDiagnostics.slice(-15)}));process.exitCode=1;
 }finally{
   if(root){try{await root.send('Browser.close');}catch{}}
   for(const connection of connections)connection.close();

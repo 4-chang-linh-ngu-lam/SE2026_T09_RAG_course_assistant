@@ -1,0 +1,7 @@
+ARG CORE_TEST_BASE=rag-course-core:local
+FROM ${CORE_TEST_BASE}
+USER root
+RUN pip install --no-cache-dir 'pytest>=8,<10' 'httpx>=0.27,<1' 'httpx2>=2,<3'
+COPY tests ./tests
+USER core
+CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]

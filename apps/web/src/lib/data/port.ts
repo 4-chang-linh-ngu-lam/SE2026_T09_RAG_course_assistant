@@ -73,16 +73,20 @@ export interface DataAdapter {
     markAllAsRead(): Promise<void>;
   };
   document: {
-    previewClassSource(input: {classId: string; documentId: string; version: number}): Promise<ClassSourcePreview>;
-    uploadDocument(file: { name: string; size: number; type: string; title: string; description?: string }): Promise<DocumentItem>;
-    uploadVersion(documentId: string, file: { name: string; size: number; type: string }): Promise<DocumentVersion>;
+    previewClassSource(input: {classId: string; documentId: string; version: number; signal?:AbortSignal}): Promise<ClassSourcePreview>;
+    uploadDocument(file: { name: string; size: number; type: string; title: string; description?: string; file?:File; requestId?:string }): Promise<DocumentItem>;
+    uploadVersion(documentId: string, file: { name: string; size: number; type: string; file?:File; requestId?:string }): Promise<DocumentVersion>;
     retryProcessing(documentId: string, versionNumber?: number): Promise<DocumentItem>;
-    shareDocument(documentId: string, classIds: string[]): Promise<void>;
-    revokeShare(documentId: string, classId: string): Promise<void>;
-    deleteDocument(documentId: string): Promise<void>;
-    saveNote(input: { id?: string; documentId: string; classId: string; locator: string; noteText: string; version?: number; pageNumber?: number; sourceQuote?: string }): Promise<PersonalNoteItem>;
-    deleteNote(noteId: string): Promise<void>;
-    toggleBookmark(documentId: string, classId: string, locator?: string, version?: number): Promise<{ bookmarked: boolean }>;
+    shareDocument(documentId: string, classIds: string[],expectedRevision?:number): Promise<void>;
+    revokeShare(documentId: string, classId: string,expectedRevision?:number): Promise<void>;
+    deleteDocument(documentId: string,expectedRevision?:number,confirmedSharedClassCount?:number): Promise<void>;
+    saveNote(input: { id?: string; documentId: string; classId: string; locator: string; noteText: string; version?: number; pageNumber?: number; sourceQuote?: string; expectedRevision?:number; locatorId?:string; clientRequestId?:string }): Promise<PersonalNoteItem>;
+    deleteNote(noteId: string,expectedRevision?:number): Promise<void>;
+    toggleBookmark(documentId: string, classId: string, locator?: string, version?: number,desired?:boolean): Promise<{ bookmarked: boolean }>;
+    removeBookmark?(bookmarkId:string):Promise<void>;
+    uploadReceipt?(requestId:string):Promise<{documentId:string;version:number}>;
+    download?(documentId:string,version:number,classId?:string):Promise<Blob>;
+    updateMetadata?(documentId:string,title:string,description:string,expectedRevision:number):Promise<DocumentItem>;
   };
   tutor: {
     updateConfig(classId: string, instructions: string): Promise<TeacherTutorInstructionConfig>;

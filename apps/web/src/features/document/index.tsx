@@ -8,6 +8,7 @@ import { TeacherClassDocumentsView } from './views/teacher-class-documents-view'
 import { StudentClassDocumentsView } from './views/student-class-documents-view';
 import { StudentReaderView } from './views/student-reader-view';
 import { StudentNotesView } from './views/student-notes-view';
+import {useDocumentWorkspace} from './use-document-workspace';
 
 export {
   TeacherLibraryView,
@@ -30,6 +31,8 @@ type Props = {
 export function DocumentFeature(props: Props) {
   const id = props.route.id;
   const params = props.params ?? {};
+  const workspace=useDocumentWorkspace(id,params);
+  props={...props,data:workspace.data,reload:workspace.reload};
 
   if (id === 't.library') return <TeacherLibraryView route={props.route} data={props.data} reload={props.reload} />;
   if (id === 't.libraryDocument') return <TeacherLibraryDocumentView route={props.route} data={props.data} reload={props.reload} />;

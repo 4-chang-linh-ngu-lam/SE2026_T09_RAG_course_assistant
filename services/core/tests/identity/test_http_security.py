@@ -248,3 +248,56 @@ def test_unconfigured_email_fails_closed(monkeypatch):
     with pytest.raises(AppError) as raised:
         SMTPTokenSender()
     assert raised.value.status_code == 503
+
+
+@pytest.mark.parametrize(
+    ("purpose", "path"),
+    [
+        (TokenPurpose.ADMIN_INVITATION, "/staff/invitation"),
+        (TokenPurpose.PASSWORD_RESET, "/reset-password"),
+    ],
+)
+def test_email_links_use_configured_web_origin_and_fragment(monkeypatch, purpose, path):
+    from urllib.parse import parse_qs, urlsplit
+
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.com")
+    monkeypatch.setattr(settings, "smtp_from", "sender@example.com")
+    monkeypatch.setattr(settings, "web_origin", "https://school.example.com:8443")
+    client = Mock()
+    client.__enter__ = Mock(return_value=client)
+    client.__exit__ = Mock(return_value=False)
+    client.send_message.return_value = {}
+    monkeypatch.setattr(smtplib, "SMTP", Mock(return_value=client))
+    monkeypatch.setattr(settings, "smtp_security", "starttls")
+    raw = "synthetic+opaque/token?value=one&other#fragment"
+    SMTPTokenSender().send(
+        TokenDelivery("teacher@example.com", purpose, SecretStr(raw), datetime.now(UTC))
+    )
+    body = client.send_message.call_args.args[0].get_content()
+    link = next(line for line in body.splitlines() if line.startswith("https://"))
+    parsed = urlsplit(link)
+    assert parsed.netloc == "school.example.com:8443"
+    assert parsed.path == path
+    assert not parsed.query
+    assert parse_qs(parsed.fragment) == {"token": [raw]}
+    assert "Your one-time token:" not in body
+    assert "/activate" not in body
+
+
+def test_invitation_without_web_origin_fails_before_smtp(monkeypatch):
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.com")
+    monkeypatch.setattr(settings, "smtp_from", "sender@example.com")
+    monkeypatch.setattr(settings, "web_origin", None)
+    constructor = Mock()
+    monkeypatch.setattr(smtplib, "SMTP", constructor)
+    with pytest.raises(AppError) as raised:
+        SMTPTokenSender().send(
+            TokenDelivery(
+                "teacher@example.com",
+                TokenPurpose.ADMIN_INVITATION,
+                SecretStr("synthetic-unused"),
+                datetime.now(UTC),
+            )
+        )
+    assert raised.value.status_code == 503
+    constructor.assert_not_called()

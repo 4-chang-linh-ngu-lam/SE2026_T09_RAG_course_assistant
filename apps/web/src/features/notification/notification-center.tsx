@@ -15,6 +15,8 @@ export type NotificationCenterProps = {
   totalCount: number;
   unreadCount: number;
   busy: boolean;
+  syncing?: boolean;
+  lastSyncedAt?: number | null;
   issue: NotificationReadIssue | null;
   snapshotError: string | null;
   accessNotice: string | null;
@@ -153,6 +155,8 @@ export function NotificationCenter({
   totalCount,
   unreadCount,
   busy,
+  syncing = false,
+  lastSyncedAt = null,
   issue,
   snapshotError,
   accessNotice,
@@ -295,7 +299,8 @@ export function NotificationCenter({
         <header className="lumi-notification-header">
           <div className="lumi-notification-title-block">
             <h2 className="lumi-notification-heading">Thông báo</h2>
-            <p className="lumi-notification-subtitle muted">Trung tâm cập nhật học tập</p>
+            <p className="lumi-notification-subtitle muted">{unreadCount>0?`${unreadCount} thông báo chưa đọc`:'Bạn đã xem hết thông báo mới'}</p>
+            <p className="lumi-notification-sync-status">{syncing?'Đang đồng bộ…':snapshotError?'Chưa cập nhật được dữ liệu mới nhất':lastSyncedAt?`Cập nhật lúc ${new Date(lastSyncedAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}`:'Tự cập nhật khi mở tab'}</p>
           </div>
 
           <div className="lumi-notification-header-actions">
@@ -303,7 +308,7 @@ export function NotificationCenter({
               type="button"
               className="button lumi-notification-btn-refresh"
               onClick={onRefresh}
-              disabled={busy}
+              disabled={busy || syncing}
               title="Làm mới thông báo"
               aria-label="Làm mới thông báo"
             >
@@ -449,7 +454,7 @@ export function NotificationCenter({
               <p className="lumi-notification-empty-text muted">
                 {filter === 'unread'
                   ? 'Bạn đã xem hết các thông báo mới.'
-                  : 'Các cập nhật bài tập, kiểm tra và tài liệu từ lớp học sẽ xuất hiện tại đây.'}
+                  : 'Các cập nhật từ lớp học và hệ thống sẽ xuất hiện tại đây.'}
               </p>
             </div>
           ) : (

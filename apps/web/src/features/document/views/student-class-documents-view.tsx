@@ -1,11 +1,12 @@
 'use client';
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useMemo,useRef } from 'react';
 import Link from 'next/link';
 import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { DocumentItem, RouteParams, WorkspaceData } from '@/lib/domain';
 import { adapter } from '@/lib/data';
 import { StatePanel, Icon } from '@/components/ui';
+import {useDocumentWrite} from '../use-document-write';
 
 type Props = {
   route: RouteDefinition;
@@ -19,7 +20,8 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
   const [formatFilter, setFormatFilter] = useState('all');
   const [sortFilter, setSortFilter] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [actionError, setActionError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  const write=useDocumentWrite(`class-documents:${params.classId}`);
+  const intent=useRef<{documentId:string;desired:boolean}|null>(null);
 
   const rawDocs = data && data.kind === 'ready' ? data.classDocuments ?? [] : [];
 
@@ -66,18 +68,18 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
   const handleToggleBookmark = (docId: string) => {
     if (!params.classId) return;
     setActionError(null);
-    startTransition(async () => {
-      try {
-        await adapter.document.toggleBookmark(docId, params.classId);
+    const doc=rawDocs.find(item=>item.id===docId);if(!doc||!doc.currentVersion)return;
+    const desired=!doc.isBookmarked;intent.current={documentId:docId,desired};
+    void write.run(() => adapter.document.toggleBookmark(docId, params.classId,undefined,doc.currentVersion,desired), () => {
         reload();
-      } catch (err) {
-        setActionError(err instanceof Error ? err.message : 'Không thể lưu dấu trang.');
-      }
     });
   };
 
   return (
     <div className="student-docs-container space-y-6">
+      {(write.error||actionError)&&<p className="notice error" role="alert">{write.error??actionError}</p>}
+      {write.unknown&&<button type="button" className="button" disabled={write.busy} onClick={()=>void write.retryOriginal()}>Gửi lại cùng yêu cầu đã lưu</button>}
+      {write.unknown&&<button className="button" type="button" disabled={write.busy} onClick={()=>void write.reconcile(async()=>{const current=await adapter.workspace.load('s.documents',{classId:params.classId}),target=intent.current;if(current.kind!=='ready'||!target)return false;const doc=current.classDocuments?.find(item=>item.id===target.documentId);return Boolean(doc&&Boolean(doc.isBookmarked)===target.desired);},reload)}>Đối soát dấu trang</button>}
       {/* Header and Toolbar */}
       <div className="card p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
         <div className="flex-1 flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -153,6 +155,7 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
                       type="button"
                       className="bookmark-btn p-1.5 rounded-full hover:bg-surface-container-high transition-colors"
                       data-bookmarked={isBookmarked ? 'true' : 'false'}
+                      disabled={write.blocked||doc.currentVersion===0}
                       aria-label={isBookmarked ? 'Bỏ lưu tài liệu' : 'Lưu tài liệu vào danh sách ghi nhớ'}
                       onClick={() => handleToggleBookmark(doc.id)}
                     >
@@ -161,7 +164,7 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
                   </div>
 
                   <h3 className="text-base font-bold text-on-surface line-clamp-2 hover:text-primary transition-colors">
-                    <Link href={readerHref}>{doc.title}</Link>
+                    {doc.currentVersion>0?<Link href={readerHref}>{doc.title}</Link>:doc.title}
                   </h3>
 
                   {doc.description && <p className="text-xs muted line-clamp-2 mt-2">{doc.description}</p>}
@@ -175,10 +178,10 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
                     <span className="muted">v{doc.currentVersion}</span>
                   </div>
 
-                  <Link href={readerHref} className="button small primary flex items-center gap-1">
+                  {doc.currentVersion>0?<Link href={readerHref} className="button small primary flex items-center gap-1">
                     <span>Xem tài liệu</span>
                     <Icon name="chevronRight" />
-                  </Link>
+                  </Link>:<span className="muted">Đang chuẩn bị nguồn</span>}
                 </div>
               </article>
             );

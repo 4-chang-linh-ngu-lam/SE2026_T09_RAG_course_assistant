@@ -1,10 +1,11 @@
 'use client';
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import type { RouteDefinition } from '@/config/routes';
 import type { BookmarkItem, PersonalNoteItem, WorkspaceData } from '@/lib/domain';
 import { adapter } from '@/lib/data';
-import { StatePanel, Icon, Dialog } from '@/components/ui';
+import { StatePanel, Icon, Dialog, useUnsavedChanges } from '@/components/ui';
+import {useDocumentWrite} from '../use-document-write';
 
 type Props = {
   route: RouteDefinition;
@@ -18,7 +19,10 @@ export function StudentNotesView({ data, reload }: Props) {
   const [editingNote, setEditingNote] = useState<PersonalNoteItem | null>(null);
   const [editingText, setEditingText] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const write=useDocumentWrite('personal-notes');
+  const isPending=write.blocked;
+  const intent=useRef<{kind:'edit'|'delete'|'bookmark';id:string;text?:string;revision?:number}|null>(null);
+  useUnsavedChanges(Boolean(editingNote&&editingText!==editingNote.noteText));
 
   const allNotes = data && data.kind === 'ready' ? data.studentNotes ?? [] : [];
   const allBookmarks = data && data.kind === 'ready' ? data.studentBookmarks ?? [] : [];
@@ -71,45 +75,36 @@ export function StudentNotesView({ data, reload }: Props) {
     e.preventDefault();
     if (!editingNote || !editingText.trim()) return;
     setActionError(null);
-    startTransition(async () => {
-      try {
-        await adapter.document.saveNote({
+    const note=editingNote;
+    intent.current={kind:'edit',id:note.id,text:editingText.trim(),revision:note.revision};
+    void write.run(() => adapter.document.saveNote({
           id: editingNote.id,
           documentId: editingNote.documentId,
           classId: editingNote.classId,
           locator: editingNote.locator,
           noteText: editingText.trim(),
-        });
+          expectedRevision:note.revision,version:note.version,locatorId:note.locatorId,pageNumber:note.pageNumber,
+        }), () => {
         setEditingNote(null);
         setEditingText('');
         reload();
-      } catch (err) {
-        setActionError(err instanceof Error ? err.message : 'Không thể lưu ghi chú.');
-      }
     });
   };
 
   const handleDeleteNote = (noteId: string) => {
     setActionError(null);
-    startTransition(async () => {
-      try {
-        await adapter.document.deleteNote(noteId);
+    const note=allNotes.find(item=>item.id===noteId);if(!note||!window.confirm('Xóa ghi chú cá nhân này?'))return;
+    intent.current={kind:'delete',id:noteId};
+    void write.run(() => adapter.document.deleteNote(noteId,note.revision), () => {
         reload();
-      } catch (err) {
-        setActionError(err instanceof Error ? err.message : 'Không thể xóa ghi chú.');
-      }
     });
   };
 
-  const handleDeleteBookmark = (docId: string, classId: string) => {
+  const handleDeleteBookmark = (bookmark:BookmarkItem) => {
     setActionError(null);
-    startTransition(async () => {
-      try {
-        await adapter.document.toggleBookmark(docId, classId);
+    intent.current={kind:'bookmark',id:bookmark.id};
+    void write.run(async () => {if(adapter.document.removeBookmark)await adapter.document.removeBookmark(bookmark.id);else await adapter.document.toggleBookmark(bookmark.documentId,bookmark.classId,bookmark.locator,bookmark.version,false);}, () => {
         reload();
-      } catch (err) {
-        setActionError(err instanceof Error ? err.message : 'Không thể gỡ dấu trang.');
-      }
     });
   };
 
@@ -163,6 +158,9 @@ export function StudentNotesView({ data, reload }: Props) {
       </div>
 
       {actionError && <p className="notice error" role="alert">{actionError}</p>}
+      {write.error&&<p className="notice error" role="alert">{write.error}</p>}
+      {write.unknown&&<button type="button" className="button" disabled={write.busy} onClick={()=>void write.retryOriginal()}>Gửi lại cùng yêu cầu đã lưu</button>}
+      {write.unknown&&<button type="button" className="button" disabled={write.busy} onClick={()=>void write.reconcile(async()=>{const current=await adapter.workspace.load('s.notes',{}),target=intent.current;if(current.kind!=='ready'||!target)return false;if(target.kind==='bookmark')return !current.studentBookmarks?.some(item=>item.id===target.id);const note=current.studentNotes?.find(item=>item.id===target.id);return target.kind==='delete'?!note:Boolean(note&&note.noteText===target.text&&(note.revision??0)>(target.revision??0));},()=>{setEditingNote(null);reload();})}>Đối soát thay đổi đã gửi</button>}
 
       {totalCount === 0 ? (
         <div className="card state-panel">
@@ -181,7 +179,7 @@ export function StudentNotesView({ data, reload }: Props) {
           {/* Notes Cards */}
           {filteredNotes.map(note => {
             const readerHref = `/student/classes/${note.classId}/documents/${note.documentId}${
-              note.pageNumber ? `?page=${note.pageNumber}` : ''
+              `?${new URLSearchParams({...(note.pageNumber?{page:String(note.pageNumber)}:{}),...(note.version?{version:String(note.version)}:{})})}`
             }`;
 
             return (
@@ -189,9 +187,9 @@ export function StudentNotesView({ data, reload }: Props) {
                 <header className="note-card-header">
                   <div className="note-title-line">
                     <span className="badge primary text-xs">{note.documentFormat}</span>
-                    <Link href={readerHref} className="note-doc-title-link">
+                    {note.isSourceAccessible?<Link href={readerHref} className="note-doc-title-link">
                       <strong>{note.documentTitle}</strong>
-                    </Link>
+                    </Link>:<strong>{note.documentTitle}</strong>}
                   </div>
                   <div className="note-meta-badges">
                     <span className="badge secondary text-xs">{note.className}</span>
@@ -214,7 +212,7 @@ export function StudentNotesView({ data, reload }: Props) {
                   ) : !note.isSourceAccessible ? (
                     <div className="revoked-source-strip">
                       <Icon name="lock" />
-                      <span>Nguồn tài liệu đã bị thu hồi hoặc xóa. Trích dẫn đã ẩn theo quy định học vụ.</span>
+                      <span>{note.sourceAccess==='UNAVAILABLE'?'Chưa xác minh được quyền nguồn. Trích dẫn tạm ẩn.':'Bạn không còn quyền mở nguồn. Trích dẫn đã ẩn; chữ ghi chú của bạn được giữ lại.'}</span>
                     </div>
                   ) : null}
 
@@ -222,11 +220,12 @@ export function StudentNotesView({ data, reload }: Props) {
                 </div>
 
                 <footer className="note-card-footer">
-                  <span className="text-xs muted">{note.updatedAt}</span>
+                  <span className="text-xs muted">{new Date(note.updatedAt).toLocaleString('vi-VN')}</span>
                   <div className="note-actions">
                     <button
                       type="button"
                       className="button small secondary"
+                      disabled={isPending||!note.isSourceAccessible}
                       onClick={() => {
                         setEditingNote(note);
                         setEditingText(note.noteText);
@@ -254,7 +253,7 @@ export function StudentNotesView({ data, reload }: Props) {
           {/* Bookmarks Cards */}
           {filteredBookmarks.map(bm => {
             const readerHref = `/student/classes/${bm.classId}/documents/${bm.documentId}${
-              bm.pageNumber ? `?page=${bm.pageNumber}` : ''
+              `?${new URLSearchParams({...(bm.pageNumber?{page:String(bm.pageNumber)}:{}),...(bm.version?{version:String(bm.version)}:{})})}`
             }`;
 
             return (
@@ -262,9 +261,9 @@ export function StudentNotesView({ data, reload }: Props) {
                 <header className="note-card-header">
                   <div className="note-title-line">
                     <span className="badge primary text-xs">{bm.documentFormat}</span>
-                    <Link href={readerHref} className="note-doc-title-link">
+                    {bm.isSourceAccessible?<Link href={readerHref} className="note-doc-title-link">
                       <strong>{bm.documentTitle}</strong>
-                    </Link>
+                    </Link>:<strong>{bm.documentTitle}</strong>}
                   </div>
                   <div className="note-meta-badges">
                     <span className="badge secondary text-xs">{bm.className}</span>
@@ -274,21 +273,21 @@ export function StudentNotesView({ data, reload }: Props) {
 
                 <div className="bookmark-card-body">
                   <p className="text-xs muted">
-                    Dấu trang được lưu tại <strong>{bm.locator}</strong> vào ngày {bm.createdAt}. Bấm vào nút bên dưới để mở đúng vị trí trong tài liệu.
+                    Dấu trang được lưu tại <strong>{bm.locator}</strong> vào ngày {new Date(bm.createdAt).toLocaleString('vi-VN')}. Bấm vào nút bên dưới để mở đúng vị trí trong tài liệu.
                   </p>
                 </div>
 
                 <footer className="note-card-footer">
-                  <span className="text-xs muted">Đã lưu: {bm.createdAt}</span>
+                  <span className="text-xs muted">Đã lưu: {new Date(bm.createdAt).toLocaleString('vi-VN')}</span>
                   <div className="note-actions">
-                    <Link href={readerHref} className="button small primary">
+                    {bm.isSourceAccessible?<Link href={readerHref} className="button small primary">
                       <Icon name="book" />
                       <span>Mở tài liệu</span>
-                    </Link>
+                    </Link>:<span className="muted">Nguồn chưa thể mở</span>}
                     <button
                       type="button"
                       className="button small danger"
-                      onClick={() => handleDeleteBookmark(bm.documentId, bm.classId)}
+                      onClick={() => handleDeleteBookmark(bm)}
                       disabled={isPending}
                       aria-label="Gỡ dấu trang này"
                     >
@@ -308,9 +307,12 @@ export function StudentNotesView({ data, reload }: Props) {
         open={Boolean(editingNote)}
         title={`Chỉnh sửa ghi chú (${editingNote?.locator ?? ''})`}
         onClose={() => setEditingNote(null)}
+        busy={write.busy}
       >
         <form onSubmit={handleUpdateNote} className="form-stack">
-          {editingNote?.isSourceAccessible && editingNote.sourceQuote && (
+          {write.error&&<p className="notice error" role="alert">{write.error}</p>}
+          {write.unknown&&<p>Đóng hộp thoại để đối soát thay đổi đã gửi.</p>}
+          {allNotes.find(note=>note.id===editingNote?.id)?.isSourceAccessible && editingNote?.sourceQuote && (
             <div className="notice-box info">
               <p className="text-xs">
                 <strong>Trích dẫn gốc:</strong> {editingNote.sourceQuote}
@@ -320,7 +322,7 @@ export function StudentNotesView({ data, reload }: Props) {
           {!editingNote?.isSourceAccessible && (
             <div className="notice-box info">
               <p className="text-xs">
-                Nguồn tài liệu không còn khả dụng trong lớp học. Bạn vẫn có thể chỉnh sửa và lưu giữ ghi chú của riêng mình.
+                Nguồn chưa thể mở trong lớp. Chữ tự viết vẫn được giữ để đọc; chỉ sửa ghi chú khi còn quyền nguồn.
               </p>
             </div>
           )}
@@ -331,6 +333,7 @@ export function StudentNotesView({ data, reload }: Props) {
               className="note-textarea"
               rows={4}
               value={editingText}
+              disabled={isPending||!allNotes.find(note=>note.id===editingNote?.id)?.isSourceAccessible}
               onChange={e => setEditingText(e.target.value)}
               required
             />
@@ -339,7 +342,7 @@ export function StudentNotesView({ data, reload }: Props) {
             <button type="button" className="button secondary" onClick={() => setEditingNote(null)}>
               Hủy
             </button>
-            <button type="submit" className="button primary" disabled={isPending || !editingText.trim()}>
+            <button type="submit" className="button primary" disabled={isPending || !editingText.trim() || !allNotes.find(note=>note.id===editingNote?.id)?.isSourceAccessible}>
               Lưu thay đổi
             </button>
           </div>

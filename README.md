@@ -4,7 +4,13 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 
 **Năm service:** Core, Document, Learning, AI, Learner Intelligence. **Core-first:** hoàn thiện toàn bộ Core (auth, lớp/thành viên, feed, comments, calendar, notifications, quản trị/audit) rồi mới sang Document + AI, Learning và Learner Intelligence.
 
-**Core stack đã chọn:** Next.js (Web), FastAPI (Core), PostgreSQL, Docker Compose. Các service khác chỉ chốt ranh giới và giao tiếp ở giai đoạn này; không suy diễn stack hay schema riêng.
+**Core stack đã chọn:** Next.js (Web), FastAPI (Core), PostgreSQL, Docker Compose. Document đã có thiết kế/API v1 được người dùng duyệt và triển khai ở TASK-017; các service AI/Learning/Learner Intelligence cần hợp đồng riêng.
+
+## Bắt đầu: mã nguồn, chạy và trải nghiệm
+
+Đọc [hướng dẫn Core–Document từ bản clone mới](docs/LOCAL_DEVELOPMENT.md): bản đồ mã nguồn, tạo cấu hình riêng, build/migrate/seed, đăng nhập Admin, kích hoạt học sinh, mời giáo viên, xếp lớp và thử tài liệu/ghi chú/thông báo. Demo fullstack dùng **Web 3200, Core 8300, Document 8400**, tách môi trường dev và demo Core cũ. Docker chạy toàn bộ stack; không cần Node/Python trên host nếu chỉ trải nghiệm.
+
+Admin demo công khai vẫn là **`admin@seed.example.com` / `LumiDemoOnly!2026`** sau khi chủ động seed vào database demo riêng. Đây không phải mật khẩu của Admin đang có trên máy; credential DB/SMTP và mã kích hoạt riêng không nằm trong Git. Hướng dẫn demo Core-only 3100 ở dưới vẫn dùng được.
 
 ## Đọc tài liệu
 1. [Business Rules](docs/architect/BUSINESS_RULES.md) — nguồn nghiệp vụ.
@@ -13,7 +19,7 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 4. [Danh mục task](tasks/README.md) — hiện trạng, việc cần sửa và phụ thuộc của TASK-001–020 (rà soát 2026-10-16).
 5. [Roadmap](docs/architect/microservices-v1/IMPLEMENTATION_ROADMAP.md), [Quality Attributes](docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md), [Contributing](docs/CONTRIBUTING.md).
 
-**Trạng thái:** Core đã triển khai Identity, Classroom, Social/Calendar, Notification và Administration/import; Web nối **63 API đã duyệt**. [Nghiệm thu chức năng gần nhất](apps/web/docs/CORE_WEB_CONNECTION_FIXES_2026-10-23.md): 324 test Web, build live, 22 nhóm HTTP và 5 nhóm thao tác Chrome đạt. Đây không phải chứng nhận toàn bộ năm service hoặc mục tiêu hiệu năng. Xem [API matrix](apps/web/docs/CORE_API_MATRIX_2026-10-22.md) và [Core README](services/core/README.md).
+**Trạng thái 24/10/2026:** Core đã triển khai Identity, Classroom, Social/Calendar, Notification và Administration/import; Web nối **63 API đã duyệt**. Document có **27 public API**, worker và sáu workspace live. [Bằng chứng Core–Document](apps/web/docs/DOCUMENT_SERVICE_IMPLEMENTATION_2026-10-23.md): 25 Document + 428 Core + 346 frontend tests, 28 nhóm HTTP và 13 nhóm Chrome đạt; AI/RAG, OCR và KPI tải chưa nằm trong nghiệm thu này. [Nghiệm thu login/link email gần nhất](apps/web/docs/CORE_EMAIL_LINK_FLOW_2026-10-23.md): 329 test Web, 51 test backend liên quan, build live, 22 nhóm HTTP và 6 nhóm thao tác Chrome đạt. Đây không phải chứng nhận toàn bộ năm service hoặc mục tiêu hiệu năng. Xem [API matrix](apps/web/docs/CORE_API_MATRIX_2026-10-22.md) và [Core README](services/core/README.md).
 
 <a id="core-web-demo"></a>
 
@@ -111,8 +117,8 @@ Mở http://localhost:3100/login, chọn đăng nhập nhân sự và dùng Admi
 1. Để thử tài khoản đã có lớp: Admin mở `seed.student.1`, chọn **Cấp mã kích hoạt học sinh một lần** với mục đích đặt lại mật khẩu; lưu mã vừa hiển thị.
 2. Trong profile trình duyệt riêng, mở http://localhost:3100/reset-password, nhập mã và đặt mật khẩu của bạn. Sau đó vào `/login`, chọn **Học sinh**, đăng nhập bằng `seed.student.1` và mật khẩu vừa đặt.
 3. Để thử kích hoạt lần đầu: Admin cấp mã cho `seed.student.3` hoặc học sinh mới tạo; người học vào `/activate`, nhập username/mã và tự đặt mật khẩu. Admin ghi danh vào lớp MANUAL trước khi thử nội dung lớp.
-4. Từ trang chủ/danh sách lớp, mở lớp khối 9 → Tổng quan → Bảng tin. Tạo bài, sửa bài mình, bình luận, sửa bình luận; tải lại trang và kiểm tra dữ liệu vẫn còn. Học sinh không sửa bài của người khác hoặc vào trang quản trị.
-5. Mở lịch và thông báo; thử đánh dấu một thông báo rồi tất cả là đã đọc. Inbox chỉ có dữ liệu khi có sự kiện nghiệp vụ; worker `notification-worker` cần đang chạy.
+4. Từ trang chủ/danh sách lớp, mở lớp khối 9 → Tổng quan → Bảng tin. Tạo/sửa bài của mình, viết bình luận nhiều dòng, sửa bình luận; Enter xuống dòng, Ctrl+Enter hoặc nút Gửi để gửi. Có tìm kiếm nội dung đã tải, xem thêm bài và thu gọn chuỗi bình luận. Học sinh không sửa bài của người khác hoặc vào trang quản trị.
+5. Mở lịch và thông báo; thử chọn một thông báo rồi đánh dấu tất cả đã đọc. Chuông và trang thông báo dùng chung số chưa đọc từ máy chủ. Nút **Mở bài viết trong lớp** đưa tới đúng bài/bình luận; nếu đã xóa hoặc mất quyền, trang báo nội dung không còn khả dụng. Inbox chỉ có dữ liệu khi có sự kiện nghiệp vụ; worker `notification-worker` cần đang chạy.
 6. Giữ cửa sổ học sinh mở; Admin khóa tài khoản đó. Request kế tiếp của học sinh phải bị từ chối. Mở khóa rồi đăng nhập lại; không kỳ vọng phiên cũ tự phục hồi.
 
 ### 5. Luồng Giáo viên: mời qua email → phân công → feed/lịch
@@ -120,8 +126,8 @@ Mở http://localhost:3100/login, chọn đăng nhập nhân sự và dùng Admi
 Luồng thủ công này cần SMTP hợp lệ. Demo mặc định không cấu hình SMTP và các email `@seed.example.com` không phải hộp thư để nhận thư. Không có mật khẩu giáo viên dùng chung hoặc chức năng lấy raw token từ DB.
 
 1. Đặt `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_SECURITY` và thông tin xác thực cần thiết trong `.env.demo` riêng; dùng SMTP/hộp thư bạn kiểm soát. Dựng lại service Core bằng cùng lệnh Compose. Xem [cấu hình SMTP](services/core/README.md).
-2. Admin vào `/admin/accounts/staff/invitations`, mời giáo viên bằng email nhận được thư. Người nhận mở `/staff/invitation` và dùng token từ email để tự đặt mật khẩu.
-3. Admin mở cấu hình một lớp demo, phân công giáo viên mới vào lớp. Trong profile riêng, giáo viên đăng nhập nhân sự, xem lớp phụ trách, tạo/sửa bài và bình luận; tải lại trang để kiểm tra lưu thực.
+2. Admin vào `/admin/accounts/staff/invitations`, mời giáo viên bằng email nhận được thư. Người nhận bấm **liên kết trong email** để mở đúng `/staff/invitation` của môi trường đã gửi; mã tự điền và bị xóa khỏi thanh địa chỉ. Đặt mật khẩu mới và xác nhận để hoàn tất. Trang `/login` chỉ hiện “Kích hoạt tài khoản học sinh” ở tab Học sinh; tab Giáo viên & quản trị viên không có liên kết này.
+3. Admin mở cấu hình một lớp demo, phân công giáo viên mới vào lớp. Trong profile riêng, giáo viên đăng nhập nhân sự, xem lớp phụ trách, tạo/sửa bài và bình luận. Giữ cả cửa sổ Student và giáo viên ở bảng tin cùng lớp: thao tác từ một phía rồi quay lại cửa sổ còn lại hoặc chờ khoảng 10 giây khi đang xem. Bài/bình luận mới, sửa và xóa cập nhật qua API thật; bản nháp đang nhập được giữ. Tải lại trang để kiểm tra lưu thực.
 4. Mở lịch lớp, tạo sự kiện, sửa thời gian/tiêu đề, tải lại rồi xóa. Thu hồi phân công từ Admin và kiểm tra lần đọc/ghi tiếp theo bị từ chối theo quyền hiện hành.
 5. Nếu chưa có SMTP, dùng bộ test tích hợp mục 8: fixture TLS email riêng thực sự kiểm tra luồng mời/đặt mật khẩu và thao tác giáo viên, không gửi thư ra ngoài.
 
@@ -141,7 +147,7 @@ Luồng thủ công này cần SMTP hợp lệ. Demo mặc định không cấu 
 ### 7. Kiểm tra lỗi mạng và giới hạn phạm vi
 
 - Trong DevTools Network, bật Offline khi lưu một bài thử; tắt Offline rồi dùng thao tác tải lại/đối soát mà màn hình cung cấp. Xác minh dữ liệu server trước khi tự quyết định gửi lại; ứng dụng không tự replay mutation có kết quả chưa rõ.
-- Core live hiện có tài khoản, lớp, ghi danh/phân công, feed/bình luận, lịch, thông báo, import và audit. AI Tutor, tài liệu, bài tập/quiz, điểm và Intelligence chờ service tương ứng; trạng thái chưa kết nối ở đó không phải một ca Core đã đạt.
+- Core live hiện có tài khoản, lớp, ghi danh/phân công, feed/bình luận, lịch, thông báo, import và audit. Demo Core-only này không bật Document; để thử tài liệu dùng [demo fullstack](docs/LOCAL_DEVELOPMENT.md). AI Tutor, bài tập/quiz, điểm và Intelligence vẫn chờ service tương ứng.
 - Chưa có API cho lịch sử/gửi lại/thu hồi lời mời, lịch sử import hoặc tải bản sao dữ liệu. Không dùng dữ liệu mock để xác nhận các chức năng này.
 - Nếu vừa đăng nhập đã thỉnh thoảng `401`, kiểm tra giờ Windows/WSL theo [runbook Core](services/core/README.md), không bỏ kiểm tra JWT để thử cho qua.
 
@@ -155,7 +161,7 @@ $env:CORE_BROWSER_EXECUTABLE = 'C:\Program Files\Google\Chrome\Application\chrom
 try { npm.cmd run test:core } finally { Remove-Item Env:\CORE_BROWSER_EXECUTABLE -ErrorAction SilentlyContinue }
 ```
 
-Nếu máy chưa có dependencies, chủ động chạy `npm.cmd ci` trong `apps/web` trước; nếu không dùng Chrome thì bỏ biến `CORE_BROWSER_EXECUTABLE` và chỉ nghiệm thu HTTP/render. Runner dùng stack, port, mật khẩu ngẫu nhiên và dữ liệu riêng; không dùng Admin demo này. Xem [Web README](apps/web/README.md) cho yêu cầu và chi tiết. Kết quả gần nhất: 324 test Web, 22 nhóm HTTP và 5 nhóm Chrome đạt; không suy ra mọi route hoặc SMTP ngoài đã được kiểm chứng.
+Nếu máy chưa có dependencies, chủ động chạy `npm.cmd ci` trong `apps/web` trước; nếu không dùng Chrome thì bỏ biến `CORE_BROWSER_EXECUTABLE` và chỉ nghiệm thu HTTP/render. Runner dùng stack, port, mật khẩu ngẫu nhiên và dữ liệu riêng; không dùng Admin demo này. Xem [Web README](apps/web/README.md) cho yêu cầu và chi tiết. Kết quả gần nhất cho bảng tin/thông báo: 338 test Web, 9 regression backend mới, 22 nhóm HTTP và 7 nhóm Chrome đạt; không suy ra mọi route, toàn bộ backend pytest hoặc SMTP ngoài đã được kiểm chứng. Xem [báo cáo bảng tin/thông báo](apps/web/docs/CORE_CLASS_FEED_NOTIFICATIONS_2026-10-23.md).
 
 Tại root, dừng riêng demo và giữ dữ liệu để hôm sau chạy lại:
 
@@ -176,3 +182,13 @@ Lumi phục vụ **học sinh THCS và THPT (khối 6–12)** trong **lớp họ
 
 ## Phạm vi nghiệp vụ Lumi (baseline 2026-10-14)
 MVP dành cho lớp chính khóa THCS/THPT khối 6–12 tại một trường, chuẩn bị school_id cho mở rộng; giữ 5 service và ba role ADMIN/LECTURER/STUDENT. Admin tạo lớp môn học liên kết lớp hành chính, phân công giáo viên và quản lý ghi danh AUTO/MANUAL; không có join code hoặc tự đăng ký Student trong MVP. Student nhận username và mã kích hoạt một lần từ Admin. Dữ liệu học tập cá nhân và chat lịch sử được bảo vệ khi chuyển lớp; nguồn tài liệu vẫn kiểm tra quyền hiện hành. Quản trị MVP có nhập CSV/Excel, yêu cầu dữ liệu xử lý có kiểm soát. **Đây là baseline mục tiêu, không phải tuyên bố mọi chức năng đã triển khai.** Xem `docs/architect/BUSINESS_RULES.md`.
+
+## Document — thư viện, nguồn lớp và ghi chú (TASK-017)
+
+Document đã có backend độc lập và sáu màn live, namespace `/api/document/v1`; Core public API vẫn giữ 63 operations. Xem [hướng dẫn khởi động và trải nghiệm đầy đủ](services/document/README.md), [hợp đồng API](docs/architect/microservices-v1/document/API_CONTRACT.md) và [bằng chứng kiểm thử](apps/web/docs/DOCUMENT_SERVICE_IMPLEMENTATION_2026-10-23.md).
+
+Với Core đang cấu hình trên máy, từ PowerShell tại root chạy `powershell -NoProfile -ExecutionPolicy Bypass -File services/document/scripts/configure-local.ps1 -Start`, rồi khởi động lại Web để nhận `DOCUMENT_API_URL`. Script tạo key/DB credential riêng trong file môi trường không được Git theo dõi, giữ cấu hình SMTP và dữ liệu Core. Không chạy script này để ghi đè `.env.demo`; demo 3100 tách riêng theo hướng dẫn phía trên.
+
+Luồng chính: Admin gán giáo viên/học sinh vào lớp → giáo viên mở `/teacher/library`, tải file thật và chờ Sẵn sàng → mở nguồn và chia sẻ lớp → học sinh mở Tài liệu lớp, đọc, chọn đoạn trích dẫn, lưu ghi chú/bookmark → giáo viên thử phiên bản lỗi và thu hồi chia sẻ → học sinh kiểm tra chữ tự viết còn, quote bị che. Xóa nguồn cần xác nhận số lớp hiện hành. Hạn mức mặc định 50 MiB, PDF/PPTX/DOCX/TXT/MD; Reader là text trích xuất, có tải bản gốc.
+
+AI indexing/RAG/tutor thuộc TASK-018, PDF ảnh quét chưa có OCR. Không coi READY là đã index AI hoặc coi kiểm thử chức năng là đạt KPI tải/QAS của toàn bộ hệ thống.
