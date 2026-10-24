@@ -1,0 +1,1248 @@
+/* Scoped styles for Source Management UI components (D03, D04, D05, D06 visual hierarchy) */
+
+.lumi-source-summary-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: #0f172a;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lumi-source-summary-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 0;
+}
+
+.lumi-source-summary-info {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lumi-source-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lumi-source-title {
+  font-size: 22px;
+  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-meta-row strong {
+  color: #1e293b;
+}
+
+.lumi-source-meta-divider {
+  color: #cbd5e1;
+}
+
+.lumi-source-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #334155;
+  margin: 2px 0 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-self: flex-start;
+}
+
+/* Badges */
+.lumi-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.lumi-source-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  flex-shrink: 0;
+}
+
+.lumi-source-badge-format {
+  background: #f1f5f9;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.lumi-source-badge-ready {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.lumi-source-badge-processing {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.lumi-source-badge-pending {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.lumi-source-badge-failed {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.lumi-source-badge-serving {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+  font-weight: 700;
+}
+
+.lumi-source-badge-unserved {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  font-weight: 500;
+}
+
+.lumi-source-badge-archived {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.lumi-source-badge-unverified {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+/* Buttons */
+.lumi-source-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  min-height: 40px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-decoration: none;
+}
+
+.lumi-source-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.lumi-source-btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+.lumi-source-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.lumi-source-btn-outline {
+  background: #ffffff;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+
+.lumi-source-btn-outline:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.lumi-source-btn-danger {
+  background: #ffffff;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.lumi-source-btn-danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #f87171;
+}
+
+.lumi-source-btn-icon {
+  padding: 9px 12px;
+  min-width: 40px;
+}
+
+.lumi-source-btn:disabled,
+.lumi-source-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Failure Notice Banner */
+.lumi-source-failure-card {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  color: #991b1b;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lumi-source-failure-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.lumi-source-failure-icon {
+  color: #dc2626;
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lumi-source-failure-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.lumi-source-failure-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #7f1d1d;
+  margin: 0;
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-failure-text {
+  font-size: 13px;
+  color: #991b1b;
+  margin: 0;
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-failure-detail {
+  font-size: 12px;
+  color: #b91c1c;
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.lumi-source-failure-action {
+  flex-shrink: 0;
+}
+
+.lumi-source-btn-retry {
+  background: #ffffff;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lumi-source-btn-retry:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+.lumi-source-btn-retry:focus-visible {
+  outline: 2px solid #dc2626;
+  outline-offset: 2px;
+}
+
+.lumi-source-btn-retry:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Grants Panel */
+.lumi-source-grants-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lumi-source-grants-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  min-width: 0;
+}
+
+.lumi-source-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-section-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-grants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lumi-source-grant-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  transition: background-color 0.15s ease;
+  min-width: 0;
+}
+
+.lumi-source-grant-item:hover {
+  background: #f1f5f9;
+}
+
+.lumi-source-grant-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.lumi-source-grant-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lumi-source-grant-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-grant-code {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  word-break: break-all;
+}
+
+.lumi-source-grant-meta {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.lumi-source-grant-meta strong {
+  color: #1e293b;
+}
+
+.lumi-source-btn-revoke {
+  background: #ffffff;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lumi-source-btn-revoke:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.lumi-source-btn-revoke:focus-visible {
+  outline: 2px solid #dc2626;
+  outline-offset: 2px;
+}
+
+.lumi-source-btn-revoke:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Policy Note */
+.lumi-source-policy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
+.lumi-source-policy-note svg {
+  color: #64748b;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Version History Panel */
+.lumi-source-history-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lumi-source-history-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.lumi-source-history-count {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* Responsive Table Container */
+.lumi-source-table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+
+.lumi-source-table-container:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.lumi-source-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+  min-width: 720px;
+}
+
+.lumi-source-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.lumi-source-table td {
+  padding: 14px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  color: #334155;
+}
+
+.lumi-source-table tr:hover td {
+  background: #fafcff;
+}
+
+.lumi-source-table tr.is-serving td {
+  background: #f0f7ff;
+}
+
+.lumi-source-table tr.is-serving td:first-child {
+  border-left: 3px solid #2563eb;
+}
+
+.lumi-source-table tr.is-serving:hover td {
+  background: #e2effe;
+}
+
+.lumi-source-table-version-cell {
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.lumi-source-table-filename {
+  color: #0f172a;
+  font-weight: 500;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lumi-source-table-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lumi-source-empty-state {
+  padding: 32px 20px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* Return Link */
+.lumi-source-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e40af;
+  text-decoration: none;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.lumi-source-back-link:hover {
+  text-decoration: underline;
+  background-color: #f1f5f9;
+}
+
+.lumi-source-back-link:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Grant Mutation Notice */
+.lumi-grant-mutation-notice-wrapper {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lumi-grant-mutation-unknown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 14px 16px;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lumi-grant-unknown-text {
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-grant-btn-reconcile {
+  align-self: flex-start;
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lumi-grant-btn-reconcile:hover:not(:disabled) {
+  background: #fef3c7;
+}
+
+.lumi-grant-btn-reconcile:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+
+/* Scoped Dialog Styles (.lumi-source-dialog) */
+dialog.lumi-source-dialog {
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  padding: 0;
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  color: #0f172a;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.lumi-source-dialog .dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.lumi-source-dialog .dialog-header h2 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-dialog .dialog-body {
+  padding: 20px 24px 24px;
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.lumi-source-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lumi-source-dialog-desc {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-dialog-text {
+  font-size: 14px;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.55;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Share Classes List in Dialog */
+.lumi-source-share-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 250px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #ffffff;
+}
+
+.lumi-source-share-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  min-width: 0;
+  min-height: 44px;
+  user-select: none;
+}
+
+.lumi-source-share-item:hover:not(.is-shared):not(.is-archived) {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.lumi-source-share-item.is-shared {
+  background: #f1f5f9;
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+.lumi-source-share-item.is-archived {
+  background: #f8fafc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.lumi-source-share-item input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.lumi-source-share-item input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.lumi-source-share-item-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lumi-source-share-class-name {
+  font-weight: 600;
+  color: #0f172a;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-share-class-code {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.lumi-source-grant-badge-shared {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0369a1;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 3px 8px;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: right;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-empty-classes,
+.lumi-source-empty-choices-notice {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-source-empty-classes {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+}
+
+.lumi-source-empty-choices-notice {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+/* Impact Notice (Revoke) */
+.lumi-source-impact-notice {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: #991b1b;
+  line-height: 1.55;
+  min-width: 0;
+}
+
+.lumi-source-impact-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #7f1d1d;
+}
+
+.lumi-source-impact-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lumi-source-impact-list li {
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Danger Notice (Delete) */
+.lumi-source-danger-notice {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: #991b1b;
+  line-height: 1.55;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Dialog Action Footer */
+.lumi-source-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.lumi-source-dialog-btn {
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lumi-source-dialog-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Form Styles for Version Upload */
+.lumi-source-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lumi-source-form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.lumi-source-file-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  color: #0f172a;
+  min-height: 44px;
+}
+
+.lumi-source-file-input:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+.lumi-source-file-input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Teacher Class Documents Container */
+.teacher-class-docs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.teacher-class-docs-container .card {
+  min-width: 0;
+}
+
+.lumi-class-btn-add {
+  white-space: nowrap;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lumi-class-btn-add:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.lumi-class-docs-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 20px;
+}
+
+/* Responsive layout adjustments (1024px, 768px, 640px, 480px, 390px, 320px) */
+@media (max-width: 1024px) {
+  .lumi-source-summary-card {
+    padding: 20px;
+  }
+
+  .lumi-source-grants-card {
+    padding: 18px 20px;
+  }
+
+  .lumi-source-table th,
+  .lumi-source-table td {
+    padding: 12px 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  dialog.lumi-source-dialog {
+    width: min(520px, calc(100vw - 28px));
+  }
+
+  .lumi-source-dialog .dialog-header {
+    padding: 16px 20px;
+  }
+
+  .lumi-source-dialog .dialog-body {
+    padding: 18px 20px;
+  }
+
+  .lumi-source-share-list {
+    max-height: 220px;
+  }
+}
+
+@media (max-width: 640px) {
+  .lumi-source-summary-card {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .lumi-source-title {
+    font-size: 19px;
+  }
+
+  .lumi-source-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .lumi-source-actions #ux-doc-open-share {
+    grid-column: 1 / -1;
+  }
+
+  .lumi-source-actions .lumi-source-btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .lumi-source-actions .lumi-source-btn-icon {
+    width: 44px;
+    min-width: 44px;
+    padding: 10px;
+  }
+
+  .lumi-source-failure-card {
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .lumi-source-failure-action {
+    width: 100%;
+  }
+
+  .lumi-source-btn-retry {
+    width: 100%;
+    min-height: 44px;
+    text-align: center;
+  }
+
+  .lumi-source-grant-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    min-width: 0;
+  }
+
+  .lumi-source-grant-info {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .lumi-source-btn-revoke {
+    width: 100%;
+    min-height: 44px;
+    text-align: center;
+  }
+
+  .lumi-source-dialog-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .lumi-source-dialog-actions .lumi-source-dialog-btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .lumi-grant-btn-reconcile {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  dialog.lumi-source-dialog {
+    width: calc(100vw - 20px);
+    border-radius: 14px;
+  }
+
+  .lumi-source-dialog .dialog-header {
+    padding: 14px 16px;
+  }
+
+  .lumi-source-dialog .dialog-body {
+    padding: 16px;
+  }
+
+  .lumi-source-share-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+    min-height: 44px;
+  }
+
+  .lumi-source-share-item-info {
+    width: 100%;
+  }
+
+  .lumi-source-grant-badge-shared {
+    width: 100%;
+    text-align: left;
+    margin-top: 2px;
+  }
+
+  .teacher-class-docs-container .card.p-4 {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .lumi-class-btn-add {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 390px) {
+  .lumi-source-summary-card {
+    padding: 14px;
+  }
+
+  .lumi-source-grants-card {
+    padding: 14px;
+  }
+
+  .lumi-source-history-header {
+    padding: 14px;
+  }
+
+  .lumi-source-table {
+    min-width: 660px;
+  }
+
+  .lumi-source-meta-row {
+    font-size: 12px;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 340px) {
+  dialog.lumi-source-dialog {
+    width: calc(100vw - 12px);
+    border-radius: 12px;
+  }
+
+  .lumi-source-dialog .dialog-header {
+    padding: 12px 14px;
+  }
+
+  .lumi-source-dialog .dialog-header h2 {
+    font-size: 15px;
+  }
+
+  .lumi-source-dialog .dialog-body {
+    padding: 14px;
+  }
+
+  .lumi-source-impact-notice {
+    padding: 12px;
+    font-size: 12px;
+  }
+
+  .lumi-source-impact-list {
+    padding-left: 14px;
+  }
+}

@@ -1,5 +1,7 @@
 # Lộ trình — Core hoàn chỉnh trước
 
+**Cập nhật `core_full` 24/10/2026:** đã có Web live cho Core và Document (TASK-017), Core head `0013`, Document head `document_0003`. [Danh mục task](../../../tasks/README.md) và [báo cáo đồng bộ main](../../CORE_MAIN_MERGE_2026-10-24.md) phân biệt kết quả hiện tại với mốc bàn giao backend 19/10 bên dưới. AI/RAG TASK-018, owner sign-off và nghiệm thu toàn hệ thống vẫn còn riêng.
+
 **Trạng thái:** BASELINE KẾ HOẠCH · **Ngày:** 2026-10-11. Các giai đoạn là tiêu chí để nghiệm thu, không phải đã hoàn thành.
 
 | Giai đoạn | Phạm vi | Điều kiện chuyển |

@@ -138,6 +138,8 @@ def test_staff_onboarding_and_resolution_do_not_accept_student_email_or_arbitrar
 def test_administration_routes_are_authenticated_admin_only():
     id = str(uuid4())
     requests = [
+        ("get", "/users", None),
+        ("get", f"/users/{id}", None),
         ("post", "/users", {"email": "staff@example.com", "roles": ["LECTURER"]}),
         ("patch", f"/users/{id}/status", {"status": "LOCKED"}),
         ("put", f"/users/{id}/roles", {"roles": ["LECTURER"]}),

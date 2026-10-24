@@ -27,3 +27,8 @@ out/
 
 # Local UI demo; never publish with the product source.
 /demo-ui/
+
+# TypeScript incremental cache
+*.tsbuildinfo
+
+.next-preview/

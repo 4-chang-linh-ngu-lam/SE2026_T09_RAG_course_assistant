@@ -19,6 +19,7 @@ from app.common.pagination import Page, Pagination, get_pagination
 from app.modules.classroom.permissions import require_admin
 from app.modules.classroom.public import check_class_action
 from app.modules.classroom.schemas import (
+    AcademicYearResponse,
     ClassAccessAction,
     ClassCreateRequest,
     ClassResponse,
@@ -34,6 +35,7 @@ from app.modules.classroom.schemas import (
     MembershipResponse,
     RosterRequest,
     RosterResponse,
+    SemesterResponse,
     TeachingAssignmentResponse,
     TeachingAssignmentsRequest,
     TransferRequest,
@@ -59,7 +61,8 @@ internal_router = APIRouter(
 )
 
 
-def get_classroom_service(request: Request, session: Annotated[Session, Depends(get_db)]):
+async def get_classroom_service(request: Request, session: Annotated[Session, Depends(get_db)]):
+    # This dependency constructs objects/validates metadata; endpoint workers own SQL.
     raw = getattr(request.state, "correlation_id", None)
     reason_code = request.headers.get("X-Admin-Reason")
     if reason_code is not None and reason_code not in REASON_CODES:
@@ -126,6 +129,50 @@ def _mutate(
         operation,
         validate_cached=validate_cached,
     )
+
+
+@router.get("/admin/courses", response_model=Page[CourseResponse])
+def list_courses(
+    user: User, service: Service, pagination: Annotated[Pagination, Depends(get_pagination)]
+):
+    return _json(service.list_courses(user, pagination))
+
+
+@router.get("/admin/academic-years", response_model=Page[AcademicYearResponse])
+def list_academic_years(
+    user: User, service: Service, pagination: Annotated[Pagination, Depends(get_pagination)]
+):
+    return _json(service.list_academic_years(user, pagination))
+
+
+@router.get("/admin/academic-years/{year_id}/semesters", response_model=Page[SemesterResponse])
+def list_semesters(
+    year_id: UUID,
+    user: User,
+    service: Service,
+    pagination: Annotated[Pagination, Depends(get_pagination)],
+):
+    return _json(service.list_semesters(year_id, user, pagination))
+
+
+@router.get("/admin/homeroom-classes", response_model=Page[HomeroomResponse])
+def list_homerooms(
+    user: User, service: Service, pagination: Annotated[Pagination, Depends(get_pagination)]
+):
+    return _json(service.list_homerooms(user, pagination))
+
+
+@router.get("/admin/homeroom-classes/{homeroom_id}/roster", response_model=RosterResponse)
+def get_roster(homeroom_id: UUID, user: User, service: Service):
+    return _json(service.get_roster(homeroom_id, user))
+
+
+@router.get(
+    "/admin/classes/{class_id}/teaching-assignments",
+    response_model=list[TeachingAssignmentResponse],
+)
+def list_teaching_assignments(class_id: UUID, user: User, service: Service):
+    return _json(service.list_teaching_assignments(class_id, user))
 
 
 @router.post("/admin/courses", response_model=CourseResponse, status_code=201)

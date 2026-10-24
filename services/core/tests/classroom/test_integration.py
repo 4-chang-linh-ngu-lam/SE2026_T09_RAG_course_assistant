@@ -1,18 +1,27 @@
 import os
+import secrets
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, select
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from pydantic import SecretStr
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
+from app.bootstrap import register_routers
+from app.common.audit import AuditEvent
 from app.common.auth_dependencies import CurrentUser
 from app.common.config import settings
-from app.common.errors import AppError
+from app.common.db import get_db
+from app.common.errors import AppError, register_error_handlers
 from app.common.outbox import OutboxEvent
+from app.common.pagination import encode_cursor
+from app.common.security import create_access_token
 from app.modules.classroom.models import (
     ClassMembership,
     EnrollmentMode,
@@ -104,6 +113,26 @@ def classroom(engine):
         connection.close()
 
 
+@pytest.fixture
+def classroom_http(classroom, monkeypatch):
+    session, service, users = classroom
+    app = FastAPI()
+    register_error_handlers(app)
+    register_routers(app)
+    app.dependency_overrides[get_db] = lambda: session
+    monkeypatch.setattr(settings, "secret_key", SecretStr(secrets.token_urlsafe(48)))
+
+    def headers(actor="admin"):
+        user = users[actor]
+        return {
+            "Authorization": "Bearer "
+            + create_access_token(user.id, user.roles, user.session_version)
+        }
+
+    with TestClient(app, base_url="https://testserver") as client:
+        yield client, headers, session, service, users
+
+
 def _class(service, admin, course_id, teacher_id, homeroom_id, *, mode):
     return service.create_class(
         admin,
@@ -132,6 +161,220 @@ def _setup(service, users):
         ),
     )
     return course, homeroom
+
+
+def _read_urls(service, users):
+    course, homeroom = _setup(service, users)
+    klass = _class(
+        service,
+        users["admin"],
+        course.id,
+        users["teacher"].id,
+        homeroom.id,
+        mode=EnrollmentMode.MANUAL,
+    )
+    return (
+        "/api/v1/admin/courses",
+        "/api/v1/admin/academic-years",
+        f"/api/v1/admin/academic-years/{homeroom.academic_year_id}/semesters",
+        "/api/v1/admin/homeroom-classes",
+        f"/api/v1/admin/homeroom-classes/{homeroom.id}/roster",
+        f"/api/v1/admin/classes/{klass.id}/teaching-assignments",
+    )
+
+
+@pytest.mark.parametrize("actor", ["teacher", "student"])
+def test_admin_reads_require_current_admin_and_do_not_write(classroom_http, actor):
+    client, headers, session, service, users = classroom_http
+    urls = _read_urls(service, users)
+    before = (
+        session.scalar(select(func.count()).select_from(AuditEvent)),
+        session.scalar(select(func.count()).select_from(OutboxEvent)),
+    )
+    correlation = str(uuid4())
+    for url in urls:
+        unauthenticated = client.get(url)
+        assert unauthenticated.status_code == 401
+        denied = client.get(url, headers=headers(actor))
+        assert denied.status_code == 403
+        assert denied.headers["Cache-Control"] == "no-store"
+        allowed = client.get(url, headers={**headers(), "X-Correlation-ID": correlation})
+        assert allowed.status_code == 200
+        assert allowed.headers["Cache-Control"] == "no-store"
+        assert allowed.headers["X-Correlation-ID"] == correlation
+    assert before == (
+        session.scalar(select(func.count()).select_from(AuditEvent)),
+        session.scalar(select(func.count()).select_from(OutboxEvent)),
+    )
+
+
+@pytest.mark.parametrize("revocation", ["LOCKED", "ROLE_REMOVED", "SESSION_REVOKED"])
+def test_admin_reads_recheck_current_database_actor(classroom_http, revocation):
+    client, headers, session, service, users = classroom_http
+    urls = _read_urls(service, users)
+    issued_headers = headers()
+    actor = session.get(User, users["admin"].id)
+    if revocation == "LOCKED":
+        actor.status = UserStatus.LOCKED
+    elif revocation == "ROLE_REMOVED":
+        assignment = session.scalar(
+            select(RoleAssignment).where(RoleAssignment.user_id == actor.id)
+        )
+        session.delete(assignment)
+    else:
+        actor.session_version += 1
+    session.flush()
+    expected = 403 if revocation == "ROLE_REMOVED" else 401
+    for url in urls:
+        response = client.get(url, headers=issued_headers)
+        assert response.status_code == expected
+        assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_admin_read_resources_and_pagination_are_school_and_year_scoped(classroom_http):
+    client, headers, _session, service, users = classroom_http
+    urls = _read_urls(service, users)
+    admin_headers = headers()
+    other_admin = users["other_admin"]
+    foreign_course = service.create_course(
+        other_admin, CourseCreateRequest(code="OTHER", name="Other-school course")
+    )
+    foreign_home = service.create_homeroom(
+        other_admin,
+        HomeroomCreateRequest(name="Other school", academic_year="2026-2027", grade_level=9),
+    )
+    # A caller-supplied school selector cannot change server-owned scope.
+    courses = client.get(
+        urls[0], headers=admin_headers, params={"school_id": str(other_admin.school_id)}
+    )
+    assert courses.status_code == 200
+    assert all(row["school_id"] == str(users["admin"].school_id) for row in courses.json()["items"])
+    assert str(foreign_course.id) not in {row["id"] for row in courses.json()["items"]}
+    for foreign_url in (
+        f"/api/v1/admin/academic-years/{foreign_home.academic_year_id}/semesters",
+        f"/api/v1/admin/homeroom-classes/{foreign_home.id}/roster",
+        f"/api/v1/admin/classes/{uuid4()}/teaching-assignments",
+    ):
+        assert client.get(foreign_url, headers=admin_headers).status_code == 404
+    for own_resource in (urls[2], urls[4], urls[5]):
+        assert client.get(own_resource, headers=headers("other_admin")).status_code == 404
+    for url, cursor in (
+        (urls[0], foreign_course.id),
+        (urls[1], foreign_home.academic_year_id),
+        (urls[3], foreign_home.id),
+        (urls[0], uuid4()),
+    ):
+        assert (
+            client.get(
+                url, headers=admin_headers, params={"cursor": encode_cursor(cursor)}
+            ).status_code
+            == 400
+        )
+    own_home = service.create_homeroom(
+        users["admin"],
+        HomeroomCreateRequest(name="Next year", academic_year="2027-2028", grade_level=9),
+    )
+    # Create the next year's semester through the existing repository setup
+    # path, without adding a mutation endpoint.
+    other_semester = service.repository.ensure_semester(own_home.academic_year_id, "2")
+    assert (
+        client.get(
+            urls[2], headers=admin_headers, params={"cursor": encode_cursor(other_semester.id)}
+        ).status_code
+        == 400
+    )
+
+
+def test_admin_reads_use_current_school_instead_of_issued_jwt_scope(classroom_http):
+    client, headers, session, service, users = classroom_http
+    urls = _read_urls(service, users)
+    issued_headers = headers()
+    other_school = users["other_admin"].school_id
+    foreign_course = service.create_course(
+        users["other_admin"], CourseCreateRequest(code="OTHER", name="Current school")
+    )
+    actor = session.get(User, users["admin"].id)
+    actor.school_id = other_school
+    session.flush()
+    response = client.get(urls[0], headers=issued_headers)
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()["items"]] == [str(foreign_course.id)]
+    for old_resource in (urls[2], urls[4], urls[5]):
+        assert client.get(old_resource, headers=issued_headers).status_code == 404
+
+
+@pytest.mark.parametrize(
+    "collection", ["courses", "academic-years", "homeroom-classes", "semesters"]
+)
+def test_admin_metadata_reads_paginate_every_item_once(classroom_http, collection):
+    client, headers, session, service, users = classroom_http
+    _read_urls(service, users)
+    for index in range(3):
+        service.create_course(
+            users["admin"], CourseCreateRequest(code=f"PAGE{index}", name=f"Course {index}")
+        )
+        service.create_homeroom(
+            users["admin"],
+            HomeroomCreateRequest(
+                name=f"Room {index}", academic_year=f"20{30 + index}-20{31 + index}", grade_level=9
+            ),
+        )
+    url = f"/api/v1/admin/{collection}"
+    if collection == "semesters":
+        year = client.get("/api/v1/admin/academic-years", headers=headers()).json()["items"][0]
+        for index in range(3):
+            service.repository.ensure_semester(UUID(year["id"]), f"Semester {index}")
+        session.flush()
+        url = f"/api/v1/admin/academic-years/{year['id']}/semesters"
+    all_rows = client.get(url, headers=headers()).json()["items"]
+    assert len(all_rows) >= 3
+    seen = []
+    cursor = None
+    while True:
+        response = client.get(
+            url, headers=headers(), params={"limit": 1, **({"cursor": cursor} if cursor else {})}
+        )
+        assert response.status_code == 200
+        page = response.json()
+        assert len(page["items"]) == 1
+        seen.append(page["items"][0]["id"])
+        cursor = page["next_cursor"]
+        if cursor is None:
+            break
+        assert len(cursor) == 22 and "=" not in cursor
+        assert len(seen) <= len(all_rows)
+    assert seen == sorted(row["id"] for row in all_rows)
+    assert len(seen) == len(set(seen))
+    for limit in (0, 101):
+        assert client.get(url, headers=headers(), params={"limit": limit}).status_code == 422
+    assert client.get(url, headers=headers(), params={"cursor": "invalid"}).status_code == 400
+
+
+def test_admin_roster_and_teacher_reads_show_current_state_only(classroom_http):
+    client, headers, _session, service, users = classroom_http
+    urls = _read_urls(service, users)
+    homeroom_id = UUID(client.get(urls[3], headers=headers()).json()["items"][0]["id"])
+    class_id = UUID(urls[5].split("/")[-2])
+    roster = service.set_roster(users["admin"], homeroom_id, [users["student"].id])
+    first = client.get(urls[4], headers=headers()).json()
+    assert first == roster.model_dump(mode="json")
+    roster = service.set_roster(users["admin"], homeroom_id, [users["student2"].id])
+    second = client.get(urls[4], headers=headers()).json()
+    assert second == roster.model_dump(mode="json")
+    assert second["roster_version"] == first["roster_version"] + 1
+    assert second["student_ids"] == [str(users["student2"].id)]
+    initial = client.get(urls[5], headers=headers()).json()
+    assert len(initial) == 1 and initial[0]["lecturer_id"] == str(users["teacher"].id)
+    service.set_teachers(
+        class_id,
+        users["admin"],
+        TeachingAssignmentsRequest(primary_lecturer_id=users["teacher2"].id),
+    )
+    current = client.get(urls[5], headers=headers()).json()
+    assert len(current) == 1 and current[0]["lecturer_id"] == str(users["teacher2"].id)
+    assert current[0]["role"] == "PRIMARY" and current[0]["ended_at"] is None
+    service.set_archived(class_id, users["admin"], archived=True)
+    assert client.get(urls[5], headers=headers()).json() == current
 
 
 def test_admin_only_assignments_manual_transfer_and_archive(classroom):

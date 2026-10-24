@@ -4,6 +4,7 @@ from sqlalchemy import exists, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.common.errors import AppError
 from app.modules.classroom.models import (
     AcademicYear,
     ClassMembership,
@@ -62,9 +63,48 @@ class ClassroomRepository:
             select(Course).where(Course.school_id == school_id, Course.code == code)
         )
 
-    def get_homeroom(self, homeroom_id: UUID, *, for_update: bool = False) -> HomeroomClass | None:
+    def _list_scoped(self, model, *scope, limit: int, cursor: UUID | None):
+        query = select(model).where(*scope)
+        if cursor is not None:
+            # A canonical UUID is not sufficient: it must be an existing row in
+            # this exact collection, never a marker from another school/year.
+            if self.session.scalar(query.where(model.id == cursor)) is None:
+                raise AppError(400, "Invalid cursor")
+            query = query.where(model.id > cursor)
+        return list(self.session.scalars(query.order_by(model.id).limit(limit + 1)))
+
+    def list_courses(self, school_id: UUID, *, limit: int, cursor: UUID | None) -> list[Course]:
+        return self._list_scoped(Course, Course.school_id == school_id, limit=limit, cursor=cursor)
+
+    def list_academic_years(
+        self, school_id: UUID, *, limit: int, cursor: UUID | None
+    ) -> list[AcademicYear]:
+        return self._list_scoped(
+            AcademicYear, AcademicYear.school_id == school_id, limit=limit, cursor=cursor
+        )
+
+    def get_academic_year(self, year_id: UUID) -> AcademicYear | None:
+        return self.session.get(AcademicYear, year_id)
+
+    def list_semesters(self, year_id: UUID, *, limit: int, cursor: UUID | None) -> list[Semester]:
+        return self._list_scoped(
+            Semester, Semester.academic_year_id == year_id, limit=limit, cursor=cursor
+        )
+
+    def list_homerooms(
+        self, school_id: UUID, *, limit: int, cursor: UUID | None
+    ) -> list[HomeroomClass]:
+        return self._list_scoped(
+            HomeroomClass, HomeroomClass.school_id == school_id, limit=limit, cursor=cursor
+        )
+
+    def get_homeroom(
+        self, homeroom_id: UUID, *, for_update: bool = False, for_share: bool = False
+    ) -> HomeroomClass | None:
         query = select(HomeroomClass).where(HomeroomClass.id == homeroom_id)
-        if for_update:
+        if for_share:
+            query = query.with_for_update(read=True)
+        elif for_update:
             query = query.with_for_update()
         return self.session.scalar(query)
 

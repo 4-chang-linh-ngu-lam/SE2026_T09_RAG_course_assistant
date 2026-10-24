@@ -18,6 +18,7 @@ from app.common.errors import AppError
 from app.common.pagination import Page, Pagination, encode_cursor
 from app.modules.identity.admin_schemas import (
     AdminReason,
+    AdminUserReadDTO,
     DataResolutionCommand,
     RoleUpdateCommand,
     StudentImportCheck,
@@ -29,6 +30,7 @@ from app.modules.identity.models import (
     DataRequestStatus,
     Role,
     RoleAssignment,
+    User,
     UserStatus,
 )
 from app.modules.identity.repository import IdentityRepository
@@ -50,6 +52,19 @@ def _actor(db, actor_id, *, lock=False):
     IdentityService(db)._require_admin(user)
     require_school_scope(user.school_id, user.school_id)
     return user
+
+
+def _read_actor(db, actor_id):
+    # A scalar projection observes current DB state even when a caller-owned
+    # session has an older User object in its identity map.
+    actor = db.execute(
+        select(User.id, User.school_id, User.status, User.email_verified_at).where(
+            User.id == actor_id
+        )
+    ).one_or_none()
+    IdentityService(db)._require_admin(actor)
+    require_school_scope(actor.school_id, actor.school_id)
+    return actor
 
 
 def admin_actor(
@@ -76,6 +91,39 @@ def admin_actor(
             roles=[str(role) for role in IdentityRepository(db).get_user_roles(user.id)],
             status=str(user.status),
             session_version=user.session_version,
+        )
+
+
+def admin_get_user(
+    user_id: UUID, *, actor_id: UUID, session: Session | None = None
+) -> AdminUserReadDTO:
+    with _scope(session) as db:
+        actor = _read_actor(db, actor_id)
+        user = IdentityRepository(db).admin_user_projection(actor.school_id, user_id)
+        if user is None:
+            raise AppError(404)
+        return user
+
+
+def admin_list_users(
+    pagination: Pagination, *, actor_id: UUID, session: Session | None = None
+) -> Page[AdminUserReadDTO]:
+    with _scope(session) as db:
+        actor = _read_actor(db, actor_id)
+        repository = IdentityRepository(db)
+        if (
+            pagination.cursor is not None
+            and repository.admin_user_projection(actor.school_id, pagination.cursor) is None
+        ):
+            raise AppError(404)
+        rows = repository.admin_user_projections(
+            actor.school_id, limit=pagination.limit, cursor=pagination.cursor
+        )
+        return Page[AdminUserReadDTO](
+            items=rows[: pagination.limit],
+            next_cursor=encode_cursor(rows[pagination.limit - 1].id)
+            if len(rows) > pagination.limit
+            else None,
         )
 
 
@@ -206,8 +254,6 @@ def admin_get_data_request(
 def admin_list_data_requests(
     pagination: Pagination, *, actor_id: UUID, session: Session | None = None
 ) -> Page[DataRequestResponse]:
-    from app.modules.identity.models import User
-
     with _scope(session) as db:
         actor = _actor(db, actor_id)
         query = (

@@ -110,6 +110,31 @@ def raw(tokens):
     return tokens.refresh_token.get_secret_value()
 
 
+def test_auth_lookup_releases_connection_before_endpoint_and_reads_current_status(identity, engine):
+    session, _, register = identity
+    _, registered = register()
+    user_id = registered.response.user_id
+    constrained = create_engine(
+        engine.url, hide_parameters=True, pool_size=1, max_overflow=0, pool_timeout=0.1
+    )
+    try:
+        with Session(constrained) as endpoint_session:
+            lookup = public.get_identity_user_lookup(endpoint_session)
+            assert lookup(user_id).status == "ACTIVE"
+            assert not endpoint_session.in_transaction()
+            assert constrained.pool.checkedout() == 0
+            # The endpoint can acquire the only connection without waiting for
+            # request-dependency teardown or increasing pool/thread limits.
+            assert endpoint_session.scalar(select(User.id).where(User.id == user_id)) == user_id
+            endpoint_session.rollback()
+            session.get(User, user_id).status = UserStatus.LOCKED
+            session.commit()
+            assert lookup(user_id).status == "LOCKED"
+            assert constrained.pool.checkedout() == 0
+    finally:
+        constrained.dispose()
+
+
 def expect_error(status, operation):
     with pytest.raises(AppError) as raised:
         operation()

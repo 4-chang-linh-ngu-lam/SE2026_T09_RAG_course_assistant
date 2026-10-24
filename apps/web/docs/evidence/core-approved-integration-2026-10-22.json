@@ -1,0 +1,83 @@
+{
+    "recorded_at":  "2026-10-22T22:01:52.9031577+07:00",
+    "source_head":  "9e7669cbec9d21cd076f8b7b54411cec0ab1b7c8",
+    "branch":  "frontend1",
+    "uncommitted_worktree":  true,
+    "approval":  "Duyệt 38 API hiện có theo đề xuất",
+    "live_allowlisted_operations":  55,
+    "new_backend_operations":  0,
+    "frontend_check":  {
+                           "exit":  0,
+                           "passed":  286,
+                           "command":  "npm.cmd run check",
+                           "skipped":  0,
+                           "tests":  286,
+                           "cancelled":  0,
+                           "typecheck":  true,
+                           "failed":  0,
+                           "boundaries":  true
+                       },
+    "integration_command":  "npm.cmd run test:core",
+    "integration_exit":  0,
+    "integration":  {
+                        "coreGroups":  6,
+                        "coreOperations":  38,
+                        "notificationGroups":  7,
+                        "securityGroups":  8,
+                        "syntheticTlsSmtp":  true,
+                        "productionCompose":  true,
+                        "nonRoot":  true,
+                        "installedPackage":  true,
+                        "migrationCheck":  true,
+                        "seedRepeat":  true,
+                        "dbOutageRecovery":  true,
+                        "syntheticOnly":  true,
+                        "browserInteraction":  false,
+                        "realSmtpVerified":  false
+                    },
+    "http_groups":  21,
+    "production_live_build":  {
+                                  "command":  "npm run build in Dockerfile",
+                                  "release_fixture_scan":  true,
+                                  "dev_output_untouched":  true,
+                                  "exit":  0
+                              },
+    "controllers":  {
+                        "original_file_import_http_verified":  true,
+                        "data_review_http_verified":  true,
+                        "mounted_in_live_ui":  false,
+                        "staff_invite_http_verified":  true
+                    },
+    "cleanup":  {
+                    "remaining_volumes":  0,
+                    "remaining_networks":  0,
+                    "removed_secret_files":  {
+                                                 "smtp/ca.crt":  true,
+                                                 "smtp/messages.jsonl":  true,
+                                                 "compose.env":  true,
+                                                 "smtp/mail.key":  true
+                                             },
+                    "project":  "lumi-smoke-2da43424e58d",
+                    "remaining_containers":  0
+                },
+    "dev":  {
+                "uncontracted_documents_status":  404,
+                "core_status":  "ready",
+                "database":  "connected",
+                "web_login_status":  200,
+                "unauthenticated_classes_status":  401
+            },
+    "browser_interaction":  false,
+    "external_smtp_verified":  false,
+    "performance_resolved":  false,
+    "backend_full_suite_rerun":  false,
+    "agy":  {
+                "proposed_view_file":  "apps/web/src/features/administration/core-admin-views.tsx",
+                "reason":  "Source context disclosure to an external AI service was not explicitly authorized",
+                "authorization":  "pending",
+                "automatic_approval_rejected":  true,
+                "executed":  false
+            },
+    "proposed_additional_get_operations":  8,
+    "proposed_reads_implemented":  false
+}

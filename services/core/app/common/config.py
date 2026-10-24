@@ -1,6 +1,7 @@
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import EmailStr, Field, SecretStr
+from pydantic import EmailStr, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +10,32 @@ class Settings(BaseSettings):
         "postgresql+psycopg://rag_course:change-me-local-only@localhost:5432/rag_course"
     )
     cors_origins: list[str] = ["http://localhost:3000"]
+    web_origin: str | None = None
+
+    @field_validator("web_origin")
+    @classmethod
+    def validate_web_origin(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parts = urlsplit(value)
+        if (
+            any(character.isspace() for character in value)
+            or any(character in value for character in ("\\", "?", "#"))
+            or parts.scheme not in ("http", "https")
+            or not parts.hostname
+            or "%" in parts.netloc
+            or parts.username is not None
+            or parts.password is not None
+            or parts.path not in ("", "/")
+            or parts.query
+            or parts.fragment
+        ):
+            raise ValueError("WEB_ORIGIN must be an HTTP(S) origin without credentials or path")
+        # Accessing port validates its syntax and range as well.
+        if parts.port is not None and parts.port < 1:
+            raise ValueError("WEB_ORIGIN has an invalid port")
+        return value.rstrip("/")
+
     database_connect_timeout_seconds: int = Field(default=3, gt=0)
     database_pool_timeout_seconds: int = Field(default=3, gt=0)
     database_pool_size: int = Field(default=5, gt=0)
@@ -23,6 +50,9 @@ class Settings(BaseSettings):
     admin_invitation_expire_hours: int = Field(default=24, gt=0)
     student_activation_expire_hours: int = Field(default=24, gt=0)
     internal_service_secret: SecretStr | None = Field(default=None, min_length=32)
+    document_events_service_secret: SecretStr | None = Field(default=None, min_length=32)
+    # Distinct server-only Web attestation key; never grants a user/service role.
+    core_proxy_secret: SecretStr | None = Field(default=None, min_length=32)
     cookie_secure: bool = True
     cookie_httponly: Literal[True] = True
     cookie_samesite: Literal["lax"] = "lax"

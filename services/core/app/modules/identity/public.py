@@ -14,12 +14,15 @@ from app.modules.identity.admin_public import (
     admin_actor,
     admin_check_student_import,
     admin_get_data_request,
+    admin_get_user,
     admin_list_data_requests,
+    admin_list_users,
     admin_resolve_data_request,
     admin_update_user_roles,
 )
 from app.modules.identity.admin_schemas import (
     AdminReason,
+    AdminUserReadDTO,
     DataResolutionCommand,
     ResolutionNote,
     RoleUpdateCommand,
@@ -49,6 +52,7 @@ from app.modules.identity.service import StudentCode, TokenDelivery
 
 __all__ = [
     "AdminReason",
+    "AdminUserReadDTO",
     "DataRequestResponse",
     "DataResolutionCommand",
     "Mutation",
@@ -65,8 +69,10 @@ __all__ = [
     "admin_create_student",
     "admin_create_user",
     "admin_get_data_request",
+    "admin_get_user",
     "admin_issue_student_code",
     "admin_list_data_requests",
+    "admin_list_users",
     "admin_resolve_data_request",
     "admin_set_user_status",
     "admin_update_user_roles",
@@ -231,6 +237,12 @@ def get_current_user_snapshot(session: Session, user_id: UUID) -> CurrentUser | 
 
 def get_identity_user_lookup(session: Annotated[Session, Depends(get_db)]) -> UserLookup:
     def lookup(user_id: UUID) -> CurrentUser | None:
-        return get_current_user_snapshot(session, user_id)
+        # Authentication must release its connection before the sync endpoint
+        # waits for a worker thread. Sharing the endpoint's lazy Session here
+        # can exhaust the pool with requests whose handlers have not run yet.
+        # Reuse its bind (including a caller-owned test transaction), not its
+        # unit of work; only the materialized DTO leaves this short read scope.
+        with Session(bind=session.get_bind(), autoflush=False, expire_on_commit=False) as lookup_db:
+            return get_current_user_snapshot(lookup_db, user_id)
 
     return lookup

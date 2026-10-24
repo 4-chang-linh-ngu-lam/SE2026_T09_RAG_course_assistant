@@ -1,0 +1,58 @@
+{
+  "recorded_at_utc": "2026-10-22T18:10:11.212347+00:00",
+  "scope": "Core class-list HTTP API only; TP-01 Core subset, not full mixed-service TP-01",
+  "pending_services": [
+    "Document fixtures (20 x 10 MB/class)",
+    "Learning (30 questions/assessment)",
+    "AI",
+    "Learner Intelligence"
+  ],
+  "source_sha256": "543a97403bb36097ec6d9c55c349c7b9846b86fa4d3cb50b8fad5ba86c001e58",
+  "application_sha256": "f351ab9954805a18fb73c51620eb4fe5fdafe89f7895627107583e929d31a999",
+  "environment": {
+    "os": "Linux",
+    "cpu": "",
+    "logical_cpus": 12,
+    "ram_bytes": 8186015744,
+    "python": "3.12.15",
+    "postgresql": "16.14",
+    "migration": "0012",
+    "http": "Uvicorn one worker, loopback HTTP",
+    "process_isolation": "spawned server; separate interpreter/GIL and DB pool",
+    "server_pid": 56,
+    "load_generator_pid": 1,
+    "database": "Dedicated disposable PostgreSQL; route supplied by test environment",
+    "pool_size": 15,
+    "max_overflow": 0,
+    "queue_broker": "none; Core transactional outbox",
+    "ai_model": "not involved",
+    "region": "local",
+    "background_activity": "Shared development host; no CPU/RAM reservation"
+  },
+  "load": {
+    "users": 100,
+    "classes": 10,
+    "students_per_class": 50,
+    "warmup_seconds": 30,
+    "configured_seconds": 600,
+    "elapsed_seconds": 601.5435315120012,
+    "think_seconds": 1.0,
+    "schedule": "closed-loop users, evenly staggered within one think interval; one persistent HTTP client/pool per user through warmup/measurement"
+  },
+  "requests": 18342,
+  "status_counts": {
+    "200": 18289,
+    "transport_or_contract_error": 53
+  },
+  "client_error_counts": {
+    "RemoteProtocolError": 53
+  },
+  "success_ratio": 0.9971104568749318,
+  "backend_samples": 18289,
+  "backend_p95_ms": 477.14993299814523,
+  "client_p95_ms": 3827.508633999969,
+  "client_max_ms": 6768.390326000372,
+  "wrong_scope_responses": 0,
+  "passed_core_thresholds": true,
+  "full_tp01_verified": false
+}

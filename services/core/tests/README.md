@@ -13,12 +13,19 @@ their own databases; older Identity/Classroom fixtures also use transactions in
 the specified test database. Never point this variable at an operational server.
 
 ```sh
-python -m pytest -q -W error -p no:cacheprovider --cov=app --cov-branch --cov-report=xml --junitxml=test-results.xml
+pytest -q -W error --cov=app --cov-branch --cov-report=term-missing --cov-report=xml --junitxml=test-results.xml
 python tests/security/evidence.py --junit test-results.xml --output rule-evidence.json
-python -m pytest tests/identity/test_public.py -q -W error -p no:cacheprovider --cov=app.modules.identity.public --cov-branch --cov-fail-under=100
+pytest tests/identity/test_public.py -q -W error --cov=app.modules.identity.public --cov-branch --cov-fail-under=100
 python -m ruff check app tests migrations
 python -m ruff format --check app tests migrations
 ```
+
+Use the `pytest` console entry point above to match Core CI. `python -m pytest`
+adds the working directory to Python's import path and can hide collection errors.
+Notification's shared PostgreSQL `database`/`system` fixtures live in
+`notification/conftest.py`; tests use pytest fixture discovery rather than importing
+another test module through a top-level `tests` package. The Docker test image and
+the Document runner's Core test command also use the console entry point.
 
 Without the test database, DB tests skip; that is not DB verification. The evidence
 command rejects skipped or missing selected tests and any skipped test case in the
@@ -59,6 +66,28 @@ owner-spanning rollback. No test restores legacy join requests or ownership tran
 
 ## Performance probe
 
+On Windows/Docker, run from the repository root:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File services/core/tests/performance/run-class-list-load.ps1
+```
+
+This builds a dedicated Linux load image with dependencies from `pyproject.toml`,
+creates its own PostgreSQL16 server/network with random private credentials and
+removes only that invocation's containers/volumes/network/image in `finally`.
+It does not read the application's `.env` or use its DB. Evidence defaults to a
+new `test-evidence/lumi-core-load-<id>/core-load.json`; an existing output is refused.
+`-OutputPath` selects a different new file. Short `-DurationSeconds` runs are
+diagnostics, not acceptance. Private build/load logs remain in Temp, with the
+credential files removed. A failed measurement retains its aggregate report and
+returns nonzero. A build/setup failure points to its private log.
+
+Do not run the load generator's Python dependencies from Windows bind mounts:
+repeated optional-import filesystem lookups were observed to stall its event
+loop for seconds. Only the output directory is mounted by this runner. CPU
+profile and corrected measurements are described in the
+[runtime follow-up](../../../apps/web/docs/CORE_RUNTIME_FOLLOWUP_2026-10-23.md).
+
 Set `DATABASE_POOL_SIZE=15` and `DATABASE_MAX_OVERFLOW=0` for this measurement
 profile (15 retained connections, not a larger maximum than the original 5+10).
 The regular application defaults remain 5+10, and can be tuned explicitly via
@@ -71,9 +100,14 @@ python tests/security/evidence.py --junit test-results.xml --performance core-lo
 
 The runner creates/drops a `test_core_load_<UUID>` database, migrates to head,
 creates 10 classes/500 synthetic Students (50/class) and uses 100 independent users.
-It runs the actual Core app with one Uvicorn worker on loopback, default closed-loop
-think interval 1 second, user starts evenly staggered within that interval, same
-HTTP pool across warmup/measurement. It validates each returned class ID against
+It runs the actual Core app with one Uvicorn worker on loopback in a spawned
+process, separate from the HTTPX load generator's interpreter/GIL and DB pool.
+Only aggregate backend timing samples return over IPC after measurement; request
+tokens stay in the load generator. This avoids measuring client/server contention
+for a shared Python GIL. The default closed-loop
+think interval 1 second, user starts evenly staggered within that interval. Each
+user retains its own HTTP client/connection pool across warmup/measurement; users
+do not contend for a single load-generator pool. It validates each returned class ID against
 that user's enrollment. Count/rate may be below 100 requests/second if a client
 waits for a response: this is a closed-loop user test, not a fixed arrival-rate test.
 
@@ -86,6 +120,10 @@ source hashes, without DSN/credentials/headers. Short smoke runs are not Core-06
 acceptance. Report `full_tp01_verified:false`: Document data/30-question assessments
 and mixed-service traffic are unavailable. Shared local resource interference is
 disclosed in the report; do not extrapolate this measurement to production capacity.
+The report also records actual dependency versions, the imported application
+artifact/hash, bounded client error reasons and client/server event-loop lag.
+No exception message is copied into evidence. Loop-lag samples exclude warmup;
+their presence is diagnostic, not a replacement for either HTTP latency value.
 
 Core CI always runs backend tests/coverage/traceability. The optional
 `workflow_dispatch → run_core_load=true` job repeats the 10-minute measurement on

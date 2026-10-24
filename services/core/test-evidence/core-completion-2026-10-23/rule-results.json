@@ -1,0 +1,443 @@
+{
+  "scope": "Backend Core; Web excluded by user on 2026-10-19",
+  "test_cases": 386,
+  "skipped_cases": 0,
+  "failed_cases": 0,
+  "scenarios": [
+    {
+      "id": "Core-01/current-permissions",
+      "rules": [
+        "A1",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A8",
+        "F1",
+        "F5",
+        "H1",
+        "K2",
+        "L2",
+        "M2",
+        "M5"
+      ],
+      "checks": [
+        {
+          "test": "security/test_permissions.py::test_non_admin_cannot_manage_classes_and_cannot_self_join_or_leave",
+          "cases": 3,
+          "result": "passed"
+        },
+        {
+          "test": "security/test_permissions.py::test_current_database_state_overrides_issued_jwt",
+          "cases": 5,
+          "result": "passed"
+        },
+        {
+          "test": "security/test_permissions.py::test_class_post_comment_relations_and_identity_failure_are_fail_closed",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "security/test_permissions.py::test_cached_classroom_mutation_cannot_cross_changed_school_scope",
+          "cases": 7,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-01/history-actions",
+      "rules": [
+        "H4",
+        "H5",
+        "L2",
+        "M1",
+        "O4"
+      ],
+      "scope": "Core action decisions only; actual submissions, grades, private chats and appeal windows remain pending in owning services",
+      "checks": [
+        {
+          "test": "classroom/test_integration.py::test_admin_only_assignments_manual_transfer_and_archive",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "classroom/test_integration.py::test_auto_roster_transfer_preview_and_history",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-02/100-operations",
+      "rules": [
+        "A1",
+        "A2",
+        "A4",
+        "A7",
+        "F1",
+        "F2",
+        "H1",
+        "H2",
+        "L2"
+      ],
+      "checks": [
+        {
+          "test": "security/test_concurrency.py::test_one_hundred_concurrent_operations_keep_membership_and_manual_history",
+          "cases": 3,
+          "result": "passed"
+        },
+        {
+          "test": "maintenance/test_concurrency.py::test_concurrent_membership_assignment_and_history_persistence",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-02/preview-import-atomicity",
+      "rules": [
+        "A1",
+        "A4",
+        "F1",
+        "F2",
+        "F7"
+      ],
+      "checks": [
+        {
+          "test": "administration/test_postgres.py::test_import_invalid_duplicates_cross_school_and_expired_or_stale_preview",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "administration/test_postgres.py::test_import_failure_rolls_back_entire_batch_and_retry_succeeds",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "administration/test_postgres.py::test_import_auto_enrollment_outbox_failure_rolls_back_every_owner",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "administration/test_postgres.py::test_xlsx_http_preview_confirm",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "classroom/test_integration.py::test_auto_roster_transfer_preview_and_history",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-03/student-auth",
+      "rules": [
+        "F1",
+        "K2",
+        "K4"
+      ],
+      "checks": [
+        {
+          "test": "identity/test_router.py::test_student_without_email_activates_and_uses_profile_refresh_requests",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_router.py::test_student_code_reissue_recovery_and_lock_are_separate",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_router.py::test_student_code_mutations_do_not_cache_secrets_and_scope_is_checked",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_service.py::test_student_activation_expiry_purpose_reissue_and_config",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_service.py::test_student_username_assignment_preserves_identity_and_invalidates_email_tokens",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-03/session-cookie-csrf",
+      "rules": [
+        "F1",
+        "K2",
+        "K4",
+        "K5"
+      ],
+      "checks": [
+        {
+          "test": "identity/test_router.py::test_legacy_verify_login_and_cookie_rotation",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_router.py::test_cookie_mutations_reject_missing_or_foreign_origin",
+          "cases": 2,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_router.py::test_login_rate_limit",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_router.py::test_reset_password_http_revokes_access_and_refresh",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_router.py::test_cached_login_cannot_bypass_lock_or_logout_all",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_router.py::test_cached_refresh_cannot_replay_revoked_session",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_service.py::test_refresh_concurrency_revokes_family",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "identity/test_router.py::test_public_registration_always_blocked_without_db_smtp_or_cache",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-04/http-journey",
+      "rules": [
+        "A1",
+        "A4",
+        "A8",
+        "F1",
+        "F2",
+        "F5",
+        "F7",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "H1",
+        "K2",
+        "K5",
+        "L1",
+        "L2",
+        "L3",
+        "M5"
+      ],
+      "checks": [
+        {
+          "test": "security/test_http_journey.py::test_provision_to_social_transfer_archive_and_revocation",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-04/notification-durability",
+      "rules": [
+        "G4",
+        "K5",
+        "L3"
+      ],
+      "checks": [
+        {
+          "test": "notification/test_postgres.py::test_crash_after_insert_rolls_back_then_replay_dedups",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "notification/test_postgres.py::test_duplicate_version_replay_and_out_of_order_do_not_overwrite_or_duplicate",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "notification/test_postgres.py::test_producer_rollback_and_outbox_write_failure_are_atomic",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "notification/test_postgres.py::test_retry_backoff_does_not_rollback_business_and_continues_after_poison",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "notification/test_postgres.py::test_read_all_serializes_with_delivery_and_later_arrival_stays_unread",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-04/data-requests-audit",
+      "rules": [
+        "F4",
+        "F7",
+        "K4",
+        "K5"
+      ],
+      "checks": [
+        {
+          "test": "security/test_http_journey.py::test_unfulfilled_data_requests_stay_in_review_and_audit_is_redacted",
+          "cases": 4,
+          "result": "passed"
+        },
+        {
+          "test": "administration/test_postgres.py::test_audit_tenant_filter_pagination_and_redaction_do_not_leak",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "administration/test_postgres.py::test_last_admin_survives_concurrent_mutations",
+          "cases": 2,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-04/learning-projection-contract",
+      "rules": [
+        "G3",
+        "L3"
+      ],
+      "scope": "Core projection only; no Learning service E2E",
+      "checks": [
+        {
+          "test": "integration/test_social.py::test_calendar_core_and_learning_versioning",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "integration/test_social.py::test_learning_deadline_upsert_handles_row_created_by_another_worker",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "notification/test_postgres.py::test_feed_comment_deadline_scope_and_revoked_resource_access",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-04/module-boundaries",
+      "rules": [
+        "K5"
+      ],
+      "checks": [
+        {
+          "test": "security/test_boundaries.py::test_domain_modules_only_import_other_modules_public_boundaries",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "security/test_boundaries.py::test_boundary_guard_detects_forbidden_imports_and_cross_service_sql",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-05/db-and-overload",
+      "rules": [
+        "K2",
+        "K5"
+      ],
+      "checks": [
+        {
+          "test": "maintenance/test_database.py::test_metadata_scope_single_head_and_empty_roundtrip",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "maintenance/test_database.py::test_upgrade_and_reviewed_mapping_preserve_legacy_history",
+          "cases": 2,
+          "result": "passed"
+        },
+        {
+          "test": "test_health.py::test_readiness_db_failure_does_not_break_liveness",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "security/test_admission.py::test_admission_bounds_concurrent_work_and_releases_after_error_and_cancel",
+          "cases": 1,
+          "result": "passed"
+        },
+        {
+          "test": "security/test_admission.py::test_admission_overload_is_safe_503_and_liveness_bypasses_queue",
+          "cases": 1,
+          "result": "passed"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "Core-06/class-list-load",
+      "rules": [],
+      "evidence": "performance",
+      "scope": "100 users / 10 classes / 50 students per class / 600 seconds; Core TP-01 subset",
+      "observed": {
+        "requests": 18342,
+        "backend_p95_ms": 477.14993299814523,
+        "client_p95_ms": 3827.508633999969,
+        "success_ratio": 0.9971104568749318,
+        "wrong_scope_responses": 0
+      },
+      "result": "passed"
+    },
+    {
+      "id": "pending/document-ai-learning",
+      "rules": [
+        "H3",
+        "H4",
+        "H5",
+        "K3",
+        "L2",
+        "M1",
+        "O2",
+        "O4",
+        "F3"
+      ],
+      "pending": "Services absent: document grants/notes/bookmarks, private chat, assessments/submissions/grades/appeals need their own real integration tests.",
+      "result": "pending"
+    },
+    {
+      "id": "pending/full-tp01",
+      "rules": [],
+      "pending": "Core class-list probe cannot certify mixed Document/AI/Learning/Learner Intelligence TP-01 or RAG KPIs.",
+      "result": "pending"
+    },
+    {
+      "id": "excluded/web-e2e",
+      "rules": [],
+      "pending": "User explicitly limited TASK-015 to backend; official Web E2E is outside this change.",
+      "result": "pending"
+    }
+  ],
+  "complete_core_g2": false
+}

@@ -31,6 +31,12 @@ class AdministrationService:
         self.correlation_id = correlation_id
         self.repository = AdministrationRepository(session)
 
+    def list_users(self, actor_id: UUID, pagination: Pagination):
+        return identity.admin_list_users(pagination, actor_id=actor_id, session=self.session)
+
+    def get_user(self, actor_id: UUID, user_id: UUID):
+        return identity.admin_get_user(user_id, actor_id=actor_id, session=self.session)
+
     def _audit(
         self, actor, action, target_id, *, reason="ADMIN_INTERVENTION", target_type="IMPORT"
     ):

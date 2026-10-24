@@ -1,0 +1,12 @@
+**
+!pyproject.toml
+!alembic.ini
+!app/
+!app/**
+!migrations/
+!migrations/**
+!tests/
+!tests/performance/
+!tests/performance/*.py
+**/__pycache__
+**/*.pyc
