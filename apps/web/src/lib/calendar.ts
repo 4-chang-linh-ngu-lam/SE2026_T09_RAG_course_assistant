@@ -1,4 +1,4 @@
-import type { Role } from './domain';
+import type { CalendarEvent, Role } from './domain';
 import { canOpenRoute, matchRoute } from './navigation';
 import { routeHref } from '@/config/routes';
 
@@ -34,6 +34,35 @@ export function formatDateIso(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+type CalendarInterval = Pick<CalendarEvent, 'start' | 'end' | 'date'>;
+
+function timestamp(value: string): number {
+  return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
+}
+
+function eventOverlaps(event: CalendarInterval, from: Date, to: Date): boolean {
+  const parsedStart = timestamp(event.start);
+  // Legacy preview items can have a time-only start; keep their local date.
+  const start = Number.isFinite(parsedStart) ? parsedStart : timestamp(event.date);
+  const end = event.end === undefined ? start : timestamp(event.end);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return false;
+  // Half-open intervals: an event ending at midnight does not occupy the next day.
+  return end === start
+    ? start >= from.getTime() && start < to.getTime()
+    : start < to.getTime() && end > from.getTime();
+}
+
+export function calendarEventOnDate(event: CalendarInterval, dateString: string): boolean {
+  const from = new Date(`${dateString}T00:00:00`);
+  if (!Number.isFinite(from.getTime()) || formatDateIso(from) !== dateString) return false;
+  const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1);
+  return eventOverlaps(event, from, to);
+}
+
+export function calendarEventInMonth(event: CalendarInterval, year: number, month: number): boolean {
+  return eventOverlaps(event, new Date(year, month - 1, 1), new Date(year, month, 1));
 }
 
 /**

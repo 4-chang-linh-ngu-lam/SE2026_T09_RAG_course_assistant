@@ -11,6 +11,8 @@ import {
   generateWeekDays,
   getInitialCalendarState,
   getRoleAwareEventHref,
+  calendarEventInMonth,
+  calendarEventOnDate,
 } from '@/lib/calendar';
 
 type Props = {
@@ -124,7 +126,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
 
   const events = localEvents ?? readyData?.calendarEvents ?? [];
   const monthPrefix = `${currentYearMonth.year}-${String(currentYearMonth.month).padStart(2, '0')}`;
-  const monthEvents = events.filter(e => e.date && e.date.startsWith(monthPrefix));
+  const monthEvents = events.filter(e => calendarEventInMonth(e, currentYearMonth.year, currentYearMonth.month));
   const selectedEvent =
     (selectedEventId ? monthEvents.find(e => e.id === selectedEventId) : null) ??
     monthEvents[0] ??
@@ -266,18 +268,18 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
   }
 
   const anchorDateStr = (() => {
-    if (selectedEventId) {
-      const activeEvt = monthEvents.find(e => e.id === selectedEventId);
-      if (activeEvt?.date) return activeEvt.date;
-    }
     if (selectedDate && selectedDate.startsWith(monthPrefix)) {
       return selectedDate;
+    }
+    if (selectedEventId) {
+      const activeEvt = monthEvents.find(e => e.id === selectedEventId);
+      if (activeEvt?.date) return activeEvt.date.startsWith(monthPrefix) ? activeEvt.date : `${monthPrefix}-01`;
     }
     if (todayDateStr && todayDateStr.startsWith(monthPrefix)) {
       return todayDateStr;
     }
     if (monthEvents[0]?.date) {
-      return monthEvents[0].date;
+      return monthEvents[0].date.startsWith(monthPrefix) ? monthEvents[0].date : `${monthPrefix}-01`;
     }
     return `${monthPrefix}-01`;
   })();
@@ -401,7 +403,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
 
               <div className="cal-month-grid">
                 {calendarDays.map((cell, idx) => {
-                  const dayEvents = events.filter(e => e.date === cell.dateString);
+                  const dayEvents = events.filter(e => calendarEventOnDate(e, cell.dateString));
                   return (
                     <div
                       key={idx}
@@ -462,7 +464,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
 
               <div className="cal-month-grid" style={{ gridTemplateRows: '1fr' }}>
                 {weekDays.map((cell, idx) => {
-                  const dayEvents = events.filter(e => e.date === cell.dateString);
+                  const dayEvents = events.filter(e => calendarEventOnDate(e, cell.dateString));
                   return (
                     <div
                       key={idx}
@@ -526,9 +528,9 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
                       key={evt.id}
                       tabIndex={0}
                       className={`cal-list-item ${selectedEvent?.id === evt.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedEventId(evt.id)}
+                      onClick={() => { setSelectedDate(null); setSelectedEventId(evt.id); }}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') setSelectedEventId(evt.id);
+                        if (e.key === 'Enter') { setSelectedDate(null); setSelectedEventId(evt.id); }
                       }}
                     >
                       <div className="actions">

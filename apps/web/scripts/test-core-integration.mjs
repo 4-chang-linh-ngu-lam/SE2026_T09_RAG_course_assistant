@@ -158,7 +158,7 @@ try{
   let browserGroups=0,documentBrowserGroups=0,browserFailed=false;
   if(process.env.CORE_BROWSER_EXECUTABLE){
     phase='real browser interaction';
-    try{browserGroups=await smoke('core-browser-smoke.ts',7,smokeEnv);console.log('PASS 7 real browser interaction groups (isolated Chrome profile)');}
+    try{browserGroups=await smoke('core-browser-smoke.ts',10,smokeEnv);console.log('PASS 10 real browser interaction groups (isolated Chrome profile)');}
     catch{browserFailed=true;console.error('FAIL browser interaction; continuing independent HTTP/recovery checks');}
     if(withDocuments){
       phase='Document browser interaction';

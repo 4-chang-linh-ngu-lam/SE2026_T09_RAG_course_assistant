@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {dirname,join,resolve,sep} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {getRoute} from '../src/config/routes';
+import {coreP2BrowserRegressions} from './core-p2-browser-regressions';
 
 async function main(){
 // Runs only against the runner's disposable fixture, with a fresh Chrome profile.
@@ -206,6 +207,8 @@ try{
   assert.equal(await evaluate(teacher,"(()=>{const grid=document.querySelector('.cal-month-grid'),cells=[...grid.children];return getComputedStyle(grid).display==='grid'&&getComputedStyle(grid).gridTemplateColumns.split(' ').length===7&&cells[0].getBoundingClientRect().top===cells[6].getBoundingClientRect().top&&cells[7].getBoundingClientRect().top>cells[0].getBoundingClientRect().top;})()"),true);
   await writeFile(join(required('CORE_BROWSER_ARTIFACT_DIR'),'teacher-calendar-desktop.png'),Buffer.from((await teacher.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
   pass('Teacher home/overview and calendar create/edit survive full browser reload');
+
+  await coreP2BrowserRegressions({page,navigate,fill,click,button,text,visible,evaluate,until,pass,phase:value=>{phase=value;}},teacher,fixture,web.origin);
 
   phase='Admin account status form and revoked Student session';
   await navigate(admin,getRoute('a.account').path.replace(':userId',fixture.studentId));await until(()=>visible(admin,'#user-status-select'));

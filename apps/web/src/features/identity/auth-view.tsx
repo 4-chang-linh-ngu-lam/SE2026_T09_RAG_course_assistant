@@ -23,6 +23,7 @@ export function AuthView({ route }: { route: RouteDefinition }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [unknown, setUnknown] = useState(false);
+  const [loginChecked, setLoginChecked] = useState(false);
   const [invalidCredential, setInvalidCredential] = useState(false);
 
   const isLogin = route.id === 'auth.login';
@@ -42,6 +43,30 @@ export function AuthView({ route }: { route: RouteDefinition }) {
       // Safe fallback
     }
   }, [isReset, isInvitation]);
+
+  useEffect(() => {
+    if (!loginChecked || session.status === 'loading') return;
+    setLoginChecked(false);
+    if (session.status === 'signed-out' && session.error === null) {
+      setUnknown(false);
+      setError(null);
+    }
+  }, [loginChecked, session.status, session.error]);
+
+  async function checkLogin() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setLoginChecked(false);
+    try {
+      await session.reload();
+      setLoginChecked(true);
+    } catch (value) {
+      setError(errorMessage(value));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -330,8 +355,8 @@ export function AuthView({ route }: { route: RouteDefinition }) {
           </div>
 
           {unknown && isLogin && (
-            <button className="button" style={{ marginTop: '12px' }} onClick={() => void session.reload()}>
-              Kiểm tra phiên đăng nhập
+            <button id="login-session-check" className="button" disabled={busy} style={{ marginTop: '12px' }} onClick={() => void checkLogin()}>
+              {busy ? 'Đang kiểm tra…' : 'Kiểm tra phiên đăng nhập'}
             </button>
           )}
 
