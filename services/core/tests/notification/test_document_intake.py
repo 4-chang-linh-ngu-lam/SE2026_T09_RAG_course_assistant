@@ -1,4 +1,3 @@
-# ruff: noqa: F811 -- imported pytest fixtures intentionally share test argument names
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -15,10 +14,6 @@ from app.common.errors import register_error_handlers
 from app.common.outbox import OutboxEvent
 from app.modules.notification.models import DocumentEventReceipt, Notification
 from app.modules.notification.worker import drain_outbox
-from tests.notification.test_postgres import (  # noqa: F401 -- shared real PG fixtures
-    database,
-    system,
-)
 
 KEY = "synthetic-document-events-" + "x" * 32
 

@@ -44,3 +44,11 @@ Tất cả tài khoản, tệp, SMTP TLS sink, PostgreSQL/volume và Chrome prof
 ## Review
 
 Owner cần review trong PR: Identity/Common (TV1), Classroom/access (TV2), Social (TV3), Notification/Administration/shared CI–Compose (TV4), Document và Web. Báo cáo này không thay owner approval, nghiệm thu tải hoặc production readiness. AI/RAG vẫn thuộc TASK-018.
+
+## CI follow-up — pytest console entry point
+
+GitHub CI phát hiện lỗi collection `ModuleNotFoundError: No module named 'tests'` ở `test_document_intake.py`. Lượt local trước dùng `python -m pytest`, vốn thêm working directory vào import path; vì vậy kết quả local không bao phủ khác biệt entry point này. Đã tái hiện lỗi bằng `pytest --collect-only` trên image trước sửa.
+
+Hai fixture PostgreSQL `database`/`system` được chuyển nguyên hành vi từ `test_postgres.py` sang `notification/conftest.py`, bỏ import test-to-test và các noqa tương ứng. Pytest tự tìm fixture cho các test Notification/Document intake. Không thêm sys.path/PYTHONPATH workaround, không sửa API, quyền hay migration. Test image giữ `pyproject.toml`; image và runner Core dùng lệnh `pytest` như CI.
+
+Kiểm tra bằng console entry point sau sửa: riêng Document intake thu thập 9 tests, toàn Core thu thập 428 tests; gate Identity public đạt 17 passed và coverage 100%. Lệnh full suite có coverage/XML/JUnit và rule evidence giữ nguyên như CI để tiếp tục xác minh. Lỗi rule evidence ở lượt GitHub trước là hệ quả của JUnit chỉ có collection error; không hạ tiêu chí scenario hoặc bỏ qua lỗi collection. Mọi số liệu ở phần nghiệm thu merge phía trên là snapshot của lượt chạy trước follow-up này.

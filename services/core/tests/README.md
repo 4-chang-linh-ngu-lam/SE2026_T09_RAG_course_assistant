@@ -13,12 +13,19 @@ their own databases; older Identity/Classroom fixtures also use transactions in
 the specified test database. Never point this variable at an operational server.
 
 ```sh
-python -m pytest -q -W error -p no:cacheprovider --cov=app --cov-branch --cov-report=xml --junitxml=test-results.xml
+pytest -q -W error --cov=app --cov-branch --cov-report=term-missing --cov-report=xml --junitxml=test-results.xml
 python tests/security/evidence.py --junit test-results.xml --output rule-evidence.json
-python -m pytest tests/identity/test_public.py -q -W error -p no:cacheprovider --cov=app.modules.identity.public --cov-branch --cov-fail-under=100
+pytest tests/identity/test_public.py -q -W error --cov=app.modules.identity.public --cov-branch --cov-fail-under=100
 python -m ruff check app tests migrations
 python -m ruff format --check app tests migrations
 ```
+
+Use the `pytest` console entry point above to match Core CI. `python -m pytest`
+adds the working directory to Python's import path and can hide collection errors.
+Notification's shared PostgreSQL `database`/`system` fixtures live in
+`notification/conftest.py`; tests use pytest fixture discovery rather than importing
+another test module through a top-level `tests` package. The Docker test image and
+the Document runner's Core test command also use the console entry point.
 
 Without the test database, DB tests skip; that is not DB verification. The evidence
 command rejects skipped or missing selected tests and any skipped test case in the

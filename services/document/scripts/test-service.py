@@ -89,8 +89,6 @@ def main():
                 "TEST_DATABASE_URL": admin_url.replace("postgresql:", "postgresql+psycopg:"),
             },
             "command": [
-                "python",
-                "-m",
                 "pytest",
                 "-q",
                 "-p",
