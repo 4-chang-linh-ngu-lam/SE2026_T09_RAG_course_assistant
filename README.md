@@ -28,6 +28,46 @@ TASK-015 đã có [bộ kiểm chứng backend](services/core/tests/README.md): 
 artifacts và backend Compose smoke. Bài đo class-list 10 phút tách backend/client
 latency và ghi rõ giới hạn; Web E2E ngoài scope lần này, full TP-01/G2 chưa nghiệm thu.
 
+## Triển khai thử MVP (Neon + Render + Vercel)
+
+`render.yaml` khai báo Core API trên nhánh `codex/mvp-deploy`, dùng Render Free và
+kiểm tra `/health/ready`. Dockerfile đọc biến `PORT` của Render, vẫn giữ một Uvicorn
+worker. Free Web Service có thể sleep sau 15 phút không có request; SMTP port 587 bị
+chặn trên Render Free, nên staging này không bật gửi email. Pre-deploy migration tự
+động được hoãn; muốn API ready trên Neon mới cần chạy one-off migration trước khi
+deploy Core.
+
+Notification worker được chạy bằng GitHub Actions mỗi 15 phút, với lệnh một lượt
+`python -m app.modules.notification.worker --once --batch-size 100`. Workflow
+`.github/workflows/neon-staging-notifications.yml` dùng runner chuẩn miễn phí của repo
+công khai; lịch chỉ chạy sau khi workflow được merge vào `main` và có thể bị GitHub trì
+hoãn lúc tải cao. Mỗi lần xử lý tối đa 100 event. Sau migration thành công, đặt repository
+variable `NEON_STAGING_READY=true` để mở lịch; trước đó cron tự bỏ qua job.
+
+Tạo Neon staging branch PostgreSQL 16 với dữ liệu tổng hợp. Đổi direct URI có SSL sang
+scheme `postgresql+psycopg://`, rồi lưu trong GitHub Environment `neon-staging` dưới
+secret `NEON_STAGING_DATABASE_URL`. Workflow
+`.github/workflows/neon-staging-migrate.yml` cho phép chạy `alembic upgrade head` và
+`alembic check` thủ công đúng một lần đầu trên DB staging rỗng: merge hai workflow vào
+`main`, vào Actions, chạy `Neon staging migration` với `run_initial_migration=true`, xác
+nhận thành công, rồi bật `NEON_STAGING_READY`. Tạo Render Core sau khi migration đạt
+và nhập URI Neon vào `DATABASE_URL` ở Render. Không dùng database production hay dán
+URI/secret vào Git, issue hoặc chat.
+
+GitHub schedule dùng `main` mặc định; `workflow_dispatch` cho phép chạy notification
+thủ công. Migration workflow chỉ chạy trên `main` sau khi người vận hành bật xác nhận
+`run_initial_migration`. Render Free không có pre-deploy command tự động; không bật
+Gmail trên gói này. Render sinh `SECRET_KEY` và `INTERNAL_SERVICE_SECRET`; nhập
+`CORS_ORIGINS` là JSON array chứa đúng origin Vercel.
+
+Trên Vercel, kết nối repository và chọn root directory `apps/web`; dùng nhánh
+`codex/mvp-deploy` làm Preview branch và đặt `NEXT_PUBLIC_CORE_API_URL` theo URL Render.
+Sau khi Vercel cấp URL, cập nhật `CORS_ORIGINS` ở Render cho đúng URL đó. Main hiện chỉ
+có trang Web skeleton; bản deploy thử chưa phải MVP frontend hoàn chỉnh, và cần E2E
+Web → Core → Neon sau khi PR frontend được tích hợp. Gửi lời mời/reset hiện vẫn gửi
+SMTP đồng bộ trước commit; email sẽ không hoạt động ở staging này cho đến khi chọn gói
+có SMTP egress và hoàn tất issue #16. Không dùng tài khoản/dữ liệu thật trong staging.
+
 ## Phạm vi sản phẩm Lumi
 Lumi phục vụ **học sinh THCS và THPT (khối 6–12)** trong **lớp học chính khóa**. Tiểu học, đại học và lớp học thêm không thuộc phạm vi MVP. Giao diện hướng đến học sinh phổ thông, giữ phong cách sáng, gọn, không game hóa hoặc trang trí quá mức.
 

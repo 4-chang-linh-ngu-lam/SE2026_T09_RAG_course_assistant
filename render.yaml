@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: lumi-core-api
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: codex/mvp-deploy
+    dockerfilePath: ./services/core/Dockerfile
+    dockerContext: ./services/core
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    numInstances: 1
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: INTERNAL_SERVICE_SECRET
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_POOL_SIZE
+        value: "1"
+      - key: DATABASE_MAX_OVERFLOW
+        value: "0"
+      - key: DATABASE_POOL_TIMEOUT_SECONDS
+        value: "5"
+      - key: STUDENT_ACTIVATION_EXPIRE_HOURS
+        value: "24"
