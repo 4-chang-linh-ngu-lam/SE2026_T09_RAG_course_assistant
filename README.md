@@ -13,6 +13,11 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 Admin demo công khai vẫn là **`admin@seed.example.com` / `LumiDemoOnly!2026`** sau khi chủ động seed vào database demo riêng. Đây không phải mật khẩu của Admin đang có trên máy; credential DB/SMTP và mã kích hoạt riêng không nằm trong Git. Hướng dẫn demo Core-only 3100 ở dưới vẫn dùng được.
 
 ## Đọc tài liệu
+
+**Đồng bộ `main` vào `core_full` (24/10/2026):** [quyết định giải quyết conflict, kiểm thử và owner cần review](docs/CORE_MAIN_MERGE_2026-10-24.md).
+
+**Bàn giao backend TV4 (2026-10-19):** [task 001–015, phần đã làm, kiểm thử và toàn bộ vấn đề còn mở](tasks/TV4_BACKEND_HANDOVER.md).
+
 1. [Business Rules](docs/architect/BUSINESS_RULES.md) — nguồn nghiệp vụ.
 2. [ADR](docs/architect/microservices-v1/ADR-001.md), [Architecture](docs/architect/microservices-v1/ARCHITECTURE.md) — kiến trúc.
 3. [Core Design](docs/architect/microservices-v1/core/DESIGN.md), [Core API](docs/architect/microservices-v1/core/API_CONTRACT.md), [Folder Structure](docs/architect/microservices-v1/core/FOLDER_STRUCTURE.md) — triển khai Core.

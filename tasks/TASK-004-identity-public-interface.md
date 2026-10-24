@@ -34,8 +34,9 @@ Thiết lập giao diện lập trình nội bộ (`public.py`) chuẩn mực đ
 
 ### 2.1. `public.py`
 Xuất khẩu các hàm công khai ổn định (Internal Python Interface):
-- `get_user_summary(user_id: UUID) -> Optional[UserSummaryDTO]`: Lấy thông tin cơ bản (id, email nullable, username, school_id, status).
+- `get_user_summary(user_id: UUID) -> Optional[UserSummaryDTO]`: Lấy thông tin cơ bản (id, email nullable, username, school_id, display_name nullable, status).
 - `get_users_summaries(user_ids: list[UUID]) -> dict[UUID, UserSummaryDTO]`: Batch fetch để chống N+1 query.
+  Consumer Social chỉ dùng `id`/`display_name` khi dựng author response; không đưa email/username đăng nhập ra feed. DTO trả `display_name` từ DB trong cùng một query; trường này có thể null cho tài khoản cũ/chưa đặt tên.
 - `verify_user_active(user_id: UUID) -> bool`: Kiểm tra người dùng có đang hoạt động và không bị khóa.
 - `get_user_roles(user_id: UUID) -> list[str]`: Lấy danh sách vai trò hệ thống của người dùng.
 - `check_user_is_lecturer(user_id: UUID) -> bool`: Kiểm tra quyền giảng viên toàn hệ thống.

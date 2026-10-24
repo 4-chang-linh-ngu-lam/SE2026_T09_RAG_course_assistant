@@ -9,7 +9,7 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Hiện trạng:** Router auth/profile, Student create/issue-code/activate và OpenAPI snapshot đã có; các Admin API còn lại chưa triển khai.
+**Hiện trạng tại ngày 2026-10-16:** Router auth/profile, Student create/issue-code/activate và OpenAPI snapshot đã có; các Admin API còn lại chưa triển khai ở thời điểm đó. TASK-013 sau này đã bổ sung Admin routes.
 
 **Cần sửa/bổ sung:**
 - Lấy danh sách endpoint/schema từ Core API Contract và OpenAPI hiện tại; thêm đầy đủ username/school_id/email nullable vào mô tả profile. Không triển khai lại register trả 201 hoặc quên route Student đã có.
@@ -73,4 +73,4 @@ Xây dựng các route thuộc prefix `/api/v1/auth`:
 
 **Bằng chứng (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; các test HTTP/security/SMTP giả/OpenAPI mới đạt 38/38, toàn Core `pytest -q -W error` với `TEST_DATABASE_URL` đạt 98/98; `ruff check app tests migrations` đạt. Đã kiểm tra cookie attributes/rotation/clear, CSRF Origin/Referer, limit login/register/forgot, reset/logout-all vô hiệu hóa token cũ, quyền profile, rollback khi gửi email thất bại, idempotency replay/conflict và cache không vượt quyền/phiên hiện hành.
 
-**Giới hạn triển khai:** Rate limiter và idempotency TTL 24 giờ dùng RAM một process, không bền vững qua restart/multi-worker. SMTP adapter dùng TLS và callback trước DB commit; chưa có outbox/retry hoặc tính nguyên tử SMTP–DB. SMTP thật và Docker Compose/PostgreSQL 16 chưa được kiểm chứng; test không gửi email ra ngoài. Các biến cấu hình, phạm vi key và cách chạy tại [Core README](../services/core/README.md#identity-http-api-task-003). Shared files/Compose và API contract cần reviewer TV1/TV4 khi mở PR.
+**Giới hạn còn lại:** Rate limiter và idempotency TTL 24 giờ dùng RAM một process, không bền vững qua restart/multi-worker. SMTP adapter dùng TLS và callback trước DB commit; chưa có outbox/retry hoặc tính nguyên tử SMTP–DB. SMTP thật chưa được kiểm chứng; test không gửi email ra ngoài. Full Core PostgreSQL 16 và Compose CI đã chạy sau TASK-015/PR #10, nhưng không kiểm chứng SMTP provider. Các biến cấu hình, phạm vi key và cách chạy tại [Core README](../services/core/README.md#identity-http-api-task-003). Shared files/Compose và API contract vẫn cần owner review.

@@ -9,7 +9,7 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Hiện trạng:** Comments mới có skeleton; cần đồng bộ Feed và action access trước triển khai.
+**Hiện trạng tại ngày 2026-10-16:** Comments mới có skeleton; nhận định này đã được thay thế sau khi PR #8 triển khai Social.
 
 **Cần sửa/bổ sung:**
 - Sửa giới hạn body từ 5.000 thành **1..10.000** theo Core API Contract; author DTO xử lý Student email null và dùng public interface đã chốt.
@@ -18,8 +18,12 @@
 - Comments cần interface công khai tối thiểu của Feed để xác minh post; không import repository/model Feed để thực hiện nghiệp vụ. Comment tạo thành công ghi outbox cùng transaction; TASK-012 xử lý recipient/dedup và kiểm tra quyền khi mở link.
 
 **Phụ thuộc và nghiệm thu bổ sung:**
-- [ ] TASK-008/009/012/014 thống nhất DTO, transaction và notification contract; test parent ID giả, cross-school/class, post/comment đã xóa và tác giả mất quyền.
-- [ ] Test biên body 1/10.000/10.001, LOCKED/ENDED/ARCHIVED, moderation có audit và notification lỗi không rollback comment đã commit.
+- [x] TASK-008/009/012/014 thống nhất DTO, transaction và notification contract; test parent ID giả, cross-school/class, post/comment đã xóa và tác giả mất quyền.
+- [ ] Test biên body 1/10.000/10.001, LOCKED/ENDED/ARCHIVED, moderation có audit, lỗi enqueue/outbox rollback comment cùng transaction và lỗi delivery sau commit được worker retry.
+
+**Bằng chứng tại ngày 2026-10-18:** `pytest tests/social -q -W error` → 35 passed; có test body/parent/ARCHIVED/outbox tối thiểu. Checklist thứ hai giữ nguyên vì hợp đồng hiện hành yêu cầu lỗi **ghi outbox** rollback comment, khác câu “notification lỗi không rollback” cũ; PostgreSQL 16 chưa chạy được ở thời điểm này.
+
+**Cập nhật sau PR #8 (2026-10-19):** Comments hiện đã có trong `main`; full Core PostgreSQL 16 suite trên commit sau PR #10 đạt 342 passed, 0 skipped. CI PR #10 cũng xanh. Bằng chứng PostgreSQL 16 mới thay thế giới hạn môi trường trong ghi chú 2026-10-18; các review contract còn thiếu vẫn cần owner xác nhận.
 
 ---
 
@@ -73,7 +77,7 @@ Xây dựng bảng trong schema `core`:
 ---
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
-- [ ] Thành viên `ACTIVE` có thể bình luận vào bài đăng hợp lệ; học sinh khác lớp hoặc chưa được ghi danh bị chặn 403.
+- [ ] Thành viên `ACTIVE` có thể bình luận vào bài đăng hợp lệ; học sinh khác lớp hoặc chưa được ghi danh bị từ chối theo quy tắc che tài nguyên của API Contract.
 - [ ] Không thể bình luận vào bài viết đã bị xóa (trả về `404 NOT_FOUND`).
 - [ ] Bình luận đã bị soft-delete không còn xuất hiện trong danh sách `GET /comments`.
 - [ ] Giảng viên có thể xóa bình luận không phù hợp của sinh viên và có log kiểm toán trong `audit_events`.

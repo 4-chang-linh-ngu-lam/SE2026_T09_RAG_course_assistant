@@ -1,5 +1,7 @@
 # Lộ trình — Core hoàn chỉnh trước
 
+**Cập nhật `core_full` 24/10/2026:** đã có Web live cho Core và Document (TASK-017), Core head `0013`, Document head `document_0003`. [Danh mục task](../../../tasks/README.md) và [báo cáo đồng bộ main](../../CORE_MAIN_MERGE_2026-10-24.md) phân biệt kết quả hiện tại với mốc bàn giao backend 19/10 bên dưới. AI/RAG TASK-018, owner sign-off và nghiệm thu toàn hệ thống vẫn còn riêng.
+
 **Trạng thái:** BASELINE KẾ HOẠCH · **Ngày:** 2026-10-11. Các giai đoạn là tiêu chí để nghiệm thu, không phải đã hoàn thành.
 
 | Giai đoạn | Phạm vi | Điều kiện chuyển |
@@ -26,6 +28,9 @@
 5. Chạy Compose từ môi trường sạch, CI, security/contract tests, lưu kết quả rồi mới sang G3.
 
 ## Checklist nghiệm thu Core
+
+**Trạng thái backend trên `main` `2f7d70a` (2026-10-19):** Các luồng backend 001–016 đã triển khai; full Core PostgreSQL 16 đạt **342 passed, 0 skipped**. CI PR #10 đạt `core-tests`, `compose-smoke`, `web-build` trên head `bb7f88d` trước squash merge. Đo tải follow-up Core subset đạt ngưỡng backend (p95 18,79 ms), client p95 1,17 giây; đây chưa phải chứng nhận user-facing SLO/full TP-01. Checklist dưới đây vẫn là gate ký nghiệm thu Core G2: School mapping dữ liệu thật/FK, data-request policy/executor, owner review và consumer liên service còn pending. Web nghiệp vụ không nằm trong phạm vi backend đã chốt; `apps/web` build xanh không phải Web E2E.
+
 - [ ] Admin provision/Student activate/login/refresh/logout/revoke, Admin account/roles/lock.
 - [ ] Admin tạo lớp môn học gắn lớp hành chính/năm học, phân công giáo viên, nhập CSV/Excel, ghi danh AUTO/MANUAL, chuyển lớp và archive/restore; Student không tự join/leave; Lecturer không tạo lớp.
 - [ ] Feed/comments/calendar/notifications và Core admin/audit end-to-end.

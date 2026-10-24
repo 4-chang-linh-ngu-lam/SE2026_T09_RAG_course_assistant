@@ -9,18 +9,22 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Hiện trạng:** Feed mới có skeleton; bảng/route bên dưới là thiết kế, chưa triển khai.
+**Hiện trạng tại ngày 2026-10-16:** Feed mới có skeleton; nhận định này đã được thay thế sau khi PR #8 triển khai Social.
 
 **Cần sửa/bổ sung:**
 - Phụ thuộc action policy TASK-008 và phân công PRIMARY/ASSISTING TASK-007; không suy quyền từ OWNER/CO_LECTURER legacy hoặc global LECTURER.
 - Mọi list/get/update/delete đều kiểm tra trường/lớp và quan hệ post–class; tác giả đã kết thúc ghi danh không giữ quyền sửa chỉ nhờ author_id. ARCHIVED chặn sửa/xóa hoạt động chung theo contract đã duyệt.
-- PostAuthorSummary không bắt buộc email vì Student email nullable; chỉ trả thông tin hiển thị cần thiết. DTO Identity hiện chưa có display_name, cần TV1 bổ sung public contract nếu cần, không query Identity model.
+- Identity public DTO đã có `display_name` nullable qua batch lookup; Social chỉ dùng `id` và tên hiển thị trong author response, không trả email/username đăng nhập và không query Identity model.
 - Chốt pagination trước code: Common hiện dùng cursor UUID, chưa hỗ trợ thứ tự created_at mới nhất. Nếu giữ yêu cầu mới nhất, thiết kế cursor/sort nhất quán và test không trùng/bỏ sót, không dùng cursor UUID với query created_at khác thứ tự.
 - Không mở quyền đọc toàn feed cũ bằng read_own_history; ngoại lệ lịch sử cá nhân không phải quyền xem nội dung mới của lớp. Soft delete ẩn cả list/detail; notification qua outbox và moderation audit tối thiểu.
 
 **Phụ thuộc và nghiệm thu bổ sung:**
-- [ ] TASK-004/005/007/008/014 được tích hợp; cross-school/class, post thuộc lớp khác, LOCKED/ENDED/ARCHIVED và quyền tác giả cũ đều có test.
+- [x] TASK-004/005/007/008/014 được tích hợp; cross-school/class, post thuộc lớp khác, LOCKED/ENDED/ARCHIVED và quyền tác giả cũ đều có test.
 - [ ] Test DTO không phụ thuộc email Student, phân trang ổn định và bài đã xóa không lộ qua detail/comments; TV1/TV2 review public contracts.
+
+**Bằng chứng 2026-10-18:** `pytest tests/social -q -W error` → 35 passed; toàn Core không có `TEST_DATABASE_URL` → 135 passed, 62 skipped. Test PostgreSQL 16/TV1–TV2 review chưa hoàn tất nên checklist review giữ nguyên.
+
+**Cập nhật sau PR #8 (2026-10-19):** Feed hiện đã có trong `main`; full Core PostgreSQL 16 suite trên commit sau PR #10 đạt 342 passed, 0 skipped. CI PR #10 cũng xanh. Các con số 135/62 và nhận định chưa triển khai ở trên là bằng chứng lịch sử, không phải trạng thái mới. Owner review cho shared/action contracts vẫn cần ghi nhận riêng.
 
 ---
 
@@ -45,7 +49,7 @@ Xây dựng bảng trong schema `core`:
 ### 2.2. `schemas.py`
 - `PostCreateRequest`: `body: str`
 - `PostUpdateRequest`: `body: str`
-- `PostAuthorSummary`: `id: UUID`, `display_name: Optional[str]`, `email: Optional[str]` (chỉ trả khi contract cho phép)
+- `PostAuthorSummary`: `id: UUID`, `display_name: Optional[str]`; không trả email/username đăng nhập
 - `PostResponse`: `id: UUID`, `class_id: UUID`, `author: PostAuthorSummary`, `body: str`, `created_at: datetime`, `updated_at: datetime`
 - `PostListResponse`: `items: list[PostResponse]`, `next_cursor: Optional[str]`
 
@@ -75,7 +79,7 @@ Xây dựng bảng trong schema `core`:
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
 - [ ] Thành viên `ACTIVE` có thể đăng bài và đọc danh sách bài đăng theo thứ tự mới nhất.
-- [ ] Học sinh chưa được Admin ghi danh hoặc đã kết thúc ghi danh không thể đăng bài hay đọc bảng tin.
+- [ ] Học sinh chưa được Admin ghi danh hoặc đã kết thúc ghi danh không thể đăng bài hay đọc bảng tin; tài nguyên ngoài quyền được che theo API Contract.
 - [ ] Khi một bài viết bị xóa (soft delete), gọi `GET /posts` không còn nhìn thấy bài viết đó (Rule L1).
 - [ ] Giảng viên có thể xóa bài viết của sinh viên khác và hệ thống ghi lại sự kiện vào `audit_events` (Rule L5).
 - [ ] Khi lớp bị `ARCHIVED`, yêu cầu `POST /posts` bị từ chối với thông báo lỗi thích hợp.
