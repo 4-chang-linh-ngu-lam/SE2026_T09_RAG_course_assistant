@@ -26,7 +26,6 @@ from app.modules.classroom.permissions import require_admin, require_class_read
 from app.modules.classroom.public import get_notification_audience
 from app.modules.classroom.repository import ClassroomRepository
 from app.modules.classroom.schemas import (
-    AcademicYearResponse,
     ClassCreateRequest,
     ClassResponse,
     CourseCreateRequest,
@@ -37,7 +36,6 @@ from app.modules.classroom.schemas import (
     HomeroomResponse,
     MembershipResponse,
     RosterResponse,
-    SemesterResponse,
     TeachingAssignmentResponse,
     TeachingAssignmentsRequest,
 )
@@ -126,17 +124,10 @@ class ClassroomService:
         return klass
 
     def _homeroom_for_admin(
-        self,
-        homeroom_id: UUID,
-        actor: CurrentUser,
-        *,
-        for_update: bool = False,
-        for_share: bool = False,
+        self, homeroom_id: UUID, actor: CurrentUser, *, for_update: bool = False
     ) -> HomeroomClass:
         school_id = require_admin(actor)
-        homeroom = self.repository.get_homeroom(
-            homeroom_id, for_update=for_update, for_share=for_share
-        )
+        homeroom = self.repository.get_homeroom(homeroom_id, for_update=for_update)
         if homeroom is None:
             raise AppError(404)
         require_school_scope(school_id, homeroom.school_id)
@@ -164,63 +155,6 @@ class ClassroomService:
     def _active(klass: SubjectClass) -> None:
         if klass.status != ClassStatus.ACTIVE:
             raise AppError(409, "Archived classes are read-only")
-
-    def list_courses(self, actor: CurrentUser, pagination: Pagination) -> Page[CourseResponse]:
-        school_id = require_admin(actor)
-        rows = self.repository.list_courses(
-            school_id, limit=pagination.limit, cursor=pagination.cursor
-        )
-        return _page(rows, pagination.limit, CourseResponse)
-
-    def list_academic_years(
-        self, actor: CurrentUser, pagination: Pagination
-    ) -> Page[AcademicYearResponse]:
-        school_id = require_admin(actor)
-        rows = self.repository.list_academic_years(
-            school_id, limit=pagination.limit, cursor=pagination.cursor
-        )
-        return _page(rows, pagination.limit, AcademicYearResponse)
-
-    def list_semesters(
-        self, year_id: UUID, actor: CurrentUser, pagination: Pagination
-    ) -> Page[SemesterResponse]:
-        school_id = require_admin(actor)
-        year = self.repository.get_academic_year(year_id)
-        if year is None:
-            raise AppError(404)
-        require_school_scope(school_id, year.school_id)
-        rows = self.repository.list_semesters(
-            year_id, limit=pagination.limit, cursor=pagination.cursor
-        )
-        return _page(rows, pagination.limit, SemesterResponse)
-
-    def list_homerooms(self, actor: CurrentUser, pagination: Pagination) -> Page[HomeroomResponse]:
-        school_id = require_admin(actor)
-        rows = self.repository.list_homerooms(
-            school_id, limit=pagination.limit, cursor=pagination.cursor
-        )
-        return _page(rows, pagination.limit, HomeroomResponse)
-
-    def get_roster(self, homeroom_id: UUID, actor: CurrentUser) -> RosterResponse:
-        # Roster writers lock the parent row FOR UPDATE. Hold FOR SHARE until
-        # the request session closes so student_ids and roster_version agree.
-        homeroom = self._homeroom_for_admin(homeroom_id, actor, for_share=True)
-        return RosterResponse(
-            homeroom_class_id=homeroom.id,
-            student_ids=sorted(
-                row.student_id for row in self.repository.active_roster(homeroom_id)
-            ),
-            roster_version=homeroom.roster_version,
-        )
-
-    def list_teaching_assignments(
-        self, class_id: UUID, actor: CurrentUser
-    ) -> list[TeachingAssignmentResponse]:
-        self._class_for_admin(class_id, actor)
-        return [
-            TeachingAssignmentResponse.model_validate(row)
-            for row in sorted(self.repository.active_teachers(class_id), key=lambda row: row.id)
-        ]
 
     def create_course(
         self, actor: CurrentUser, request: CourseCreateRequest, *, commit: bool = True

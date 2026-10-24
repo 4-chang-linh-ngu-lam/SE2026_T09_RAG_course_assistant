@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.modules.identity.schemas import AdminCreateStudentRequest, UserSummaryDTO
+from app.modules.identity.schemas import AdminCreateStudentRequest
 
 AdminReason = Literal["ADMIN_INTERVENTION", "POLICY_VIOLATION", "USER_REQUEST"]
 ResolutionNote = Literal[
@@ -14,12 +14,6 @@ ResolutionNote = Literal[
     "REQUEST_REJECTED",
     "DUPLICATE_REQUEST",
 ]
-
-
-class AdminUserReadDTO(UserSummaryDTO):
-    """Current school-scoped account metadata; credentials never cross this boundary."""
-
-    roles: list[Literal["ADMIN", "LECTURER", "STUDENT"]]
 
 
 class StudentImportRow(AdminCreateStudentRequest):

@@ -23,11 +23,6 @@ class Notification(Base):
     )
 
 
-class DocumentEventReceipt(Base):
-    __tablename__ = "document_event_receipts"
-    payload_hash: Mapped[str] = mapped_column(String(64))
-
-
 Index(
     "idx_notifications_recipient_created", Notification.recipient_id, Notification.created_at.desc()
 )

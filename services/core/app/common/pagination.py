@@ -36,7 +36,7 @@ def decode_cursor(cursor: str) -> UUID:
         raise AppError(400, "Invalid cursor") from exc
 
 
-async def get_pagination(
+def get_pagination(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     cursor: Annotated[str | None, Query(max_length=22)] = None,
 ) -> Pagination:

@@ -86,7 +86,7 @@ Tạo một database **riêng, sạch**, tên bắt đầu `dev_` hoặc `test_`
 seed cần quyền migration và ghi schema đó. Chỉ định chính xác database qua
 `DATABASE_URL` và `--expected-database`. Mật khẩu Admin riêng do người chạy cung
 cấp trong `CORE_SEED_ADMIN_PASSWORD` (12–128 ký tự), không đưa vào command line,
-file commit hoặc log. Không có mật khẩu mặc định trong ứng dụng. [README tại root](../../../README.md#core-web-demo) có một giá trị demo công khai được người dùng chủ động chọn cho database `dev_lumi_demo` riêng; đó không phải credential của database dev đang dùng hoặc môi trường thật. Sau khi cấu hình môi trường:
+file commit hoặc log. Không có mật khẩu mặc định. Sau khi cấu hình môi trường:
 
 ```sh
 python -m alembic upgrade head

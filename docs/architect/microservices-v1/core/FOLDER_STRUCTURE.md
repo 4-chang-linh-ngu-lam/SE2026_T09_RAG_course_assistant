@@ -1,6 +1,6 @@
 # Quy ước tổ chức mã nguồn Core Service
 
-**Trạng thái:** BASELINE QUY ƯỚC THƯ MỤC; cập nhật 23/10/2026: Common, Identity, Classroom, Social/Calendar, Notification và Administration/import đã có triển khai. Cây dưới đây vẫn chứa mục tiêu lịch sử; đối chiếu source/API_CONTRACT cho file và endpoint thực tế. **Phạm vi:** `services/core/` trong **một monorepo**; Core là **một FastAPI microservice**, không tách module nội bộ thành các service riêng.
+**Trạng thái:** BASELINE QUY ƯỚC THƯ MỤC; skeleton/Common/Identity đã có triển khai, các module khác trong cây là mục tiêu. **Phạm vi:** `services/core/` trong **một monorepo**; Core là **một FastAPI microservice**, không tách module nội bộ thành các service riêng.
 
 ## 1. Mục tiêu và cách đọc
 - Người mới biết đặt file ở đâu, mỗi thư mục chịu trách nhiệm gì, ai thường sửa.
@@ -57,8 +57,7 @@ services/core/                         # Một service FastAPI; build/chạy/tes
 │   │   │   ├── service.py
 │   │   │   ├── repository.py
 │   │   │   ├── public.py              # Snapshot người nhận qua Classroom public, không commit
-│   │   │   ├── events.py              # Allowlist payload V2, recipient policy và dedup
-│   │   │   ├── document_intake.py     # Internal ID-only intake, receipt và auth trước parse
+│   │   │   ├── events.py              # Allowlist payload v1, recipient policy và dedup
 │   │   │   └── worker.py              # Process Core xử lý outbox sau commit, retry/SKIP LOCKED
 │   │   └── administration/            # TV4 phối hợp TV1/TV2: quản trị user/role/class, audit can thiệp
 │   │       ├── router.py

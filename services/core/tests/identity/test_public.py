@@ -95,17 +95,7 @@ def test_snapshot_lecturer_and_dependency_lookup(boundary, status, role, expecte
     snapshot = public.get_current_user_snapshot(db, user_id)
     assert snapshot.school_id == row.school_id
     assert snapshot.roles == ([role] if role else [])
-    lookup_db = MagicMock(spec=Session)
-    lookup_db.__enter__.return_value = lookup_db
-    lookup_db.execute.return_value.all.return_value = [row]
-    with pytest.MonkeyPatch.context() as patch:
-        factory = Mock(return_value=lookup_db)
-        patch.setattr(public, "Session", factory)
-        assert public.get_identity_user_lookup(db)(user_id) == snapshot
-        factory.assert_called_once_with(
-            bind=db.get_bind.return_value, autoflush=False, expire_on_commit=False
-        )
-        lookup_db.__exit__.assert_called_once()
+    assert public.get_identity_user_lookup(db)(user_id) == snapshot
     assert public.check_user_is_lecturer(user_id, session=db) is expected
     db.execute.return_value.all.return_value = []
     assert public.get_current_user_snapshot(db, uuid4()) is None

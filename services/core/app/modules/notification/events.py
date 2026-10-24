@@ -15,7 +15,6 @@ from app.modules.classroom.public import (
     get_notification_audience,
 )
 from app.modules.identity.public import get_users_summaries
-from app.modules.social.comments.public import get_visible_comment_ref
 from app.modules.social.feed.public import get_visible_post_ref
 
 
@@ -60,16 +59,6 @@ class DeadlineChanged(EventPayload):
     version: int = Field(ge=1)
 
 
-class DocumentGrantChanged(EventPayload):
-    document_id: UUID
-    owner_user_id: UUID
-    actor_user_id: UUID
-    grant_id: UUID
-    grant_revision: int = Field(gt=0)
-    is_active: bool
-    document_version: int | None = Field(default=None, gt=0)
-
-
 EVENT_SCHEMAS = {
     "CLASS_ENROLLMENT_CHANGED": ClassChanged,
     "CLASS_ENROLLMENT_MODE_CHANGED": ClassChanged,
@@ -80,7 +69,6 @@ EVENT_SCHEMAS = {
     "SOCIAL_POST_CREATED": PostCreated,
     "SOCIAL_COMMENT_CREATED": CommentCreated,
     "CALENDAR_DEADLINE_CHANGED": DeadlineChanged,
-    "DOCUMENT_GRANT_CHANGED": DocumentGrantChanged,
 }
 
 
@@ -99,8 +87,6 @@ def prepare_delivery(session: Session, event: OutboxEvent) -> tuple[list[UUID], 
         if isinstance(payload, PostCreated)
         else payload.event_id
         if isinstance(payload, DeadlineChanged)
-        else payload.grant_id
-        if isinstance(payload, DocumentGrantChanged)
         else payload.class_id
     )
     if str(aggregate_id) != event.aggregate_id:
@@ -124,17 +110,8 @@ def prepare_delivery(session: Session, event: OutboxEvent) -> tuple[list[UUID], 
         candidates &= {payload.post_author_id}
     if isinstance(payload, PostCreated):
         candidates.discard(payload.author_id)
-        post = get_visible_post_ref(payload.class_id, payload.post_id, session=session)
-        if post is None:
+        if get_visible_post_ref(payload.class_id, payload.post_id, session=session) is None:
             return [], {}
-        if isinstance(payload, CommentCreated):
-            comment = get_visible_comment_ref(payload.post_id, payload.comment_id, session=session)
-            if comment is None:
-                return [], {}
-            if comment.author_id != payload.author_id or post.author_id != payload.post_author_id:
-                raise InvalidEvent("Mismatched comment authors")
-        elif post.author_id != payload.author_id:
-            raise InvalidEvent("Mismatched post author")
     users = get_users_summaries(sorted(candidates), session=session)
     recipients = []
     for user_id in sorted(candidates):
@@ -142,14 +119,9 @@ def prepare_delivery(session: Session, event: OutboxEvent) -> tuple[list[UUID], 
         if user is None or user.school_id != audience.school_id:
             continue
         if (
-            isinstance(payload, (PostCreated, DeadlineChanged, DocumentGrantChanged))
+            isinstance(payload, (PostCreated, DeadlineChanged))
             and not check_class_action(
-                payload.class_id,
-                user_id,
-                ClassAccessAction.READ_DOCUMENT_SOURCE
-                if isinstance(payload, DocumentGrantChanged)
-                else ClassAccessAction.READ_CLASS_CONTENT,
-                session=session,
+                payload.class_id, user_id, ClassAccessAction.READ_CLASS_CONTENT, session=session
             ).allowed
         ):
             continue
