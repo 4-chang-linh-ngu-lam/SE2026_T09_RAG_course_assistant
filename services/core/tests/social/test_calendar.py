@@ -59,10 +59,7 @@ def _event(class_id, *, origin=CalendarOrigin.CORE):
     [
         (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 1, tzinfo=UTC)),
         (datetime.now(UTC), datetime.now(UTC) - timedelta(hours=1)),
-        (
-            datetime.now(UTC).replace(tzinfo=None),
-            datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=1),
-        ),
+        (datetime.now(), datetime.now() + timedelta(hours=1)),
     ],
 )
 def test_calendar_create_rejects_invalid_or_naive_intervals(start, end):

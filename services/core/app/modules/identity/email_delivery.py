@@ -1,7 +1,6 @@
 import smtplib
 import ssl
 from email.message import EmailMessage
-from urllib.parse import quote
 
 from app.common.config import settings
 from app.common.errors import AppError
@@ -25,35 +24,11 @@ class SMTPTokenSender:
             TokenPurpose.PASSWORD_RESET: "Reset your password",
             TokenPurpose.ADMIN_INVITATION: "Set your RAG Course Assistant password",
         }[delivery.purpose]
-        route = {
-            TokenPurpose.ADMIN_INVITATION: "/staff/invitation",
-            TokenPurpose.PASSWORD_RESET: "/reset-password",
-        }.get(delivery.purpose)
-        if route is not None:
-            if not settings.web_origin:
-                raise AppError(503, "Email delivery unavailable")
-            token = quote(delivery.token.get_secret_value(), safe="")
-            # A fragment is never part of the HTTP request or Referer. Web reads
-            # it into memory and removes it before the user submits a password.
-            link = f"{settings.web_origin}{route}#token={token}"
-            heading = (
-                "Bạn được mời sử dụng Lumi. Mở liên kết dưới đây để thiết lập mật khẩu:"
-                if delivery.purpose == TokenPurpose.ADMIN_INVITATION
-                else "Mở liên kết dưới đây để đặt lại mật khẩu Lumi:"
-            )
-            message.set_content(
-                f"{heading}\n\n{link}\n\n"
-                f"Liên kết chỉ dùng một lần, hết hạn lúc: {delivery.expires_at.isoformat()}\n"
-                "Nếu bạn không yêu cầu thao tác này, hãy bỏ qua email."
-            )
-        else:
-            # Legacy email verification has no approved Web page. Registration
-            # remains blocked; do not invent a route for that separate purpose.
-            message.set_content(
-                f"Your one-time token: {delivery.token.get_secret_value()}\n"
-                f"Expires at: {delivery.expires_at.isoformat()}\n"
-                "If you did not request this, ignore this email."
-            )
+        message.set_content(
+            f"Your one-time token: {delivery.token.get_secret_value()}\n"
+            f"Expires at: {delivery.expires_at.isoformat()}\n"
+            "If you did not request this, ignore this email."
+        )
         context = ssl.create_default_context()
         try:
             if settings.smtp_security == "tls":

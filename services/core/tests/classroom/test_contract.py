@@ -33,42 +33,6 @@ def test_openapi_exposes_admin_classroom_without_legacy_join_flows():
     assert "post" not in paths["/api/v1/classes"]
 
 
-def test_openapi_exposes_only_approved_classroom_admin_reads():
-    schema = app.openapi()
-    paths = schema["paths"]
-    read_paths = (
-        "/api/v1/admin/courses",
-        "/api/v1/admin/academic-years",
-        "/api/v1/admin/academic-years/{year_id}/semesters",
-        "/api/v1/admin/homeroom-classes",
-        "/api/v1/admin/homeroom-classes/{homeroom_id}/roster",
-        "/api/v1/admin/classes/{class_id}/teaching-assignments",
-    )
-    for path in read_paths:
-        operation = paths[path]["get"]
-        assert operation["tags"] == ["Classroom"]
-        assert operation["security"] == [{"HTTPBearer": []}]
-        assert "requestBody" not in operation
-        assert all(
-            parameter["name"] not in {"school_id", "X-Admin-Reason"}
-            for parameter in operation.get("parameters", [])
-        )
-    for path in read_paths[:4]:
-        pagination = {
-            parameter["name"]: parameter["schema"]
-            for parameter in paths[path]["get"]["parameters"]
-            if parameter["in"] == "query"
-        }
-        assert pagination["limit"]["default"] == 20
-        assert pagination["limit"]["minimum"] == 1
-        assert pagination["limit"]["maximum"] == 100
-    definitions = schema["components"]["schemas"]
-    assert set(definitions["AcademicYearResponse"]["properties"]) == {"id", "school_id", "label"}
-    assert set(definitions["SemesterResponse"]["properties"]) == {"id", "academic_year_id", "name"}
-    assert "post" not in paths["/api/v1/admin/academic-years"]
-    assert "post" not in paths["/api/v1/admin/academic-years/{year_id}/semesters"]
-
-
 def test_classroom_requests_validate_grade_and_teacher_assignment():
     values = {
         "course_id": uuid4(),
@@ -269,8 +233,6 @@ def test_repository_share_lock_compiles_to_for_share():
     # Plain read stays unlocked.
     ClassroomRepository(session).get_class(uuid4())
     assert "FOR" not in session.compiled
-    assert ClassroomRepository(session).get_homeroom(uuid4(), for_share=True) is None
-    assert "FOR SHARE" in session.compiled
 
 
 def test_class_access_propagates_database_outage(monkeypatch):

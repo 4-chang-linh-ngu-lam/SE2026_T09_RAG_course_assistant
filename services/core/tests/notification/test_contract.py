@@ -197,7 +197,7 @@ def test_aware_transfer_timestamp_required():
             class_id=uuid4(),
             destination_class_id=uuid4(),
             student_id=uuid4(),
-            effective_at=datetime.now(UTC).replace(tzinfo=None).isoformat(),
+            effective_at=datetime.now().isoformat(),
         )
     assert (
         events.StudentTransferred(

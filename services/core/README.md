@@ -1,11 +1,5 @@
 # Core FastAPI service
 
-Ưu tiên hiện tại là kết nối chức năng Web–Core: [bản sửa và nghiệm thu mới nhất](../../apps/web/docs/CORE_WEB_CONNECTION_FIXES_2026-10-23.md) ghi nhận 324 Web tests, build live, 22 nhóm HTTP và 5 nhóm thao tác Chrome đạt sau reset kernel/RTC WSL đã được duyệt. Tối ưu hiệu năng để sau; lượt này không sửa backend hay chạy lại toàn bộ backend suite.
-
-Trạng thái Core/Web và bằng chứng ngày 23/10/2026: [báo cáo hoàn thiện](../../apps/web/docs/CORE_COMPLETION_2026-10-23.md). Nghiệm thu giữ riêng backend, HTTP/render, browser, SMTP ngoài và hiệu năng client; không dùng một gate để chứng nhận các phần khác.
-
-Tiếp nối cùng ngày: [runtime/CI, sửa phương pháp tải và trạng thái nghiệm thu mới](../../apps/web/docs/CORE_RUNTIME_FOLLOWUP_2026-10-23.md). Runner Windows tạo fixture Docker riêng tại `tests/performance/run-class-list-load.ps1`; không bind thư viện Python từ ổ Windows để đo tải.
-
 Chuẩn bị môi trường theo `.env.example` tại root repo (chỉ mẫu local, không chứa credential production), rồi chạy tại root: `docker compose up --build -d`. Dùng Docker Compose v2 trở lên, Linux containers. Compose chờ PostgreSQL healthy → chạy service `migrate` một lần → chỉ khởi động Core khi migration thành công → khởi động Web khi Core healthy. Không sửa/xóa volume có sẵn để xử lý lỗi migration.
 
 - Liveness: http://localhost:8000/health/live
@@ -13,66 +7,6 @@ Chuẩn bị môi trường theo `.env.example` tại root repo (chỉ mẫu loc
 - OpenAPI: http://localhost:8000/docs
 - Migration: `docker compose exec core alembic upgrade head`
 - Test cục bộ: `cd services/core && pip install -e '.[dev]' && pytest -q`
-
-## Kết nối Core Docker với Web local (Windows)
-
-Dùng cách này khi phát triển `apps/web` bằng Node trên máy, còn Core/PostgreSQL chạy trong Docker. Tại root repo, chuẩn bị `.env` được Git bỏ qua theo mẫu `.env.example`: DB credentials phải khớp `DATABASE_URL` với hostname `db`; đặt `SECRET_KEY`, `INTERNAL_SERVICE_SECRET`, `CORE_PROXY_SECRET` ngẫu nhiên riêng, mỗi secret ít nhất 32 ký tự. Với database dev mới có thể chọn `POSTGRES_DB=dev_lumi` và đổi tên DB cuối `DATABASE_URL` tương ứng. Giữ `CORS_ORIGINS=["http://localhost:3000"]`, `COOKIE_SECURE=false` cho HTTP local.
-
-```powershell
-# Chạy từ root repo; chỉ dựng backend, không dựng Web container.
-docker compose up --build -d db migrate core
-docker compose ps -a
-Invoke-RestMethod http://localhost:8000/health/ready
-docker compose exec -T core python -m alembic current
-```
-
-Trong `apps/web/.env.local` (cũng được Git bỏ qua):
-
-```dotenv
-NEXT_PUBLIC_DATA_MODE=live
-CORE_API_URL=http://localhost:8000
-WEB_ORIGIN=http://localhost:3000
-# CORE_PROXY_SECRET=<cùng key server-only riêng đã cấu hình ở Core>
-```
-
-```powershell
-# Chạy trong terminal riêng từ root repo.
-Set-Location apps/web
-npm.cmd run dev -- --hostname localhost --port 3000
-```
-
-Mở Web tại `http://localhost:3000/login` và Swagger tại `http://localhost:8000/docs`. Browser gọi `/api/v1` trên cổng 3000; Next proxy chuyển tiếp các operation Identity được cho phép tới Core. Dùng đúng origin `http://localhost:3000` để cookie/Origin checks khớp cấu hình. Sau khi sửa code backend, chạy lại lệnh Compose có `--build`; image hiện tại không mount source để tự reload. Dừng backend bằng `docker compose stop core db`; giữ volume để giữ dữ liệu.
-
-Đặt `CORE_PROXY_SECRET` cùng giá trị trong `.env` root và `.env.local` của Web trước khi chạy live. `npm run dev`/`npm start` dùng Node listener ký IP từ socket; Core xác minh context ngắn hạn để không gom mọi browser vào bucket của Next proxy. Không dùng `next dev` trực tiếp hoặc tin `X-Forwarded-For` do caller tự gửi. Signature không cấp quyền user/service. Chi tiết và review owner tại [API Contract](../../docs/architect/microservices-v1/core/API_CONTRACT.md#danh-tính-client-qua-web-proxy-security-fix-2026-10-22).
-
-Database mới chưa có tài khoản; tạo dữ liệu dev theo [runbook seed](migrations/README.md#seed-chính-thức-cho-devtest), với mật khẩu Admin do người chạy cung cấp. Health/401 chỉ xác nhận kết nối, chưa chứng nhận đăng nhập. Phạm vi Core đã duyệt hiện có **63 operation** ở Web (67 trong OpenAPI tính cả register bị chặn, health và internal), gồm [tám GET metadata](../../apps/web/docs/CORE_MISSING_READS_PROPOSAL_2026-10-22.md) cho quản trị tài khoản/lớp. Account DTO chỉ có bảy trường an toàn; Administration gọi Identity public interface. Danh mục, roster, phân công, ghi danh, lifecycle và status/roles dùng dữ liệu/phiên bản thực, không ép mô hình preview. Import history, invitation history/resend/revoke và executor/download dữ liệu cá nhân chưa có contract. Xem [API matrix](../../apps/web/docs/CORE_API_MATRIX_2026-10-22.md); không tự mở endpoint ngoài phạm vi được duyệt.
-
-Nếu JWT thỉnh thoảng bị 401 ngay sau login, kiểm tra đồng hồ Windows/WSL trước khi đổi logic xác thực. Trong môi trường local ngày 22/10/2026, Windows Time dừng và Windows nhanh hơn NTP khoảng 12,6 giây; NTP Ubuntu tác động cùng đồng hồ kernel WSL/Docker gây bước nhảy thời gian. Health DB vẫn 200 trong tình huống này. Không bỏ kiểm tra `iat` hoặc tăng leeway để che lỗi đồng hồ.
-
-```powershell
-# Chẩn đoán; không cần ghi token hoặc nội dung request.
-Get-Service W32Time
-w32tm /stripchart /computer:ntp.ubuntu.com /dataonly /samples:3
-wsl.exe -d Ubuntu -u root -- timedatectl timesync-status --no-pager
-
-# Chạy trong PowerShell Administrator để khởi động và đồng bộ nguồn đã cấu hình.
-Start-Service W32Time
-w32tm /resync /rediscover
-w32tm /query /status
-```
-
-Giữ nguyên chính sách thời gian của domain/Group Policy nếu máy được quản lý. Sau đồng bộ, kiểm tra lại NTP Ubuntu và đồng hồ Docker trong ít nhất một chu kỳ poll; không coi lệnh resync thành công là bằng chứng clock đã hết nhảy.
-
-Với máy dev Windows/WSL dùng đồng hồ kernel chung cho Ubuntu và Docker, chỉ để một nguồn điều chỉnh giờ. Khi đã xác nhận Windows `Leap Indicator: 0`, nguồn NTP hợp lệ và clock ổn định, giữ Windows Time chạy tự động và ngừng NTP Ubuntu đang cạnh tranh:
-
-```powershell
-# PowerShell Administrator; giữ nguyên server NTP đã được cấu hình.
-Set-Service W32Time -StartupType Automatic
-wsl.exe -d Ubuntu -u root -- timedatectl set-ntp false
-wsl.exe -d Ubuntu -u root -- timedatectl show -p NTP
-```
-
-Đây là hướng dẫn riêng cho môi trường Windows/WSL này, không áp dụng việc tắt NTP cho Linux server độc lập. Lần chẩn đoán 23/10/2026 xác nhận lại `ImmatureSignatureError` và offset Ubuntu khoảng1,28 giây khi W32Time dừng; xem [Web–Core connection follow-up](../../apps/web/docs/CORE_WEB_CONNECTION_FIXES_2026-10-23.md). Đo lại sau bước chỉnh giờ ban đầu trước khi kiểm thử JWT.
 
 Health contract: `/health/live` trả `{status:"live"}` (thay `{status:"ok"}` từ skeleton theo TASK-016); `/health/ready` trả `{status:"ready",db:"connected"}` khi kết nối và quyền USAGE schema `core` hợp lệ, ngược lại trả 503 error envelope. Liveness không phụ thuộc DB. Timeout kết nối/pool cấu hình bằng `DATABASE_CONNECT_TIMEOUT_SECONDS` và `DATABASE_POOL_TIMEOUT_SECONDS` (mặc định 3 giây).
 
@@ -100,7 +34,7 @@ Common, Identity, Classroom Admin/access, Social, Notification và Administratio
 
 - API đã đăng ký: `GET /api/v1/notifications?limit=&cursor=` → `{items,unread_count,next_cursor}`; `PATCH /api/v1/notifications/{id}/read` → `{id,read:true}`; `POST /api/v1/notifications/read-all` → 204. Bearer authentication lấy user hiện hành từ Identity; chỉ đọc/sửa inbox của chính mình. ID người khác/không tồn tại trả 404, cursor ngoài inbox trả 400. Response có `Cache-Control: no-store`.
 - Outbox thuộc Common: `record_outbox_event(session, *, event_type, aggregate_id, payload_json, schema_version=2, aggregate_version=None)` thêm event có UUID ổn định, không commit. `aggregate_version` mặc định lấy `payload.version`. V1 được dành cho event cũ không có snapshot người nhận và worker bỏ qua; V2 producer phải ghi snapshot cùng mutation trong một transaction. Lỗi enqueue phải rollback mutation. Không đưa token, activation/reset code hoặc nội dung riêng tư vào event.
-- `notification.public.snapshot_audience(session, class_id)` trả `{school_id,recipient_ids}` từ `classroom.public.get_notification_audience(class_id, *, session=None, homeroom=False) -> NotificationAudienceDTO | None`. Classroom bổ sung người vừa kết thúc membership/assignment vào snapshot thông báo thay đổi. Worker kiểm tra lại trường của từng người nhận qua Identity public; Social còn kiểm tra quyền lớp hiện hành, bài/bình luận chưa xóa và tác giả khớp với public reference. Thông báo chỉ chứa ID/phiên bản, không cấp quyền mở nguồn.
+- `notification.public.snapshot_audience(session, class_id)` trả `{school_id,recipient_ids}` từ `classroom.public.get_notification_audience(class_id, *, session=None, homeroom=False) -> NotificationAudienceDTO | None`. Classroom bổ sung người vừa kết thúc membership/assignment vào snapshot thông báo thay đổi. Worker kiểm tra lại trường của từng người nhận qua Identity public; Social còn kiểm tra quyền lớp hiện hành và post chưa xóa. Thông báo chỉ chứa ID/phiên bản, không cấp quyền mở nguồn.
 - Worker riêng chạy tự động trong Compose sau migration: `docker compose logs notification-worker`. Chạy cục bộ tại `services/core`: `python -m app.modules.notification.worker`; xử lý một batch: `python -m app.modules.notification.worker --once --batch-size 100`. Poll mặc định 2 giây; không cần broker hoặc SMTP. Nhiều worker dùng `FOR UPDATE SKIP LOCKED`; insert inbox và `published_at` commit cùng nhau. Crash rollback cả hai, retry không tạo bản sao nhờ unique dedup key.
 - Retry dùng thời gian PostgreSQL, backoff 2..300 giây, không tự loại event sau một số lần thử. `attempts/available_at/last_error_code` hỗ trợ vận hành; log chỉ có event UUID và mã lỗi cố định. Event không thuộc allowlist để nguyên cho consumer tương ứng, envelope/payload không hợp lệ được giữ lại để kiểm tra và retry.
 - Inbox sắp theo sequence giao nhận giảm dần. Worker và API khóa transaction theo recipient; read-all chốt watermark sau khi lấy khóa, chỉ đánh dấu các thông báo đến trước ranh giới đó. Thông báo commit sau read-all vẫn unread. Event phiên bản cũ/trùng không ghi đè thông báo đã nhận; replay cùng type/aggregate/version được dedup, sự kiện không có version dùng event UUID.
@@ -204,7 +138,7 @@ Test Identity: `pytest tests/identity -W error`. Các test service cần `TEST_D
 
 Cung cấp `SMTP_HOST`, `SMTP_FROM` (email hợp lệ), `SMTP_PORT` (mặc định 587), `SMTP_SECURITY=starttls` hoặc `tls` (TLS trực tiếp), `SMTP_TIMEOUT_SECONDS` (10). Nếu SMTP cần đăng nhập, cung cấp đồng thời `SMTP_USERNAME` và `SMTP_PASSWORD`; không ghi credential vào code/log. Compose chuyển tiếp các biến SMTP, `SECRET_KEY`, `INTERNAL_SERVICE_SECRET`, `COOKIE_SECURE` từ môi trường mà không đặt secret mặc định. Khi chạy local HTTP phải chủ động đặt `COOKIE_SECURE=false`.
 
-Thiếu cấu hình SMTP, forgot trả 503 trước khi tạo token. Register luôn bị chặn 403, không cần SMTP. Email mời nhân sự chứa liên kết `${WEB_ORIGIN}/staff/invitation#token=...`; email khôi phục chứa `${WEB_ORIGIN}/reset-password#token=...`, kèm thời hạn. `WEB_ORIGIN` là origin HTTP(S) do operator cấu hình, không chứa user/password, path, query hoặc fragment; không suy ra từ Host/Origin của request. Compose truyền cùng origin cho Core và Web. Thiếu origin khi gửi lời mời/reset sẽ từ chối gửi. Web đọc token từ fragment vào bộ nhớ, xóa khỏi thanh địa chỉ và chỉ tiêu thụ khi người dùng gửi mật khẩu; vẫn nhận query token cũ để tương thích. Không gửi email thật trong bộ test. Email verification legacy chưa có Web page và không tạo route mới.
+Thiếu cấu hình SMTP, forgot trả 503 trước khi tạo token. Register luôn bị chặn 403, không cần SMTP. Adapter gửi mã một lần và thời gian hết hạn bằng SMTP có xác minh chứng chỉ TLS; chưa có frontend link xác minh/reset. Không gửi email thật trong bộ test.
 
 Gửi SMTP đồng bộ trước DB commit để rollback khi gửi thất bại; nếu SMTP đã nhận email nhưng DB commit sau đó lỗi, email có thể chứa token không hợp lệ. Đây không phải giao dịch nguyên tử giữa SMTP và DB hoặc cơ chế outbox/retry bền vững. Với forgot-password, lỗi gửi trả body generic như tài khoản không tồn tại và ghi log lỗi đã bỏ nội dung nhạy cảm; thao tác DB bị rollback để giữ token reset cũ.
 
@@ -242,7 +176,7 @@ Coverage public interface: `pytest tests/identity/test_public.py -W error --cov=
 ## Docker, migration và CI (TASK-016)
 
 - Core image multi-stage Python 3.12-slim: builder tạo wheel có `app`, runtime chỉ cài wheel/dependencies và copy migrations. Runtime UID/GID 10001, root filesystem read-only, `/tmp` tmpfs, drop capabilities/no-new-privileges. Một Uvicorn worker vì limiter/idempotency còn process-local; proxy headers tắt đến khi có cấu hình proxy tin cậy. Không tự tăng worker khi chưa có backend limiter/cache dùng chung.
-- PostgreSQL 16 dùng named volume `pgdata` theo project, port chỉ bind loopback. Các port cấu hình bằng `POSTGRES_PORT` (5432), `CORE_PORT` (8000), `WEB_PORT` (3000); cập nhật `CORE_API_URL` phía Web server, `WEB_ORIGIN` và `CORS_ORIGINS` tương ứng khi đổi port. `CORE_IMAGE` tùy chọn cho tag test độc lập, mặc định `rag-course-core:local`.
+- PostgreSQL 16 dùng named volume `pgdata` theo project, port chỉ bind loopback. Các port cấu hình bằng `POSTGRES_PORT` (5432), `CORE_PORT` (8000), `WEB_PORT` (3000); cập nhật `NEXT_PUBLIC_CORE_API_URL` và `CORS_ORIGINS` tương ứng khi đổi port. `CORE_IMAGE` tùy chọn cho tag test độc lập, mặc định `rag-course-core:local`.
 - DB credentials và `DATABASE_URL` cần khớp; URL-encode ký tự đặc biệt trong credential. Các default trong mẫu chỉ dùng local. Thay môi trường không tự đổi credential của volume PostgreSQL đã khởi tạo. Stack này chưa phải cấu hình production HA hoặc phân quyền DB cho cả năm service.
 - Kiểm tra cấu hình bằng `docker compose config --quiet` (không xuất nội dung secret). Xem trạng thái bằng `docker compose ps -a`; retry migration sau khi sửa nguyên nhân bằng `docker compose run --rm migrate`. Thay đổi schema luôn tạo revision mới; không sửa migration đã áp dụng.
 - `.github/workflows/core-ci.yml` chạy trên mọi PR và push main/feature/fix/codex: lint/format, PostgreSQL 16, upgrade/drift check, OpenAPI snapshot, toàn bộ tests có DB và coverage/JUnit artifact, public coverage 100%, Web build và Compose smoke riêng. Smoke kiểm tra non-root/package/migration/health/Web, dừng DB rồi kiểm tra 503/live và phục hồi. Cleanup chỉ project CI riêng, không prune Docker toàn cục.
@@ -251,8 +185,3 @@ Coverage public interface: `pytest tests/identity/test_public.py -W error --cov=
 Kiểm tra tương đương CI tại `services/core` với `DATABASE_URL`/`TEST_DATABASE_URL` trỏ đến DB test riêng đã cấu hình: `ruff check app tests migrations`, `ruff format --check app tests migrations`, `alembic upgrade head`, `alembic check`, `pytest -W error --cov=app --cov-branch --cov-report=xml --junitxml=test-results.xml`. Không chạy các integration test trên DB có dữ liệu cần giữ. Reports local không được track.
 
 **Bằng chứng local 2026-10-12:** Docker 29.8.2/Compose 5.5.1 Linux engine, project/volume/cổng/image tag riêng từ môi trường sạch; Core UID 10001, wheel/migrations đúng; live/ready/Web đạt. PostgreSQL 16 chạy toàn bộ 124 test, không warning; coverage app 96%, public 100%. Dừng/khởi động DB giữ schema, ready 503→200 và live vẫn 200. GitHub Actions chưa được chạy từ remote ở bước này. Checklist toàn Core còn chờ Classroom, Social, Notification, Admin và các test tương ứng; không coi TASK-016 là nghiệm thu G2/G3.
-
-
-## Kết nối Document (TASK-017)
-
-Profile Compose `document` bổ sung API8200, worker, login/schema/volume riêng và intake Core.Notification. Core chỉ thêm internal `POST /internal/v1/document-events`, receipt dedupe ở migration0013;63 public operations giữ nguyên. Key `DOCUMENT_EVENTS_SERVICE_SECRET` phải khác JWT, `INTERNAL_SERVICE_SECRET` và `CORE_PROXY_SECRET`. Không chia sẻ JWT signing key với Document, không SQL qua schema service khác. Xem [Document README](../document/README.md) và [event contract](../../docs/architect/microservices-v1/document/EVENT_CONTRACT.md).

@@ -8,8 +8,6 @@
 
 ## Rà soát đồng bộ — 2026-10-16
 
-**Cập nhật 2026-10-23:** người dùng đã duyệt toàn bộ gói Document v1; service và sáu workspace Web đã triển khai. Phần nháp lịch sử bên dưới không còn là wire contract; dùng [API v1](../docs/architect/microservices-v1/document/API_CONTRACT.md) với trạng thái `READY`, [thiết kế](../docs/architect/microservices-v1/document/DESIGN.md), [events](../docs/architect/microservices-v1/document/EVENT_CONTRACT.md) và [bằng chứng kiểm thử thực tế](../apps/web/docs/DOCUMENT_SERVICE_IMPLEMENTATION_2026-10-23.md). Owner sign-off và KPI/QAS vẫn cần nghiệm thu riêng.
-
 **Hiện trạng:** chưa có service Document. Model/enum/route cụ thể bên dưới chỉ là bản nháp tham khảo, chưa phải thiết kế hoặc API được duyệt; không áp đặt stack/storage/queue từ task này.
 
 **Cần sửa/bổ sung:**
@@ -21,7 +19,7 @@
 
 **Phụ thuộc và nghiệm thu bổ sung:**
 - [ ] Core G2, TASK-008 access contract và thiết kế Document được review; TV2/TV4 và owner AI thống nhất grant/retry/invalidation.
-- [x] Test 5 định dạng, version fallback/crash, cross-school/class, revoke khi mở nguồn, owner-only notes/bookmarks và O2: backend +HTTP/browser fixtures trong báo cáo2026-10-23. AI retrieval nằm ngoài TASK-017 và chưa chứng nhận.
+- [ ] Test 5 định dạng, version fallback/crash, cross-school/class, revoke giữa truy hồi/mở nguồn, owner-only notes/bookmarks và O2.
 - [ ] Có contract tests và bằng chứng QAS-04/QAS-10; không coi bản nháp route/model dưới đây là phần đã triển khai.
 
 ---
@@ -66,7 +64,7 @@ Thiết kế và triển khai Document Service (`services/document/`) độc l�
 ---
 
 ## 3. Tiêu chí nghiệm thu (Acceptance Criteria)
-- [x] Tải lên thành công cả 5 loại định dạng (PDF, PPTX, DOCX, TXT, MD) và kích hoạt tiến trình bóc tách nội dung. PostgreSQL/container tests thực chạy trong báo cáo2026-10-23.
-- [x] Thử nghiệm lỗi phiên bản: Upload phiên bản v2 bị lỗi $\to$ Lớp học vẫn đọc được nội dung phiên bản v1 (Rule H3).
-- [x] Thu hồi chia sẻ: Giảng viên gỡ chia sẻ $\to$ Sinh viên gọi API đọc tài liệu lập tức bị từ chối `403 FORBIDDEN` (Rule B6).
-- [x] Sinh viên xem ghi chú cá nhân khi tài liệu bị gỡ chia sẻ: Vẫn đọc được chữ tự viết nhưng nội dung trích dẫn từ tài liệu bị che lại (Rule H6/L6).
+- [ ] Tải lên thành công cả 5 loại định dạng (PDF, PPTX, DOCX, TXT, MD) và kích hoạt tiến trình bóc tách nội dung.
+- [ ] Thử nghiệm lỗi phiên bản: Upload phiên bản v2 bị lỗi $\to$ Lớp học vẫn đọc được nội dung phiên bản v1 (Rule H3).
+- [ ] Thu hồi chia sẻ: Giảng viên gỡ chia sẻ $\to$ Sinh viên gọi API đọc tài liệu lập tức bị từ chối `403 FORBIDDEN` (Rule B6).
+- [ ] Sinh viên xem ghi chú cá nhân khi tài liệu bị gỡ chia sẻ: Vẫn đọc được chữ tự viết nhưng nội dung trích dẫn từ tài liệu bị che lại (Rule H6/L6).

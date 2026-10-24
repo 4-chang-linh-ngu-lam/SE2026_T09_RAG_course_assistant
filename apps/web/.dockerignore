@@ -1,8 +1,4 @@
 node_modules
 .next
-.next-preview
 .env
 .env.*
-!.env.example
-tests
-*.tsbuildinfo

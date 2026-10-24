@@ -41,22 +41,6 @@ class CourseResponse(BaseModel):
     school_id: UUID
 
 
-class AcademicYearResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    school_id: UUID
-    label: str
-
-
-class SemesterResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    academic_year_id: UUID
-    name: str
-
-
 class HomeroomCreateRequest(RequestModel):
     name: str = Field(min_length=1, max_length=200)
     academic_year: str = Field(min_length=1, max_length=30)

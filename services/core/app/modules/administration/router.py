@@ -24,7 +24,6 @@ from app.modules.administration.schemas import (
 from app.modules.administration.service import AdministrationService
 from app.modules.identity.public import (
     AdminReason,
-    AdminUserReadDTO,
     DataRequestResponse,
     UserSummaryDTO,
     get_token_sender,
@@ -59,16 +58,6 @@ def _json(model: BaseModel, *, status=200) -> Response:
     return JSONResponse(
         model.model_dump(mode="json"), status_code=status, headers={"Cache-Control": "no-store"}
     )
-
-
-@router.get("/users", response_model=Page[AdminUserReadDTO])
-def list_users(user: Admin, pagination: PageParam, service: Service):
-    return _json(service.list_users(user.id, pagination))
-
-
-@router.get("/users/{id}", response_model=AdminUserReadDTO)
-def get_user(id: UUID, user: Admin, service: Service):
-    return _json(service.get_user(user.id, id))
 
 
 @router.post("/users", response_model=UserSummaryDTO, status_code=201)

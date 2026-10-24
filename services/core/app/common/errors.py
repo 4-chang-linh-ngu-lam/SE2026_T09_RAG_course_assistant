@@ -4,9 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException
-from starlette.types import ASGIApp, Receive, Scope, Send
 
 ERROR_CODES = {
     400: "BAD_REQUEST",
@@ -14,7 +12,6 @@ ERROR_CODES = {
     403: "FORBIDDEN",
     404: "NOT_FOUND",
     409: "CONFLICT",
-    413: "PAYLOAD_TOO_LARGE",
     422: "VALIDATION_ERROR",
     429: "RATE_LIMITED",
     500: "INTERNAL_ERROR",
@@ -56,32 +53,17 @@ def error_response(request: Request, status: int, message: str, headers=None) ->
     )
 
 
-class CorrelationIdMiddleware:
-    """Attach correlation metadata without splitting a request into extra tasks."""
-
-    def __init__(self, app: ASGIApp):
-        self.app = app
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
+def register_error_handlers(app: FastAPI) -> None:
+    @app.middleware("http")
+    async def correlation_id_middleware(request: Request, call_next):
         try:
-            correlation_id = str(UUID(Headers(scope=scope).get("X-Correlation-ID", "")))
+            correlation_id = str(UUID(request.headers.get("X-Correlation-ID", "")))
         except ValueError:
             correlation_id = str(uuid4())
-        scope.setdefault("state", {})["correlation_id"] = correlation_id
-
-        async def correlated_send(message):
-            if message["type"] == "http.response.start":
-                MutableHeaders(scope=message)["X-Correlation-ID"] = correlation_id
-            await send(message)
-
-        await self.app(scope, receive, correlated_send)
-
-
-def register_error_handlers(app: FastAPI) -> None:
-    app.add_middleware(CorrelationIdMiddleware)
+        request.state.correlation_id = correlation_id
+        response = await call_next(request)
+        response.headers["X-Correlation-ID"] = correlation_id
+        return response
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):

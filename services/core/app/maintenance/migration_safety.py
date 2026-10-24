@@ -26,7 +26,6 @@ TABLES_INTRODUCED = {
     "0010": ("class_posts", "post_comments", "calendar_events"),
     "0011": ("notifications",),
     "0012": ("student_import_batches",),
-    "0013": ("document_event_receipts",),
 }
 
 
