@@ -54,6 +54,15 @@ $0. Project GCP staging hiện có Cloud Billing bật.
 Cloud Run. Trên Vercel, chọn root directory `apps/web`, dùng `codex/mvp-deploy` làm
 Preview branch và đặt `NEXT_PUBLIC_CORE_API_URL` theo URL Cloud Run.
 
+Triển khai GCP theo thứ tự: bật APIs `run`, `cloudbuild`, `artifactregistry`,
+`secretmanager`, `cloudscheduler`; tạo image một lần; chạy migration Job trên Neon staging
+rỗng; deploy API và Notification Job từ cùng image; sau đó tạo Scheduler trigger có OAuth
+service account được cấp `roles/run.invoker` cho job. Dùng service account runtime
+`lumi-mvp-runtime` chỉ đọc các secrets cần thiết và `lumi-notification-scheduler` chỉ gọi
+Notification Job. Secret names mẫu: `lumi-neon-staging-database-url`,
+`lumi-core-secret-key`, `lumi-internal-service-secret`. GCP project cần Billing bật để
+dùng Free Tier; không đưa giá trị secret vào command history hoặc Git.
+
 Gmail đang hoãn theo lựa chọn của người dùng. Identity hiện gửi email đồng bộ trước
 commit và chưa có retry/reissue worker trong revision này; không dùng tài khoản hoặc dữ
 liệu học sinh thật. Main vẫn chỉ có Web skeleton; cần E2E Web → Core → Neon sau khi PR
