@@ -28,6 +28,46 @@ TASK-015 đã có [bộ kiểm chứng backend](services/core/tests/README.md): 
 artifacts và backend Compose smoke. Bài đo class-list 10 phút tách backend/client
 latency và ghi rõ giới hạn; Web E2E ngoài scope lần này, full TP-01/G2 chưa nghiệm thu.
 
+## Triển khai thử MVP (Neon + Google Cloud + Vercel)
+
+Neon giữ database staging riêng; Core API và Notification worker chạy trên Google Cloud
+Run ở `asia-southeast1`; Vercel host Web tại `apps/web`. Cloud Run service dùng request-
+based billing, `min=0`, `max=1`, 1 CPU/512 MiB để scale về 0 khi rảnh và giới hạn tải.
+Cloud Run Job chạy `python -m app.modules.notification.worker --once --batch-size 100`
+mỗi 15 phút qua Cloud Scheduler.
+
+Tạo Neon branch riêng với PostgreSQL 16 và dữ liệu tổng hợp. Lưu direct connection URI
+có SSL trong Secret Manager, scheme SQLAlchemy là `postgresql+psycopg://`. Không dùng
+database production hay đưa URI/secret vào Git/chat. Trên database mới, chạy một lần
+Cloud Run Job `python -m alembic upgrade head`, sau đó `alembic check`; đây là bước
+bootstrap đã được người dùng duyệt. Core API chỉ nhận traffic sau khi migration đạt.
+
+Cloud Run free-tier quota được tính gộp theo billing account: 240.000 vCPU-giây và
+450.000 GiB-giây/tháng cho Jobs theo giá us-central1. Một Job 1 vCPU/512 MiB chạy mỗi
+15 phút, với mức tính tối thiểu một phút mỗi lần, ước tính 172.800 vCPU-giây/tháng.
+Quota có thể đã được workload khác sử dụng; vùng Singapore có mức giá riêng và Build,
+Artifact Registry, egress hoặc phần vượt quota có thể phát sinh phí. Không đảm bảo bill
+$0. Project GCP staging hiện có Cloud Billing bật.
+
+Đặt `DATABASE_URL`, `SECRET_KEY` và `INTERNAL_SERVICE_SECRET` trong Secret Manager;
+đặt `CORS_ORIGINS` là JSON array với đúng origin Vercel và `COOKIE_SECURE=true` trên
+Cloud Run. Trên Vercel, chọn root directory `apps/web`, dùng `codex/mvp-deploy` làm
+Preview branch và đặt `NEXT_PUBLIC_CORE_API_URL` theo URL Cloud Run.
+
+Triển khai GCP theo thứ tự: bật APIs `run`, `cloudbuild`, `artifactregistry`,
+`secretmanager`, `cloudscheduler`; tạo image một lần; chạy migration Job trên Neon staging
+rỗng; deploy API và Notification Job từ cùng image; sau đó tạo Scheduler trigger có OAuth
+service account được cấp `roles/run.invoker` cho job. Dùng service account runtime
+`lumi-mvp-runtime` chỉ đọc các secrets cần thiết và `lumi-notification-scheduler` chỉ gọi
+Notification Job. Secret names mẫu: `lumi-neon-staging-database-url`,
+`lumi-core-secret-key`, `lumi-internal-service-secret`. GCP project cần Billing bật để
+dùng Free Tier; không đưa giá trị secret vào command history hoặc Git.
+
+Gmail đang hoãn theo lựa chọn của người dùng. Identity hiện gửi email đồng bộ trước
+commit và chưa có retry/reissue worker trong revision này; không dùng tài khoản hoặc dữ
+liệu học sinh thật. Main vẫn chỉ có Web skeleton; cần E2E Web → Core → Neon sau khi PR
+frontend được tích hợp.
+
 ## Phạm vi sản phẩm Lumi
 Lumi phục vụ **học sinh THCS và THPT (khối 6–12)** trong **lớp học chính khóa**. Tiểu học, đại học và lớp học thêm không thuộc phạm vi MVP. Giao diện hướng đến học sinh phổ thông, giữ phong cách sáng, gọn, không game hóa hoặc trang trí quá mức.
 
