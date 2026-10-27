@@ -1,0 +1,297 @@
+/* Scoped styles for Administration History Panel (A06, A07 administration history view) */
+
+.lumi-admin-history-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: #0f172a;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lumi-admin-history-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.lumi-admin-history-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.lumi-admin-history-title {
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-admin-history-description {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #64748b;
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-admin-history-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+/* Empty State */
+.lumi-admin-history-empty {
+  padding: 40px 24px;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.lumi-admin-history-empty-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+}
+
+.lumi-admin-history-empty p {
+  margin: 0;
+  max-width: 420px;
+  margin-inline: auto;
+}
+
+/* Chronological List */
+.lumi-admin-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  min-width: 0;
+}
+
+.lumi-admin-history-item {
+  position: relative;
+  padding: 16px 20px 16px 44px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lumi-admin-history-item:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+/* Timeline marker node */
+.lumi-admin-history-marker {
+  position: absolute;
+  left: 18px;
+  top: 20px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 0 3px #eff6ff, 0 0 0 4px #bfdbfe;
+  flex-shrink: 0;
+}
+
+.lumi-admin-history-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.lumi-admin-history-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.lumi-admin-history-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.lumi-admin-history-time {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.lumi-admin-history-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  white-space: nowrap;
+}
+
+.lumi-admin-history-detail {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #334155;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+  min-width: 0;
+}
+
+.lumi-admin-history-actor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.lumi-admin-history-actor-label {
+  color: #64748b;
+}
+
+.lumi-admin-history-actor-name {
+  font-weight: 500;
+  color: #475569;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Responsive adjustments (390px, 1024px, 1440px) */
+@media (max-width: 1024px) {
+  .lumi-admin-history-panel {
+    padding: 20px;
+  }
+
+  .lumi-admin-history-item {
+    padding: 14px 16px 14px 38px;
+  }
+
+  .lumi-admin-history-marker {
+    left: 15px;
+    top: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .lumi-admin-history-panel {
+    padding: 16px;
+    border-radius: 10px;
+    gap: 16px;
+  }
+
+  .lumi-admin-history-title {
+    font-size: 16px;
+  }
+
+  .lumi-admin-history-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .lumi-admin-history-header-text {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .lumi-admin-history-item {
+    padding: 14px 14px 14px 34px;
+    gap: 6px;
+  }
+
+  .lumi-admin-history-marker {
+    left: 12px;
+    top: 18px;
+    width: 8px;
+    height: 8px;
+  }
+
+  .lumi-admin-history-item-top {
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .lumi-admin-history-item-title {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .lumi-admin-history-item-meta {
+    width: 100%;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+}
+
+@media(max-width:480px){
+ .lumi-admin-history-time,.lumi-admin-history-status-badge{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+}

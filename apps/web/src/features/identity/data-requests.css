@@ -1,0 +1,17 @@
+.data-requests-view{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start;min-width:0}
+.data-requests-view>section{min-width:0}
+.data-requests-view :is(p,dd,small,code){overflow-wrap:anywhere}
+.data-requests-view :is(input,select,textarea){max-width:100%;min-width:0}
+.data-requests-view .section-heading,.data-request-row-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.data-requests-view .section-heading h2{margin:0}
+.data-requests-view .item-list{padding:0;list-style:none}
+.data-requests-view .item-list li{padding:16px 0;border-bottom:1px solid #dce3ea}
+.data-request-content,.data-request-unknown dd{white-space:pre-wrap}
+.data-request-unknown{margin-top:16px;color:#713f12;background:#fffbeb;border:1px solid #e8c76a}
+.data-request-unknown h3{font-size:1rem;margin:0 0 10px}
+.data-request-unknown dl{margin:12px 0}
+.data-request-unknown dt{font-weight:600;margin-top:8px}
+.data-request-unknown dd{margin:4px 0 0}
+.data-requests-view :is(button,input,select,textarea):focus-visible{outline:3px solid #2563eb;outline-offset:3px}
+@media(max-width:900px){.data-requests-view{grid-template-columns:minmax(0,1fr);gap:16px}}
+@media(max-width:480px){.data-requests-view>.card{padding:16px}.data-requests-view .button{min-height:44px;white-space:normal;max-width:100%}}
