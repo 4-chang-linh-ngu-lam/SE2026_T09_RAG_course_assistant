@@ -34,7 +34,6 @@ def upgrade() -> None:
             sa.Uuid(),
             sa.ForeignKey("core.one_time_tokens.id", ondelete="CASCADE"),
             nullable=False,
-            unique=True,
         ),
         sa.Column("status", sa.String(24), nullable=False, server_default="PENDING"),
         sa.Column("attempts", sa.Integer(), nullable=False, server_default="0"),
@@ -51,6 +50,7 @@ def upgrade() -> None:
             name="ck_credential_delivery_status",
         ),
         sa.CheckConstraint("attempts >= 0", name="ck_credential_delivery_attempts"),
+        sa.UniqueConstraint("token_id", name="uq_credential_delivery_token"),
         schema="core",
     )
     op.create_index(
