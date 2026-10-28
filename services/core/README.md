@@ -58,9 +58,11 @@ Common, Identity, Classroom Admin/access, Social, Notification và Administratio
 Quy trình nâng cấp/rollback, mapping School và seed chính thức tại [runbook](migrations/README.md).
 Metadata tập trung tại `app/model_registry.py`; head hiện tại `0012`, không tạo revision
 rỗng hoặc sửa revision đã áp dụng. Online downgrade có guard giữ dữ liệu và transaction
-chung. CLI `python -m app.maintenance --help` có report, plan/apply mapping theo manifest
-và seed-dev cho database riêng `dev_`/`test_`. Mapping thực/FK users.school_id còn cần
-owner duyệt; không tự gán trường, kích hoạt hoặc mở LOCKED.
+chung. CLI `python -m app.maintenance --help` có report, outbox-report, plan/apply mapping
+theo manifest và seed-dev cho database riêng `dev_`/`test_`. `outbox-report` chỉ trả tổng số
+pending/published theo schema_version; không đọc hoặc in payload, aggregate ID hay recipient
+và yêu cầu DB đang ở migration head. Mapping thực/FK users.school_id còn cần owner duyệt;
+không tự gán trường, kích hoạt hoặc mở LOCKED.
 
 Seed cần `CORE_SEED_ADMIN_PASSWORD` riêng qua môi trường, không có credential mặc định.
 Tạo School/Admin, staff invitation và Student activation, lớp khối 6–12 AUTO/MANUAL,
