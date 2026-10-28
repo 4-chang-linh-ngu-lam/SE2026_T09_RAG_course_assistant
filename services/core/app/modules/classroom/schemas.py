@@ -85,7 +85,7 @@ class AdminCatalogResponse(BaseModel):
 
 class RosterRequest(RequestModel):
     student_ids: list[UUID]
-    expected_roster_version: int = Field(ge=1)
+    expected_roster_version: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def unique_students(self):
@@ -225,8 +225,8 @@ class TransferRequest(RequestModel):
 
 class HomeroomTransferRequest(RequestModel):
     destination_homeroom_id: UUID
-    expected_source_roster_version: int = Field(ge=1)
-    expected_destination_roster_version: int = Field(ge=1)
+    expected_source_roster_version: int | None = Field(default=None, ge=1)
+    expected_destination_roster_version: int | None = Field(default=None, ge=1)
 
 
 class ClassAccessDTO(BaseModel):

@@ -419,7 +419,11 @@ def test_import_legacy_assign_preserves_identity_credentials_and_lock(system):
         )
         db.flush()
         db.add(RoleAssignment(user_id=id, role=Role.STUDENT))
-    draft = preview(system, f"username,user_id\nlegacy.student,{id}\n")
+    draft = preview(
+        system,
+        f"username,user_id\nlegacy.student,{id}\n",
+        user_id_header="user_id",
+    )
     assert draft["items"][0]["action"] == "ASSIGN_USERNAME"
     result = confirm(system, draft["preview_id"])
     assert result.status_code == 200, result.text

@@ -52,8 +52,8 @@ Chỉ Admin cùng trường tạo môn/lớp hành chính/lớp môn học, phâ
 | GET | /admin/catalog | Admin cùng trường; `{courses,academic_years,semesters,homerooms,grades}`; roster chỉ trả số lượng, không kèm danh sách học sinh |
 | POST | /admin/homeroom-classes | Admin; {name,academic_year,grade_level:6..12} → 201 |
 | GET | /admin/homeroom-classes/{id}/roster | Admin cùng trường; `{homeroom_class_id,student_ids,roster_version}` |
-| PUT | /admin/homeroom-classes/{id}/roster | Admin; `{student_ids:UUID[],expected_roster_version}` thay roster, đồng bộ lớp AUTO, giữ lịch sử; stale version 409 → 200 |
-| POST | /admin/homeroom-classes/{id}/students/{student_id}/transfer | Admin; `{destination_homeroom_id,expected_source_roster_version,expected_destination_roster_version}` → 200; cùng năm/khối, đổi hai roster và sync AUTO trong một transaction; stale version 409 |
+| PUT | /admin/homeroom-classes/{id}/roster | Admin; `{student_ids:UUID[],expected_roster_version?}` thay roster, đồng bộ lớp AUTO, giữ lịch sử; frontend live gửi version và stale trả 409; field tùy chọn để giữ tương thích caller cũ |
+| POST | /admin/homeroom-classes/{id}/students/{student_id}/transfer | Admin; `{destination_homeroom_id,expected_source_roster_version?,expected_destination_roster_version?}` → 200; cùng năm/khối, đổi hai roster và sync AUTO trong một transaction; frontend live gửi cả hai version, stale trả 409 |
 | POST | /admin/classes | Admin; `{course_id,name,academic_year,semester,grade_level,homeroom_class_id?,enrollment_mode:AUTO/MANUAL,primary_lecturer_id,assisting_lecturer_ids?}` → 201; kiểm tra mọi Lecturer cùng trường và tạo toàn bộ phân công trong transaction |
 | GET | /admin/classes/{id}/management | Admin cùng trường; lớp cùng phân công PRIMARY/ASSISTING hiện hành và membership hiện hành; không trả dữ liệu ngoài phạm vi |
 | GET | /classes; /classes/{id}; /classes/{id}/members | Chỉ lớp cùng trường và còn quyền hiện hành; Admin xem trong phạm vi trường. `ClassResponse.teaching_role` chỉ có PRIMARY/ASSISTING cho Lecturer được phân công hiện hành; Student/Admin nhận null. |

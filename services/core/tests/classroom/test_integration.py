@@ -178,7 +178,9 @@ def test_admin_only_assignments_manual_transfer_and_archive(classroom):
         admin,
         TeachingAssignmentsRequest(
             primary_lecturer_id=users["teacher2"].id,
-            expected_class_version=first.version,
+            expected_class_version=service.admin_class_management(
+                first.id, admin
+            ).subject_class.version,
         ),
     )
     assert len(assignments) == 1 and assignments[0].role == TeachingRole.PRIMARY
