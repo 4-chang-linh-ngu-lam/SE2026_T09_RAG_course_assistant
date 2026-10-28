@@ -367,6 +367,7 @@ def test_actual_cli_seed_report_and_mapping_roundtrip(current, tmp_path):
     environment = {
         **os.environ,
         "DATABASE_URL": current.engine.url.render_as_string(hide_password=False),
+        "SECRET_KEY": "test-only-maintenance-signing-key-" + "x" * 32,
         "CORE_SEED_ADMIN_PASSWORD": args["admin_password"].get_secret_value(),
     }
 

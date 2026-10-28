@@ -91,8 +91,8 @@ def test_staff_invitation_failure_stays_pending_and_admin_reissue_rotates_token(
     assert failed_token not in failed.text
     with system.factory() as db:
         pending_user = db.scalar(select(User).where(User.email == "failed@example.com"))
-        assert pending_user.id == failed_user_id
-        token_row = db.scalar(select(OneTimeToken).where(OneTimeToken.user_id == failed_user_id))
+        assert str(pending_user.id) == failed_user_id
+        token_row = db.scalar(select(OneTimeToken).where(OneTimeToken.user_id == pending_user.id))
         assert token_row.token_hash == hash_refresh_token(failed_token)
         delivery_row = db.scalar(
             select(CredentialDelivery).where(CredentialDelivery.token_id == token_row.id)
