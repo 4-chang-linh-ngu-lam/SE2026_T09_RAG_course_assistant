@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.identity.models import (
     AuthSession,
+    CredentialDelivery,
     DataRequest,
     OneTimeToken,
     RoleAssignment,
@@ -168,12 +169,75 @@ class IdentityRepository:
             query = query.with_for_update().execution_options(populate_existing=True)
         return self.session.scalar(query)
 
+    def get_one_time_token_by_id(
+        self, token_id: UUID, *, for_update: bool = False
+    ) -> OneTimeToken | None:
+        query = select(OneTimeToken).where(OneTimeToken.id == token_id)
+        if for_update:
+            query = query.with_for_update().execution_options(populate_existing=True)
+        return self.session.scalar(query)
+
+    def get_credential_delivery(
+        self, token_id: UUID, *, for_update: bool = False
+    ) -> CredentialDelivery | None:
+        query = select(CredentialDelivery).where(CredentialDelivery.token_id == token_id)
+        if for_update:
+            query = query.with_for_update().execution_options(populate_existing=True)
+        return self.session.scalar(query)
+
+    def get_pending_email_token(
+        self, user_id: UUID, purpose: TokenPurpose, now: datetime
+    ) -> OneTimeToken | None:
+        return self.session.scalar(
+            select(OneTimeToken)
+            .join(CredentialDelivery, CredentialDelivery.token_id == OneTimeToken.id)
+            .where(
+                OneTimeToken.user_id == user_id,
+                OneTimeToken.purpose == purpose,
+                OneTimeToken.consumed_at.is_(None),
+                OneTimeToken.expires_at > now,
+                CredentialDelivery.status == "PENDING",
+            )
+            .order_by(OneTimeToken.created_at.desc(), OneTimeToken.id.desc())
+            .limit(1)
+        )
+
+    def due_credential_delivery_ids(self, now: datetime, limit: int) -> list[UUID]:
+        return list(
+            self.session.scalars(
+                select(CredentialDelivery.token_id)
+                .where(
+                    CredentialDelivery.status == "PENDING",
+                    CredentialDelivery.available_at <= now,
+                )
+                .order_by(CredentialDelivery.available_at, CredentialDelivery.created_at)
+                .limit(limit)
+            )
+        )
+
     def consume_one_time_token(self, token: OneTimeToken, now: datetime) -> None:
         token.consumed_at = now
+        self.session.execute(
+            update(CredentialDelivery)
+            .where(
+                CredentialDelivery.token_id == token.id,
+                CredentialDelivery.status == "PENDING",
+            )
+            .values(status="CANCELLED", last_error_code="TOKEN_CONSUMED")
+        )
 
     def invalidate_one_time_tokens(
         self, user_id: UUID, purpose: TokenPurpose, now: datetime
     ) -> None:
+        token_ids = list(
+            self.session.scalars(
+                select(OneTimeToken.id).where(
+                    OneTimeToken.user_id == user_id,
+                    OneTimeToken.purpose == purpose,
+                    OneTimeToken.consumed_at.is_(None),
+                )
+            )
+        )
         self.session.execute(
             update(OneTimeToken)
             .where(
@@ -183,3 +247,12 @@ class IdentityRepository:
             )
             .values(consumed_at=now)
         )
+        if token_ids:
+            self.session.execute(
+                update(CredentialDelivery)
+                .where(
+                    CredentialDelivery.token_id.in_(token_ids),
+                    CredentialDelivery.status == "PENDING",
+                )
+                .values(status="CANCELLED", last_error_code="TOKEN_INVALIDATED")
+            )

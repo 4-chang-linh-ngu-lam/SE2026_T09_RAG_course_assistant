@@ -25,6 +25,7 @@ from app.modules.classroom.schemas import (
 from app.modules.classroom.service import ClassroomService
 from app.modules.identity.models import (
     AuthSession,
+    CredentialDelivery,
     OneTimeToken,
     Role,
     RoleAssignment,
@@ -57,7 +58,7 @@ def confirm(system, id, **kwargs):
     )
 
 
-def test_staff_invitation_no_secret_response_audit_once_and_smtp_failure_rollback(system):
+def test_staff_invitation_failure_stays_pending_and_admin_reissue_rotates_token(system):
     response = system.client.post(
         "/api/v1/admin/users",
         json={"email": "Staff@Example.com", "roles": ["LECTURER"]},
@@ -67,6 +68,7 @@ def test_staff_invitation_no_secret_response_audit_once_and_smtp_failure_rollbac
     user_id = response.json()["id"]
     token = system.sender.deliveries[0].token.get_secret_value()
     assert token not in response.text and response.json()["status"] == "PENDING_VERIFICATION"
+    assert response.headers["X-Token-Delivery-Status"] == "DELIVERED"
     assert response.headers["Cache-Control"] == "no-store"
     with system.factory() as db:
         events = list(db.scalars(select(AuditEvent).where(AuditEvent.target_id == user_id)))
@@ -82,9 +84,52 @@ def test_staff_invitation_no_secret_response_audit_once_and_smtp_failure_rollbac
         json={"email": "failed@example.com", "roles": ["ADMIN"]},
         headers=system.headers(),
     )
-    assert failed.status_code == 503
+    assert failed.status_code == 201
+    assert failed.headers["X-Token-Delivery-Status"] == "PENDING"
+    failed_user_id = failed.json()["id"]
+    failed_token = system.sender.attempts[-1].token.get_secret_value()
+    assert failed_token not in failed.text
     with system.factory() as db:
-        assert db.scalar(select(User).where(User.email == "failed@example.com")) is None
+        pending_user = db.scalar(select(User).where(User.email == "failed@example.com"))
+        assert str(pending_user.id) == failed_user_id
+        token_row = db.scalar(select(OneTimeToken).where(OneTimeToken.user_id == pending_user.id))
+        assert token_row.token_hash == hash_refresh_token(failed_token)
+        delivery_row = db.scalar(
+            select(CredentialDelivery).where(CredentialDelivery.token_id == token_row.id)
+        )
+        assert delivery_row.status == "PENDING" and delivery_row.attempts == 1
+
+    system.sender.fail = False
+    reissue_key = str(uuid4())
+    reissued = system.client.post(
+        f"/api/v1/admin/users/{failed_user_id}/invitation/reissue",
+        headers=system.headers(**{"Idempotency-Key": reissue_key}),
+    )
+    assert reissued.status_code == 200
+    assert reissued.headers["X-Token-Delivery-Status"] == "DELIVERED"
+    new_token = system.sender.deliveries[-1].token.get_secret_value()
+    assert new_token != failed_token and new_token not in reissued.text
+    sent_count = len(system.sender.deliveries)
+    replay = system.client.post(
+        f"/api/v1/admin/users/{failed_user_id}/invitation/reissue",
+        headers=system.headers(**{"Idempotency-Key": reissue_key}),
+    )
+    assert replay.status_code == 200 and len(system.sender.deliveries) == sent_count
+    assert replay.headers["X-Token-Delivery-Status"] == "DELIVERED"
+    assert (
+        system.client.post(
+            "/api/v1/auth/password/reset",
+            json={"token": failed_token, "new_password": "test-only new password long enough"},
+        ).status_code
+        == 400
+    )
+    assert (
+        system.client.post(
+            "/api/v1/auth/password/reset",
+            json={"token": new_token, "new_password": "test-only new password long enough"},
+        ).status_code
+        == 204
+    )
     assert (
         system.client.post(
             "/api/v1/admin/users",

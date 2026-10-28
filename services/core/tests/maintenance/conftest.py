@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
+from pydantic import SecretStr
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
@@ -27,6 +28,11 @@ def database(monkeypatch):
     config = Config(str(root / "alembic.ini"))
     config.set_main_option("script_location", str(root / "migrations"))
     monkeypatch.setattr(settings, "database_url", engine.url.render_as_string(hide_password=False))
+    monkeypatch.setattr(
+        settings,
+        "secret_key",
+        SecretStr("test-only-maintenance-signing-key-" + "x" * 32),
+    )
     try:
         yield SimpleNamespace(
             engine=engine,

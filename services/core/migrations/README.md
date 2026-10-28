@@ -13,7 +13,7 @@ python -m alembic heads --verbose
 python -m app.maintenance report
 ```
 
-Head hiện tại là `0012`. `app/model_registry.py` là composition root đăng ký
+Head hiện tại là `0013`. `app/model_registry.py` là composition root đăng ký
 model của các module đã triển khai; không thêm entity rỗng để đủ số bảng.
 Alembic chỉ so sánh schema `core`, version table là `core.alembic_version`.
 Không có FK đến service khác. FK membership/assignment giữ lịch sử khi kết

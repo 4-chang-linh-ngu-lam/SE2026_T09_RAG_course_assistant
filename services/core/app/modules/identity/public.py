@@ -4,7 +4,6 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends
-from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -67,9 +66,11 @@ __all__ = [
     "admin_get_data_request",
     "admin_issue_student_code",
     "admin_list_data_requests",
+    "admin_reissue_user_invitation",
     "admin_resolve_data_request",
     "admin_set_user_status",
     "admin_update_user_roles",
+    "attempt_token_delivery",
     "bootstrap_dev_identity",
     "check_user_is_lecturer",
     "get_current_user_snapshot",
@@ -129,18 +130,43 @@ def admin_create_user(
     actor_id: UUID,
     correlation_id: UUID,
     session: Session | None = None,
-    deliver: Callable[[TokenDelivery], None] | None = None,
     reason_code: str | None = None,
-) -> tuple[UserSummaryDTO, SecretStr]:
+) -> tuple[UserSummaryDTO, TokenDelivery]:
     request = _AdminCreateUserRequest(email=email, roles=roles)
     with _session_scope(session, write=True) as db:
         return _IdentityService(db).admin_create_user(
             request,
             actor_id=actor_id,
             correlation_id=correlation_id,
-            deliver=deliver,
             **({"reason_code": reason_code} if reason_code is not None else {}),
         )
+
+
+def admin_reissue_user_invitation(
+    user_id: UUID,
+    *,
+    actor_id: UUID,
+    correlation_id: UUID,
+    session: Session | None = None,
+    reason_code: str | None = None,
+) -> tuple[UserSummaryDTO, TokenDelivery]:
+    with _session_scope(session, write=True) as db:
+        return _IdentityService(db).admin_reissue_user_invitation(
+            user_id,
+            actor_id=actor_id,
+            correlation_id=correlation_id,
+            **({"reason_code": reason_code} if reason_code is not None else {}),
+        )
+
+
+def attempt_token_delivery(
+    token_id: UUID,
+    deliver: Callable[[TokenDelivery], None],
+    *,
+    session: Session | None = None,
+) -> str:
+    with _session_scope(session) as db:
+        return _IdentityService(db).attempt_token_delivery(token_id, deliver)
 
 
 def admin_set_user_status(

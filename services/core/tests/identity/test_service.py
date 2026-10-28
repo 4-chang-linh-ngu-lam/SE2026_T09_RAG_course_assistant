@@ -26,6 +26,7 @@ from app.common.security import decode_access_token, hash_refresh_token, verify_
 from app.modules.identity import public
 from app.modules.identity.models import (
     AuthSession,
+    CredentialDelivery,
     OneTimeToken,
     Role,
     RoleAssignment,
@@ -37,6 +38,7 @@ from app.modules.identity.public import get_current_user_snapshot
 from app.modules.identity.repository import IdentityRepository
 from app.modules.identity.schemas import (
     ActivateStudentRequest,
+    AdminCreateUserRequest,
     ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
@@ -272,19 +274,103 @@ def test_new_reset_request_invalidates_older_token(identity):
     request, _ = register()
     first = service.forgot_password(ForgotPasswordRequest(email=request.email))
     second = service.forgot_password(ForgotPasswordRequest(email=request.email))
+    assert first.token_id == second.token_id
+    assert first.token.get_secret_value() == second.token.get_secret_value()
+    service.reset_password(ResetPasswordRequest(token=first.token, new_password=PASSWORD))
     expect_error(
         400,
         lambda: service.reset_password(
-            ResetPasswordRequest(token=first.token, new_password=PASSWORD)
+            ResetPasswordRequest(token=second.token, new_password=PASSWORD)
         ),
     )
-    service.reset_password(ResetPasswordRequest(token=second.token, new_password=PASSWORD))
+
+
+def test_email_delivery_retries_same_token_and_admin_reissue_rotates_it(identity, engine):
+    session, service, register = identity
+    _, actor = register()
+    actor_id = actor.response.user_id
+    session.add(RoleAssignment(user_id=actor_id, role=Role.ADMIN))
+    session.commit()
+    email = f"smtp-retry-{uuid4().hex}@example.com"
+
+    class Sender:
+        def __init__(self):
+            self.fail = True
+            self.tokens = []
+
+        def send(self, delivery):
+            token_value = delivery.token.get_secret_value()
+            self.tokens.append(token_value)
+            if self.fail:
+                raise AppError(503, "Synthetic SMTP outage")
+
+    sender = Sender()
+    created_id = None
+    try:
+        summary, invitation = service.admin_create_user(
+            AdminCreateUserRequest(email=email, roles=[Role.LECTURER]),
+            actor_id=actor_id,
+            correlation_id=uuid4(),
+        )
+        created_id = summary.id
+        session.commit()
+        assert service.attempt_token_delivery(invitation.token_id, sender.send) == "PENDING"
+        with Session(engine) as independent:
+            token = independent.get(OneTimeToken, invitation.token_id)
+            delivery = independent.scalar(
+                select(CredentialDelivery).where(CredentialDelivery.token_id == invitation.token_id)
+            )
+            assert token.token_hash == hash_refresh_token(invitation.token.get_secret_value())
+            assert token.consumed_at is None
+            assert delivery.status == "PENDING" and delivery.attempts == 1
+
+        sender.fail = False
+        with Session(engine) as independent:
+            delivery = independent.scalar(
+                select(CredentialDelivery).where(CredentialDelivery.token_id == invitation.token_id)
+            )
+            delivery.available_at = datetime.now(UTC) + timedelta(minutes=15)
+            independent.commit()
+        assert service.attempt_token_delivery(invitation.token_id, sender.send) == "PENDING"
+        assert sender.tokens == [invitation.token.get_secret_value()]
+        with Session(engine) as independent:
+            delivery = independent.scalar(
+                select(CredentialDelivery).where(CredentialDelivery.token_id == invitation.token_id)
+            )
+            delivery.available_at = datetime.now(UTC) - timedelta(seconds=1)
+            independent.commit()
+        assert service.attempt_token_delivery(invitation.token_id, sender.send) == "DELIVERED"
+        assert sender.tokens == [
+            invitation.token.get_secret_value(),
+            invitation.token.get_secret_value(),
+        ]
+
+        _, reissued = service.admin_reissue_user_invitation(
+            created_id, actor_id=actor_id, correlation_id=uuid4()
+        )
+        session.commit()
+        assert reissued.token_id != invitation.token_id
+        assert reissued.token.get_secret_value() != invitation.token.get_secret_value()
+        assert service.attempt_token_delivery(reissued.token_id, sender.send) == "DELIVERED"
+        expect_error(
+            400,
+            lambda: service.reset_password(
+                ResetPasswordRequest(token=invitation.token, new_password=PASSWORD)
+            ),
+        )
+    finally:
+        if created_id is not None:
+            with engine.begin() as connection:
+                connection.execute(delete(AuditEvent).where(AuditEvent.target_id == created_id))
+                connection.execute(delete(User).where(User.id == created_id))
 
 
 def test_db_constraints_and_cascade(identity):
     session, service, register = identity
     request, result = register()
     login(service, request)
+    delivery = service.forgot_password(ForgotPasswordRequest(email=request.email))
+    assert delivery is not None
     session.add(RoleAssignment(user_id=result.response.user_id, role=Role.LECTURER))
     with pytest.raises(IntegrityError):
         session.commit()
@@ -293,6 +379,12 @@ def test_db_constraints_and_cascade(identity):
     session.commit()
     for model in (RoleAssignment, AuthSession, OneTimeToken):
         assert session.scalar(select(model).where(model.user_id == result.response.user_id)) is None
+    assert (
+        session.scalar(
+            select(CredentialDelivery).where(CredentialDelivery.token_id == delivery.token_id)
+        )
+        is None
+    )
 
 
 def test_public_lookup_does_not_select_hashes(identity, engine):
@@ -489,20 +581,22 @@ def test_public_admin_invitation_and_status_are_authorized_and_audited(
             email.upper(), ["LECTURER"], actor_id=actor_id, correlation_id=correlation_id
         )
         created_id = summary.id
-        assert isinstance(summary, public.UserSummaryDTO) and isinstance(invitation, SecretStr)
+        assert isinstance(summary, public.UserSummaryDTO) and isinstance(
+            invitation, public.TokenDelivery
+        )
         assert summary.email == email and summary.status == "PENDING_VERIFICATION"
         assert public.get_user_summary(created_id).model_dump() == summary.model_dump()
         assert public.get_user_roles(created_id) == ["LECTURER"]
         assert not public.check_user_is_lecturer(created_id)
         expect_error(401, lambda: service.login(LoginRequest(email=email, password=PASSWORD)))
-        expect_error(400, lambda: service.verify_email(VerifyEmailRequest(token=invitation)))
-        service.reset_password(ResetPasswordRequest(token=invitation, new_password=PASSWORD))
+        expect_error(400, lambda: service.verify_email(VerifyEmailRequest(token=invitation.token)))
+        service.reset_password(ResetPasswordRequest(token=invitation.token, new_password=PASSWORD))
         tokens = service.login(LoginRequest(email=email, password=PASSWORD))
         assert public.check_user_is_lecturer(created_id)
         expect_error(
             400,
             lambda: service.reset_password(
-                ResetPasswordRequest(token=invitation, new_password=PASSWORD)
+                ResetPasswordRequest(token=invitation.token, new_password=PASSWORD)
             ),
         )
         public.admin_set_user_status(
@@ -526,7 +620,9 @@ def test_public_admin_invitation_and_status_are_authorized_and_audited(
                 "ADMIN_CREATE_USER",
                 "ADMIN_SET_USER_STATUS",
             }
-            assert invitation.get_secret_value() not in str([item.metadata_json for item in audits])
+            assert invitation.token.get_secret_value() not in str(
+                [item.metadata_json for item in audits]
+            )
             assert all(item.actor_id == actor_id for item in audits)
         expect_error(
             409,
@@ -599,25 +695,25 @@ def test_public_admin_permission_rollback_and_invitation_expiry(identity, engine
         )
         created_id = summary.id
         token = IdentityRepository(session).get_one_time_token(
-            hash_refresh_token(invitation.get_secret_value()), TokenPurpose.ADMIN_INVITATION
+            hash_refresh_token(invitation.token.get_secret_value()), TokenPurpose.ADMIN_INVITATION
         )
         token.expires_at = datetime.now(UTC) - timedelta(seconds=1)
         session.commit()
         expect_error(
             400,
             lambda: service.reset_password(
-                ResetPasswordRequest(token=invitation, new_password=PASSWORD)
+                ResetPasswordRequest(token=invitation.token, new_password=PASSWORD)
             ),
         )
         token = IdentityRepository(session).get_one_time_token(
-            hash_refresh_token(invitation.get_secret_value()), TokenPurpose.ADMIN_INVITATION
+            hash_refresh_token(invitation.token.get_secret_value()), TokenPurpose.ADMIN_INVITATION
         )
         token.expires_at = datetime.now(UTC) + timedelta(hours=1)
         service.set_user_status(created_id, UserStatus.LOCKED)
         expect_error(
             400,
             lambda: service.reset_password(
-                ResetPasswordRequest(token=invitation, new_password=PASSWORD)
+                ResetPasswordRequest(token=invitation.token, new_password=PASSWORD)
             ),
         )
         service.set_user_status(actor_id, UserStatus.LOCKED)

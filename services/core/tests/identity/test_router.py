@@ -32,9 +32,11 @@ ORIGIN = {"Origin": "https://app.example.com"}
 class FakeSender:
     def __init__(self):
         self.deliveries = []
+        self.attempts = []
         self.fail = False
 
     def send(self, delivery):
+        self.attempts.append(delivery)
         if self.fail:
             raise AppError(503, "Email delivery unavailable")
         self.deliveries.append(delivery)
@@ -308,8 +310,12 @@ def test_email_failure_rolls_back_legacy_fixture_and_reset(http, engine, caplog)
     sender.fail = True
     response = client.post("/api/v1/auth/password/forgot", json={"email": email})
     assert response.status_code == 200
-    assert "Password reset email delivery failed" in caplog.text
+    assert "Password reset email delivery remains pending" in caplog.text
     assert email not in caplog.text
+    attempts = len(sender.attempts)
+    retry = client.post("/api/v1/auth/password/forgot", json={"email": email})
+    assert retry.status_code == 200
+    assert len(sender.attempts) == attempts
 
 
 def test_missing_smtp_configuration_rejects_before_registration(http, engine, monkeypatch):

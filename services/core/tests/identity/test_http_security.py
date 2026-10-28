@@ -7,7 +7,7 @@ import pytest
 from fastapi import Request, Response
 from pydantic import SecretStr
 
-from app.common.config import settings
+from app.common.config import Settings, settings
 from app.common.errors import AppError
 from app.modules.identity.email_delivery import SMTPTokenSender
 from app.modules.identity.http_security import client_identity, verify_cookie_origin
@@ -162,6 +162,16 @@ def test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors(monkeypatch, secur
 
 def test_unconfigured_email_fails_closed(monkeypatch):
     monkeypatch.setattr(settings, "smtp_host", None)
+    delivery = TokenDelivery(
+        "student@example.com",
+        TokenPurpose.PASSWORD_RESET,
+        SecretStr("test-only-token"),
+        datetime.now(UTC) + timedelta(minutes=5),
+    )
     with pytest.raises(AppError) as raised:
-        SMTPTokenSender()
+        SMTPTokenSender().send(delivery)
     assert raised.value.status_code == 503
+
+
+def test_blank_smtp_from_is_treated_as_unconfigured():
+    assert Settings(smtp_from="", _env_file=None).smtp_from is None

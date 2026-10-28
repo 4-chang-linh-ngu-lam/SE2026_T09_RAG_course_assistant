@@ -9,13 +9,14 @@ from app.modules.identity.service import TokenDelivery
 
 
 class SMTPTokenSender:
-    def __init__(self):
+    def _ensure_configuration(self) -> None:
         if not settings.smtp_host or not settings.smtp_from:
             raise AppError(503, "Email delivery unavailable")
         if bool(settings.smtp_username) != bool(settings.smtp_password):
             raise AppError(503, "Email delivery unavailable")
 
     def send(self, delivery: TokenDelivery) -> None:
+        self._ensure_configuration()
         message = EmailMessage()
         message["From"] = settings.smtp_from
         message["To"] = delivery.recipient

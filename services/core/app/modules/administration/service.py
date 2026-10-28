@@ -48,16 +48,33 @@ class AdministrationService:
     def create_staff(self, actor_id, request, sender, reason):
         with transaction(self.session):
             identity.admin_actor(actor_id, session=self.session)
-            user, _token = identity.admin_create_user(
+            user, delivery = identity.admin_create_user(
                 str(request.email),
                 request.roles,
                 actor_id=actor_id,
                 correlation_id=self.correlation_id,
                 session=self.session,
-                deliver=sender.send,
                 reason_code=reason,
             )
-            return user
+        delivery_status = identity.attempt_token_delivery(
+            delivery.token_id, sender.send, session=self.session
+        )
+        return user, delivery_status
+
+    def reissue_staff_invitation(self, actor_id, user_id, sender, reason):
+        with transaction(self.session):
+            identity.admin_actor(actor_id, session=self.session)
+            user, delivery = identity.admin_reissue_user_invitation(
+                user_id,
+                actor_id=actor_id,
+                correlation_id=self.correlation_id,
+                session=self.session,
+                reason_code=reason,
+            )
+        delivery_status = identity.attempt_token_delivery(
+            delivery.token_id, sender.send, session=self.session
+        )
+        return user, delivery_status
 
     def set_status(self, actor_id, user_id, status, reason):
         with transaction(self.session):

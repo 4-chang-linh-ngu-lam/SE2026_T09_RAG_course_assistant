@@ -40,10 +40,12 @@ Xuất khẩu các hàm công khai ổn định (Internal Python Interface):
 - `verify_user_active(user_id: UUID) -> bool`: Kiểm tra người dùng có đang hoạt động và không bị khóa.
 - `get_user_roles(user_id: UUID) -> list[str]`: Lấy danh sách vai trò hệ thống của người dùng.
 - `check_user_is_lecturer(user_id: UUID) -> bool`: Kiểm tra quyền giảng viên toàn hệ thống.
-- `admin_create_user(email: str, roles: list[str], *, actor_id: UUID, correlation_id: UUID, session=None, deliver=None) -> tuple[UserSummaryDTO, SecretStr]`: Hàm nội bộ tạo tài khoản/lời mời, không bàn giao ORM/hash hoặc mật khẩu mặc định.
+- `admin_create_user(email: str, roles: list[str], *, actor_id: UUID, correlation_id: UUID, session=None, reason_code=None) -> tuple[UserSummaryDTO, TokenDelivery]`: Tạo user và durable invitation trong Identity transaction; TokenDelivery chỉ là handoff nội bộ, không bàn giao ORM/hash hoặc mật khẩu mặc định.
+- `admin_reissue_user_invitation(user_id: UUID, *, actor_id: UUID, correlation_id: UUID, session=None, reason_code=None) -> tuple[UserSummaryDTO, TokenDelivery]`: Chỉ Admin cùng trường cấp lại invitation cho staff đang pending; ghi audit và vô hiệu token trước.
+- `attempt_token_delivery(token_id: UUID, deliver: Callable[[TokenDelivery], None], *, session=None) -> str`: Gửi một delivery đến hạn; lỗi SMTP 503 giữ nguyên token để worker retry.
 - `admin_set_user_status(user_id: UUID, status: str, *, actor_id: UUID, correlation_id: UUID, session=None) -> None`: Hàm nội bộ khóa/mở tài khoản; kiểm tra Admin hiện hành, thu hồi phiên và audit cùng transaction.
 
-Read functions hỗ trợ `session=` tùy chọn; bỏ qua thì tự mở/đóng session. Mutation nhận session caller hoặc tự commit khi không cung cấp. Actor lấy từ backend authentication, không từ body browser. Staff invitation dùng `/auth/password/reset`; Student activation/reset dùng purpose riêng, không SMTP. Các route Student đã cập nhật API Contract cùng OpenAPI; consumer không import Identity models/repository hoặc ghi audit trùng.
+Read functions hỗ trợ `session=` tùy chọn; bỏ qua thì tự mở/đóng session. Mutation nhận session caller hoặc tự commit khi không cung cấp. Actor lấy từ backend authentication, không từ body browser. Staff invitation dùng `/auth/password/reset`; Student activation/reset dùng purpose riêng, không SMTP. Credential email có bảng trạng thái riêng, lưu token hash; mã được tái tạo bằng HMAC domain-separated từ SECRET_KEY và không đi qua Notification outbox. Các route Student đã cập nhật API Contract cùng OpenAPI; consumer không import Identity models/repository hoặc ghi audit trùng.
 
 ### 2.2. Quản lý Yêu cầu dữ liệu cá nhân (`Data Requests`)
 - Bảng ORM `data_requests` (migration 0004, Identity sở hữu):

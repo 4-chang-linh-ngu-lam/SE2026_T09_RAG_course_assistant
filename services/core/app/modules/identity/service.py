@@ -25,8 +25,10 @@ from app.common.security import (
     verify_password,
 )
 from app.modules.identity.admin_security import ensure_other_admin, lock_admin_changes
+from app.modules.identity.credential_tokens import derive_email_token
 from app.modules.identity.models import (
     AuthSession,
+    CredentialDelivery,
     DataRequest,
     OneTimeToken,
     Role,
@@ -66,6 +68,7 @@ class TokenDelivery:
     purpose: TokenPurpose
     token: SecretStr = field(repr=False)
     expires_at: datetime
+    token_id: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -264,8 +267,6 @@ class IdentityService:
     def forgot_password(
         self,
         request: ForgotPasswordRequest,
-        *,
-        deliver: Callable[[TokenDelivery], None] | None = None,
     ) -> TokenDelivery | None:
         with transaction(self.session):
             user = self.repository.get_by_email(request.email, for_update=True)
@@ -276,6 +277,21 @@ class IdentityService:
                 or not self._is_staff(user)
             ):
                 return None
+            pending = self.repository.get_pending_email_token(
+                user.id, TokenPurpose.PASSWORD_RESET, datetime.now(UTC)
+            )
+            if pending is not None:
+                raw = derive_email_token(
+                    pending.id, pending.user_id, pending.purpose, pending.expires_at
+                )
+                if hash_refresh_token(raw) == pending.token_hash:
+                    return TokenDelivery(
+                        user.email,
+                        pending.purpose,
+                        SecretStr(raw),
+                        pending.expires_at,
+                        pending.id,
+                    )
             self.repository.invalidate_one_time_tokens(
                 user.id, TokenPurpose.PASSWORD_RESET, datetime.now(UTC)
             )
@@ -284,8 +300,6 @@ class IdentityService:
                 TokenPurpose.PASSWORD_RESET,
                 timedelta(minutes=settings.password_reset_expire_minutes),
             )
-            if deliver is not None:
-                deliver(delivery)
             return delivery
 
     def get_profile(self, user_id: UUID) -> UserProfile:
@@ -372,9 +386,8 @@ class IdentityService:
         *,
         actor_id: UUID,
         correlation_id: UUID,
-        deliver: Callable[[TokenDelivery], None] | None = None,
         reason_code: str = "ADMIN_INTERVENTION",
-    ) -> tuple[UserSummaryDTO, SecretStr]:
+    ) -> tuple[UserSummaryDTO, TokenDelivery]:
         """Caller owns commit; savepoint keeps user, invitation and audit atomic."""
         try:
             with self.session.begin_nested():
@@ -413,9 +426,7 @@ class IdentityService:
                         reason_code=reason_code,
                     ),
                 )
-                if deliver is not None:
-                    deliver(delivery)
-                return self._summary(user), delivery.token
+                return self._summary(user), delivery
         except IntegrityError as exc:
             if (
                 getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
@@ -423,6 +434,124 @@ class IdentityService:
             ):
                 raise AppError(409, "Email already registered") from exc
             raise
+
+    def admin_reissue_user_invitation(
+        self,
+        user_id: UUID,
+        *,
+        actor_id: UUID,
+        correlation_id: UUID,
+        reason_code: str = "ADMIN_INTERVENTION",
+    ) -> tuple[UserSummaryDTO, TokenDelivery]:
+        try:
+            with self.session.begin_nested():
+                users = self.repository.lock_users([actor_id, user_id])
+                actor, user = users.get(actor_id), users.get(user_id)
+                self._require_admin(actor)
+                if user is None:
+                    raise AppError(404)
+                require_school_scope(actor.school_id, user.school_id)
+                if (
+                    user.status != UserStatus.PENDING_VERIFICATION
+                    or user.email_verified_at is not None
+                    or not self._is_staff(user)
+                ):
+                    raise AppError(409, "Only a pending staff invitation can be reissued")
+                self.repository.invalidate_one_time_tokens(
+                    user.id, TokenPurpose.ADMIN_INVITATION, datetime.now(UTC)
+                )
+                delivery = self._issue_one_time_token(
+                    user,
+                    TokenPurpose.ADMIN_INVITATION,
+                    timedelta(hours=settings.admin_invitation_expire_hours),
+                )
+                record_audit(
+                    self.session,
+                    actor_id=actor_id,
+                    school_id=actor.school_id,
+                    action="ADMIN_REISSUE_INVITATION",
+                    target_type="USER",
+                    target_id=user.id,
+                    correlation_id=correlation_id,
+                    metadata_json=AuditMetadata(
+                        changed_fields=["credentials"],
+                        new_status=user.status.value,
+                        reason_code=reason_code,
+                    ),
+                )
+                return self._summary(user), delivery
+        except IntegrityError as exc:
+            raise AppError(409, "Invitation could not be reissued") from exc
+
+    def attempt_token_delivery(
+        self, token_id: UUID, deliver: Callable[[TokenDelivery], None]
+    ) -> str:
+        with transaction(self.session):
+            token = self.repository.get_one_time_token_by_id(token_id)
+            if token is None:
+                return "CANCELLED"
+            user = self.repository.get_by_id(token.user_id, for_update=True)
+            token = self.repository.get_one_time_token_by_id(token_id, for_update=True)
+            delivery = self.repository.get_credential_delivery(token_id, for_update=True)
+            if delivery is None:
+                return "UNTRACKED"
+            if delivery.status != "PENDING":
+                return delivery.status
+            now = datetime.now(UTC)
+            if (
+                user is None
+                or token is None
+                or token.consumed_at is not None
+                or token.expires_at <= now
+                or user.email is None
+                or not self._is_staff(user)
+            ):
+                delivery.status = "CANCELLED"
+                delivery.last_error_code = "TOKEN_UNAVAILABLE"
+                return delivery.status
+            if delivery.available_at > now:
+                return "PENDING"
+            if token.purpose in (TokenPurpose.EMAIL_VERIFICATION, TokenPurpose.ADMIN_INVITATION):
+                valid_account = (
+                    user.status == UserStatus.PENDING_VERIFICATION
+                    and user.email_verified_at is None
+                )
+            elif token.purpose == TokenPurpose.PASSWORD_RESET:
+                valid_account = (
+                    user.status == UserStatus.ACTIVE and user.email_verified_at is not None
+                )
+            else:
+                valid_account = False
+            if not valid_account:
+                delivery.status = "CANCELLED"
+                delivery.last_error_code = "TOKEN_UNAVAILABLE"
+                return delivery.status
+            raw = derive_email_token(token.id, token.user_id, token.purpose, token.expires_at)
+            if hash_refresh_token(raw) != token.token_hash:
+                delivery.status = "NEEDS_REISSUE"
+                delivery.last_error_code = "DELIVERY_KEY_CHANGED"
+                return delivery.status
+            delivery.attempts += 1
+            try:
+                deliver(
+                    TokenDelivery(
+                        user.email,
+                        token.purpose,
+                        SecretStr(raw),
+                        token.expires_at,
+                        token.id,
+                    )
+                )
+            except AppError as exc:
+                if exc.status_code != 503:
+                    raise
+                delivery.available_at = now + timedelta(minutes=15)
+                delivery.last_error_code = "SMTP_UNAVAILABLE"
+                return "PENDING"
+            delivery.status = "DELIVERED"
+            delivery.delivered_at = now
+            delivery.last_error_code = None
+            return delivery.status
 
     def admin_set_user_status(
         self,
@@ -743,17 +872,29 @@ class IdentityService:
     def _issue_one_time_token(
         self, user: User, purpose: TokenPurpose, lifetime: timedelta
     ) -> TokenDelivery:
-        raw = generate_refresh_token()
+        token_id = uuid4()
         expiry = datetime.now(UTC) + lifetime
+        email_delivery = purpose in {
+            TokenPurpose.PASSWORD_RESET,
+            TokenPurpose.ADMIN_INVITATION,
+        }
+        raw = (
+            derive_email_token(token_id, user.id, purpose, expiry)
+            if email_delivery
+            else generate_refresh_token()
+        )
         self.repository.create_one_time_token(
             OneTimeToken(
+                id=token_id,
                 user_id=user.id,
                 purpose=purpose,
                 token_hash=hash_refresh_token(raw),
                 expires_at=expiry,
             )
         )
-        return TokenDelivery(user.email, purpose, SecretStr(raw), expiry)
+        if email_delivery:
+            self.session.add(CredentialDelivery(token_id=token_id))
+        return TokenDelivery(user.email, purpose, SecretStr(raw), expiry, token_id)
 
     def _lock_refresh_session(self, raw: str) -> tuple[User, AuthSession]:
         hashed = hash_refresh_token(raw)
