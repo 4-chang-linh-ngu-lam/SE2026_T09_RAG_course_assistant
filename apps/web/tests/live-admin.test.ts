@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createLiveAccounts } from '../src/lib/data/live-accounts';
 import { createLiveClassroomAdminPort } from '../src/lib/data/live-classroom-admin';
 import { createLiveIdentitySession } from '../src/lib/data/live-identity';
+import { createLiveIntelligencePort } from '../src/lib/data/live-intelligence';
 
 const ids = {
   admin: '00000000-0000-4000-8000-000000000001',
@@ -43,6 +44,7 @@ function harness(options: { loseImportResponse?: boolean } = {}) {
     if (path === '/api/v1/auth/login') return Response.json({ token_type: 'bearer', access_token: 'access-test', expires_in: 900 });
     if (path === '/api/v1/users/me') return Response.json(actor);
     if (path === '/api/v1/admin/users') return Response.json({ items: [user(ids.admin, ['ADMIN'], null, 'Admin'), user(ids.teacher, ['LECTURER'], null, 'Teacher'), user(ids.student, ['STUDENT'], 'student.one', 'Student One'), user(ids.student2, ['STUDENT'], 'student.two', 'Student Two')], next_cursor: null });
+    if (path === '/api/v1/admin/audit-events') return Response.json({ items: [{ id: '00000000-0000-4000-8000-000000000030', actor_id: ids.admin, action: 'ADMIN_SET_MANUAL_ROSTER', target_type: 'CLASS', target_id: ids.klass, correlation_id: '00000000-0000-4000-8000-000000000031', metadata_json: { reason_code: 'USER_REQUEST' }, occurred_at: '2026-10-29T01:00:00Z' }], next_cursor: 'opaque-cursor' });
     if (path === '/api/v1/admin/catalog') return Response.json({ courses: [{ id: ids.course, code: 'MATH', name: 'Toán', school_id: actor.school_id }], academic_years: [{ id: ids.year, school_id: actor.school_id, label: '2026-2027' }], semesters: [{ id: ids.semester, academic_year_id: ids.year, name: '1' }], homerooms: [{ id: ids.homeroom, school_id: actor.school_id, academic_year_id: ids.year, name: '9A', grade_level: 9, roster_version: 3, student_count: 1 }], grades: [9] });
     if (path === '/api/v1/classes') return Response.json({ items: [klass], next_cursor: null });
     if (path === `/api/v1/admin/classes/${ids.klass}/management`) return Response.json({ subject_class: klass, teaching_assignments: [{ id: '00000000-0000-4000-8000-000000000011', class_id: ids.klass, lecturer_id: ids.teacher, role: 'PRIMARY', assigned_at: '2026-10-01T00:00:00Z', ended_at: null }], members: [{ id: '00000000-0000-4000-8000-000000000012', class_id: ids.klass, student_id: ids.student, source: 'MANUAL', status: 'ACTIVE', joined_at: '2026-10-01T00:00:00Z', ended_at: null }] });
@@ -94,6 +96,20 @@ test('live homeroom roster preview confirms with Core roster version', async () 
   const write = h.calls.find(call => call.path === `/api/v1/admin/homeroom-classes/${ids.homeroom}/roster` && call.method === 'PUT');
   assert.deepEqual(write?.body, { student_ids: [ids.student, ids.student2], expected_roster_version: 3 });
   assert.equal(write?.headers.get('X-Admin-Reason'), 'USER_REQUEST');
+});
+
+test('live Admin audit reads Core pages without enabling deferred data-request fulfillment', async () => {
+  const h = harness();
+  await h.session.identity.login({ email: 'admin@example.com', password: 'test-password' });
+  const intelligence = createLiveIntelligencePort(h.session);
+  const audit = await intelligence.load('a.audit', {}, {});
+  assert.equal(audit.kind, 'audit');
+  if (audit.kind !== 'audit') return;
+  assert.equal(audit.items[0].action, 'ADMIN_SET_MANUAL_ROSTER');
+  assert.equal(audit.items[0].actorName, 'Quản trị viên');
+  assert.equal(audit.items[0].reason, 'USER_REQUEST');
+  assert.equal(audit.nextCursor, 'opaque-cursor');
+  await assert.rejects(() => intelligence.load('a.dataRequests', {}, {}));
 });
 
 test('live import consumes only explicit columns and activation code is never restored from adapter cache', async () => {

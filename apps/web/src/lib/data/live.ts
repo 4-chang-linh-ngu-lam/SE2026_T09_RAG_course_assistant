@@ -1,4 +1,4 @@
-import { createUnavailableIntelligencePort } from './intelligence-unavailable';
+import { createLiveIntelligencePort } from './live-intelligence';
 import { createLiveIdentitySession } from './live-identity';
 import { createLiveCore } from './live-core';
 import { createLiveAccounts } from './live-accounts';
@@ -16,7 +16,7 @@ const accounts = createLiveAccounts(session);
 export const adapter: DataAdapter = {
   source: 'live',
   personalData: { async download() { throw new ApiError('UNAVAILABLE', 'Vui lòng xem hướng dẫn bàn giao trong ghi chú xử lý hoặc liên hệ nhà trường để nhận bản sao.', 503); } },
-  intelligence: createUnavailableIntelligencePort(),
+  intelligence: createLiveIntelligencePort(session),
   classroom: createLiveClassroomAdminPort(session),
   practiceAuthoring: createUnavailablePracticeAuthoringPort(),
   accounts,

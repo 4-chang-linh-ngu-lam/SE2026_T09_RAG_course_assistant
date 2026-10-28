@@ -11,5 +11,5 @@ export const integrations = {
   document: { status: 'pending-contract', owner: 'Document' },
   tutor: { status: 'pending-contract', owner: 'AI' },
   learning: { status: 'pending-contract', owner: 'Learning' },
-  intelligence: { status: 'pending-contract', owner: 'Learner Intelligence' },
+  intelligence: { status: 'partial', owner: 'Core.Administration / Learner Intelligence', operations: { adminAudit: 'contracted', dataRequestReview: 'pending-adapter', dataRequestFulfillment: 'deferred-policy', reports: 'pending-service', learningAnalytics: 'pending-service' } },
 } as const;
