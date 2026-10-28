@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 from uuid import UUID
 
@@ -25,8 +26,12 @@ from app.modules.administration.service import AdministrationService
 from app.modules.identity.public import (
     AdminReason,
     DataRequestResponse,
+    Mutation,
     UserSummaryDTO,
+    admin_actor,
+    get_mutation,
     get_token_sender,
+    get_user_summary,
 )
 
 router = APIRouter(
@@ -52,12 +57,23 @@ def get_reason(value: Annotated[str, Header(alias="X-Admin-Reason")]) -> AdminRe
 
 Service = Annotated[AdministrationService, Depends(get_service)]
 Reason = Annotated[AdminReason, Depends(get_reason)]
+Mutator = Annotated[Mutation, Depends(get_mutation)]
 
 
-def _json(model: BaseModel, *, status=200) -> Response:
-    return JSONResponse(
-        model.model_dump(mode="json"), status_code=status, headers={"Cache-Control": "no-store"}
-    )
+def _json(model: BaseModel, *, status=200, extra_headers: dict[str, str] | None = None) -> Response:
+    headers = {"Cache-Control": "no-store", **(extra_headers or {})}
+    return JSONResponse(model.model_dump(mode="json"), status_code=status, headers=headers)
+
+
+def _validate_cached_user_scope(response: Response, actor_id: UUID, session: Session) -> None:
+    actor = admin_actor(actor_id, session=session)
+    try:
+        target_id = UUID(json.loads(response.body)["id"])
+    except (KeyError, TypeError, ValueError):
+        raise AppError(404) from None
+    target = get_user_summary(target_id, session=session)
+    if target is None or target.school_id is None or target.school_id != actor.school_id:
+        raise AppError(404)
 
 
 @router.post("/users", response_model=UserSummaryDTO, status_code=201)
@@ -67,8 +83,43 @@ def create_user(
     reason: Reason,
     service: Service,
     sender: Annotated[object, Depends(get_token_sender)],
+    mutation: Mutator,
 ):
-    return _json(service.create_staff(user.id, body, sender, reason), status=201)
+    def create() -> Response:
+        created, delivery_status = service.create_staff(user.id, body, sender, reason)
+        return _json(
+            created,
+            status=201,
+            extra_headers={"X-Token-Delivery-Status": delivery_status},
+        )
+
+    return mutation.run(
+        "user:" + str(user.id),
+        {**body.model_dump(mode="json"), "reason_code": reason},
+        create,
+        lambda response: _validate_cached_user_scope(response, user.id, service.session),
+    )
+
+
+@router.post("/users/{id}/invitation/reissue", response_model=UserSummaryDTO)
+def reissue_user_invitation(
+    id: UUID,
+    user: Admin,
+    reason: Reason,
+    service: Service,
+    sender: Annotated[object, Depends(get_token_sender)],
+    mutation: Mutator,
+):
+    def reissue() -> Response:
+        reissued, delivery_status = service.reissue_staff_invitation(user.id, id, sender, reason)
+        return _json(reissued, extra_headers={"X-Token-Delivery-Status": delivery_status})
+
+    return mutation.run(
+        "user:" + str(user.id),
+        {"user_id": str(id), "reason_code": reason},
+        reissue,
+        lambda response: _validate_cached_user_scope(response, user.id, service.session),
+    )
 
 
 @router.patch("/users/{id}/status", status_code=204)

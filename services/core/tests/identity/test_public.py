@@ -8,6 +8,7 @@ from pydantic import SecretStr, ValidationError
 from sqlalchemy.orm import Session
 
 from app.modules.identity import public
+from app.modules.identity.models import TokenPurpose
 
 
 @pytest.fixture
@@ -109,7 +110,13 @@ def test_admin_interfaces_delegate_and_respect_transaction_ownership(boundary, o
     dto = public.UserSummaryDTO(
         id=target_id, email="lecturer@example.com", status="PENDING_VERIFICATION"
     )
-    invitation = SecretStr("test-only-invitation")
+    invitation = public.TokenDelivery(
+        "lecturer@example.com",
+        TokenPurpose.ADMIN_INVITATION,
+        SecretStr("test-only-invitation"),
+        datetime.now(UTC),
+        uuid4(),
+    )
     service.admin_create_user.return_value = dto, invitation
     arguments = {} if owned else {"session": db}
     result = public.admin_create_user(
@@ -120,7 +127,7 @@ def test_admin_interfaces_delegate_and_respect_transaction_ownership(boundary, o
         **arguments,
     )
     assert result == (dto, invitation)
-    assert invitation.get_secret_value() not in repr(result)
+    assert invitation.token.get_secret_value() not in repr(result)
     request = service.admin_create_user.call_args.args[0]
     assert request.email == "lecturer@example.com" and request.roles == ["LECTURER"]
     public.admin_set_user_status(
@@ -130,6 +137,45 @@ def test_admin_interfaces_delegate_and_respect_transaction_ownership(boundary, o
         target_id, "LOCKED", actor_id=actor_id, correlation_id=correlation_id
     )
     assert db.commit.call_count == (2 if owned else 0)
+    db.rollback.assert_not_called()
+
+
+@pytest.mark.parametrize("owned", [True, False])
+@pytest.mark.parametrize("reason_code", [None, "USER_REQUEST"])
+def test_credential_delivery_public_helpers_delegate(boundary, owned, reason_code):
+    db, _, service = boundary
+    actor_id, target_id, token_id, correlation_id = uuid4(), uuid4(), uuid4(), uuid4()
+    dto = public.UserSummaryDTO(
+        id=target_id, email="lecturer@example.com", status="PENDING_VERIFICATION"
+    )
+    delivery = public.TokenDelivery(
+        "lecturer@example.com",
+        TokenPurpose.ADMIN_INVITATION,
+        SecretStr("test-only-invitation"),
+        datetime.now(UTC),
+        token_id,
+    )
+    service.admin_reissue_user_invitation.return_value = dto, delivery
+    service.attempt_token_delivery.return_value = "PENDING"
+    arguments = {} if owned else {"session": db}
+    optional_reason = {} if reason_code is None else {"reason_code": reason_code}
+
+    assert public.admin_reissue_user_invitation(
+        target_id,
+        actor_id=actor_id,
+        correlation_id=correlation_id,
+        **optional_reason,
+        **arguments,
+    ) == (dto, delivery)
+    service.admin_reissue_user_invitation.assert_called_once_with(
+        target_id,
+        actor_id=actor_id,
+        correlation_id=correlation_id,
+        **optional_reason,
+    )
+    assert public.attempt_token_delivery(token_id, service.sender.send, **arguments) == "PENDING"
+    service.attempt_token_delivery.assert_called_once_with(token_id, service.sender.send)
+    assert db.commit.call_count == (1 if owned else 0)
     db.rollback.assert_not_called()
 
 

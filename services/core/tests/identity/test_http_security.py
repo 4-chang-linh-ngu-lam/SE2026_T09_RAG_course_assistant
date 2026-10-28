@@ -162,6 +162,12 @@ def test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors(monkeypatch, secur
 
 def test_unconfigured_email_fails_closed(monkeypatch):
     monkeypatch.setattr(settings, "smtp_host", None)
+    delivery = TokenDelivery(
+        "student@example.com",
+        TokenPurpose.PASSWORD_RESET,
+        SecretStr("test-only-token"),
+        datetime.now(UTC) + timedelta(minutes=5),
+    )
     with pytest.raises(AppError) as raised:
-        SMTPTokenSender()
+        SMTPTokenSender().send(delivery)
     assert raised.value.status_code == 503

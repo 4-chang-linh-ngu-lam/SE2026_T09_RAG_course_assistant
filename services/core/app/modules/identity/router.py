@@ -290,13 +290,12 @@ def forgot_password(
             settings.auth_forgot_limit,
             settings.auth_request_window_seconds,
         )
-        try:
-            service.forgot_password(body, deliver=sender.send)
-        except AppError as exc:
-            if exc.status_code != 503:
-                raise
-            # Preserve the generic response on delivery failure without exposing account existence.
-            logger.error("Password reset email delivery failed")
+        delivery = service.forgot_password(body)
+        if delivery is not None and delivery.token_id is not None:
+            status = service.attempt_token_delivery(delivery.token_id, sender.send)
+            if status != "DELIVERED":
+                # Keep the response generic; do not reveal account existence or provider details.
+                logger.error("Password reset email delivery remains pending")
         return _json(ForgotPasswordResponse())
 
     return mutation.run("email:" + body.email, body.model_dump(), perform)

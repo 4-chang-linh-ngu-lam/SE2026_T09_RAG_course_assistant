@@ -147,6 +147,8 @@ jobs:
           test "$(docker compose exec -T core id -u)" != "0"
           docker compose exec -T core python -c "from pathlib import Path; import app; assert 'site-packages' in str(Path(app.__file__))"
           docker compose exec -T core python -m alembic check
+      - name: Verify combined notification and credential worker
+        run: docker compose exec -T notification-worker python -m app.background_worker --once --batch-size 100
       - name: Probe live, ready and Web
         run: |
           curl --fail --silent http://localhost:18000/health/live | python -c "import json,sys; assert json.load(sys.stdin) == {'status':'live'}"

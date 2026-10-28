@@ -9,7 +9,7 @@
 
 ## Triển khai và kiểm chứng — 2026-10-18
 
-**Hiện trạng:** Đã triển khai inbox API, recipient-only pagination/read/read-all, snapshot người nhận, worker transactional outbox, dedup và retry. Tái sử dụng outbox Common/migration 0009, bổ sung migration 0011 sau head 0010; không tạo bảng/model outbox thứ hai. SMTP Identity vẫn gửi callback trước commit và không nằm trong Notification payload.
+**Hiện trạng:** Đã triển khai inbox API, recipient-only pagination/read/read-all, snapshot người nhận, worker transactional outbox, dedup và retry. Tái sử dụng outbox Common/migration 0009, bổ sung migration 0011 sau head 0010; không tạo bảng/model outbox thứ hai. Credential SMTP luôn ở ngoài Notification payload. Follow-up issue #16 thêm Identity delivery queue riêng tại migration 0013; Compose/Cloud worker runner gọi Notification và credential worker độc lập.
 
 **Bằng chứng local:** Windows, Python 3.12.14, PostgreSQL 16 container test riêng; `TEST_DATABASE_URL` chỉ tới database tổng hợp. `pytest -q -W error -p no:cacheprovider --tb=short` đạt **251 passed**, không skip; gồm **31 test Notification**. Integration chạy thật các ca AUTO/MANUAL, assignment/archive/transfer, producer rollback, uncommitted event, crash sau insert, replay/version/out-of-order, retry, recipient-only HTTP, source permission revoke, concurrent workers, read-all cạnh tranh và migration roundtrip/drift. Tắt cacheprovider để tránh ACL cache Windows, không tắt kiểm thử. Đây là bằng chứng backend local, không thay thế review/CI hoặc nghiệm thu toàn Core/Web G2.
 

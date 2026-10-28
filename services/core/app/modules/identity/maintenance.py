@@ -121,13 +121,15 @@ def bootstrap_dev_identity(*, school_id: UUID, admin_password: SecretStr, sessio
     service = IdentityService(session)
     lecturers = []
     for name in ("primary", "assisting"):
-        lecturer, token = service.admin_create_user(
+        lecturer, invitation = service.admin_create_user(
             AdminCreateUserRequest(email=f"{name}@seed.example.com", roles=[Role.LECTURER]),
             actor_id=admin.id,
             correlation_id=uuid4(),
         )
         service.reset_password(
-            ResetPasswordRequest(token=token, new_password=SecretStr(generate_refresh_token())),
+            ResetPasswordRequest(
+                token=invitation.token, new_password=SecretStr(generate_refresh_token())
+            ),
             commit=False,
         )
         lecturers.append(lecturer.id)

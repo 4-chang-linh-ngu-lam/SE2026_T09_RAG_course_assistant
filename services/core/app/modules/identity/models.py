@@ -8,6 +8,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -111,6 +112,34 @@ class OneTimeToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CredentialDelivery(Base):
+    """Retry state for email tokens; the raw token is always derived in memory."""
+
+    __tablename__ = "credential_deliveries"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING','DELIVERED','CANCELLED','NEEDS_REISSUE')",
+            name="ck_credential_delivery_status",
+        ),
+        CheckConstraint("attempts >= 0", name="ck_credential_delivery_attempts"),
+        UniqueConstraint("token_id", name="uq_credential_delivery_token"),
+        Index("idx_credential_delivery_pending", "status", "available_at"),
+    )
+
+    token_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core.one_time_tokens.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(24), default="PENDING", server_default="PENDING", nullable=False
+    )
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
 
 
 class DataRequest(Base):

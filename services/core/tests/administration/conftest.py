@@ -108,8 +108,10 @@ def system(database, monkeypatch):
 
             def __init__(self):
                 self.deliveries = []
+                self.attempts = []
 
             def send(self, delivery):
+                self.attempts.append(delivery)
                 if self.fail:
                     raise AppError(503, "Synthetic mail unavailable")
                 self.deliveries.append(delivery)
