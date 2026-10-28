@@ -4,7 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.modules.identity.public import DataResolutionCommand, RoleUpdateCommand, UserSummaryDTO
+from app.modules.identity.public import (
+    AdminUserUpdateCommand,
+    DataResolutionCommand,
+    RoleUpdateCommand,
+    UserSummaryDTO,
+)
 
 
 class RequestModel(BaseModel):
@@ -14,6 +19,7 @@ class RequestModel(BaseModel):
 class AdminCreateUserRequest(RequestModel):
     email: EmailStr = Field(max_length=320)
     roles: list[Literal["ADMIN", "LECTURER"]] = Field(min_length=1, max_length=2)
+    display_name: str | None = Field(default=None, min_length=1, max_length=200)
 
     @field_validator("email")
     @classmethod
@@ -27,12 +33,23 @@ class AdminCreateUserRequest(RequestModel):
             raise ValueError("Duplicate roles")
         return value
 
+    @field_validator("display_name")
+    @classmethod
+    def normalize_display_name(cls, value):
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("Display name cannot be blank")
+        return value
+
 
 class AdminUserStatusRequest(RequestModel):
     status: Literal["ACTIVE", "LOCKED"]
 
 
 AdminUserRolesRequest = RoleUpdateCommand
+AdminUserUpdateRequest = AdminUserUpdateCommand
 AdminDataRequestResolve = DataResolutionCommand
 
 
@@ -51,6 +68,9 @@ class ImportPreviewRequest(RequestModel):
     format: Literal["CSV", "XLSX"]
     content_base64: str = Field(min_length=1, max_length=2800000, repr=False)
     homeroom_class_id: UUID | None = None
+    username_header: str = Field(default="username", min_length=1, max_length=200)
+    display_name_header: str | None = Field(default=None, min_length=1, max_length=200)
+    user_id_header: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class ImportConfirmRequest(RequestModel):
@@ -75,6 +95,21 @@ class ImportPreviewResponse(BaseModel):
     expires_at: datetime | None = None
     items: list[ImportPreviewItem] = []
     errors: list[ImportErrorResponse] = []
+
+
+class ImportStatusItem(BaseModel):
+    row: int
+    action: Literal["CREATE", "EXISTING", "ASSIGN_USERNAME"] | None = None
+    outcome: Literal["CREATED", "EXISTING", "USERNAME_ASSIGNED"] | None = None
+    username: str | None = None
+    user_id: UUID | None = None
+
+
+class ImportStatusResponse(BaseModel):
+    preview_id: UUID
+    status: Literal["PREVIEW", "COMPLETED", "EXPIRED"]
+    expires_at: datetime | None = None
+    items: list[ImportStatusItem] = []
 
 
 class ImportResultItem(BaseModel):

@@ -21,6 +21,10 @@ def test_openapi_exposes_admin_classroom_without_legacy_join_flows():
     assert "/api/v1/admin/classes" in paths
     assert "/api/v1/admin/homeroom-classes" in paths
     assert "/api/v1/admin/classes/{class_id}/enrollment/preview" in paths
+    assert "/api/v1/admin/catalog" in paths
+    assert "/api/v1/admin/homeroom-classes/{homeroom_id}/roster" in paths
+    assert "/api/v1/admin/classes/{class_id}/management" in paths
+    assert "/api/v1/admin/classes/{class_id}/members" in paths
     assert "/internal/v1/classes/{class_id}/access" in paths
     assert not any(
         "join-request" in path
@@ -49,6 +53,12 @@ def test_classroom_requests_validate_grade_and_teacher_assignment():
     with pytest.raises(ValidationError):
         TeachingAssignmentsRequest(
             primary_lecturer_id=values["primary_lecturer_id"],
+            assisting_lecturer_ids=[values["primary_lecturer_id"]],
+        )
+    with pytest.raises(ValidationError):
+        ClassCreateRequest(
+            **values,
+            grade_level=9,
             assisting_lecturer_ids=[values["primary_lecturer_id"]],
         )
 

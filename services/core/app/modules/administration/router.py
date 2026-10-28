@@ -16,15 +16,18 @@ from app.modules.administration.schemas import (
     AdminDataRequestResolve,
     AdminUserRolesRequest,
     AdminUserStatusRequest,
+    AdminUserUpdateRequest,
     AuditEventResponse,
     ImportConfirmRequest,
     ImportConfirmResponse,
     ImportPreviewRequest,
     ImportPreviewResponse,
+    ImportStatusResponse,
 )
 from app.modules.administration.service import AdministrationService
 from app.modules.identity.public import (
     AdminReason,
+    AdminUserListItem,
     DataRequestResponse,
     Mutation,
     UserSummaryDTO,
@@ -97,6 +100,38 @@ def create_user(
         "user:" + str(user.id),
         {**body.model_dump(mode="json"), "reason_code": reason},
         create,
+        lambda response: _validate_cached_user_scope(response, user.id, service.session),
+    )
+
+
+@router.get("/users", response_model=Page[AdminUserListItem])
+def list_users(
+    user: Admin,
+    pagination: PageParam,
+    service: Service,
+    role: Annotated[str | None, Query(pattern=r"^(ADMIN|LECTURER|STUDENT)$")] = None,
+    status: Annotated[str | None, Query(pattern=r"^(ACTIVE|PENDING_VERIFICATION|LOCKED)$")] = None,
+    search: Annotated[str | None, Query(min_length=2, max_length=100)] = None,
+):
+    return _json(service.list_users(user.id, pagination, role=role, status=status, search=search))
+
+
+@router.patch("/users/{id}", response_model=UserSummaryDTO)
+def update_user(
+    id: UUID,
+    body: AdminUserUpdateRequest,
+    user: Admin,
+    reason: Reason,
+    service: Service,
+    mutation: Mutator,
+):
+    def update() -> Response:
+        return _json(service.update_user(user.id, id, body, reason))
+
+    return mutation.run(
+        "user:" + str(user.id),
+        {**body.model_dump(mode="json"), "user_id": str(id), "reason_code": reason},
+        update,
         lambda response: _validate_cached_user_scope(response, user.id, service.session),
     )
 
@@ -177,3 +212,8 @@ def preview_students(body: ImportPreviewRequest, user: Admin, service: Service):
 @router.post("/students/imports/confirm", response_model=ImportConfirmResponse)
 def confirm_students(body: ImportConfirmRequest, user: Admin, reason: Reason, service: Service):
     return _json(service.confirm_students(user.id, body.preview_id, reason))
+
+
+@router.get("/students/imports/{preview_id}", response_model=ImportStatusResponse)
+def get_import_status(preview_id: UUID, user: Admin, service: Service):
+    return _json(service.import_status(user.id, preview_id))

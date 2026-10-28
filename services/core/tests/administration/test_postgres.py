@@ -140,6 +140,55 @@ def test_staff_invitation_failure_stays_pending_and_admin_reissue_rotates_token(
     )
 
 
+def test_admin_user_list_is_school_scoped_searchable_and_redacts_credentials(system):
+    response = system.client.get("/api/v1/admin/users?limit=100", headers=system.headers())
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    rows = response.json()["items"]
+    listed_ids = {row["id"] for row in rows}
+    assert listed_ids == {
+        str(system.users[name].id) for name in ("admin", "admin2", "teacher", "student")
+    }
+    assert all(row["school_id"] == str(system.school_id) for row in rows)
+    assert all("password_hash" not in row and "token_hash" not in row for row in rows)
+    assert all("session_version" not in row and "revision" in row for row in rows)
+    assert next(row for row in rows if row["display_name"] == "student")["roles"] == ["STUDENT"]
+    assert (
+        next(row for row in rows if row["display_name"] == "student")["activation_required"]
+        is False
+    )
+
+    filtered = system.client.get(
+        "/api/v1/admin/users?role=LECTURER&search=teacher", headers=system.headers()
+    )
+    assert filtered.status_code == 200
+    assert [row["display_name"] for row in filtered.json()["items"]] == ["teacher"]
+    teacher = filtered.json()["items"][0]
+    updated = system.client.patch(
+        f"/api/v1/admin/users/{teacher['id']}",
+        json={
+            "expected_revision": teacher["revision"],
+            "roles": ["ADMIN", "LECTURER"],
+            "status": "LOCKED",
+        },
+        headers=system.headers(),
+    )
+    assert updated.status_code == 200 and updated.json()["status"] == "LOCKED"
+    stale = system.client.patch(
+        f"/api/v1/admin/users/{teacher['id']}",
+        json={"expected_revision": teacher["revision"], "status": "ACTIVE"},
+        headers=system.headers(),
+    )
+    assert stale.status_code == 409
+
+    first = system.client.get("/api/v1/admin/users?limit=2", headers=system.headers()).json()
+    second = system.client.get(
+        f"/api/v1/admin/users?limit=2&cursor={first['next_cursor']}", headers=system.headers()
+    ).json()
+    assert len(first["items"]) == len(second["items"]) == 2
+    assert not ({row["id"] for row in first["items"]} & {row["id"] for row in second["items"]})
+
+
 def test_lock_revokes_access_refresh_and_unlock_does_not_bypass_activation(system):
     teacher = system.users["teacher"]
     old_headers = system.headers("teacher")
@@ -474,11 +523,22 @@ def test_xlsx_http_preview_confirm(system):
         headers=system.headers(),
     )
     assert response.status_code == 200 and response.json()["valid"]
-    result = confirm(system, response.json()["preview_id"])
+    preview_id = response.json()["preview_id"]
+    status = system.client.get(
+        f"/api/v1/admin/students/imports/{preview_id}", headers=system.headers()
+    )
+    assert status.status_code == 200 and status.json()["status"] == "PREVIEW"
+    result = confirm(system, preview_id)
     assert (
         result.status_code == 200
         and result.json()["items"][0]["student"]["username"] == "excel.student"
     )
+    status = system.client.get(
+        f"/api/v1/admin/students/imports/{preview_id}", headers=system.headers()
+    )
+    assert status.status_code == 200 and status.json()["status"] == "COMPLETED"
+    assert status.json()["items"][0]["outcome"] == "CREATED"
+    assert "code" not in status.json()["items"][0]
 
 
 def test_import_auto_enrollment_outbox_failure_rolls_back_every_owner(system, monkeypatch):
