@@ -109,7 +109,7 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
           <div className="activity-list">
             {activities.length === 0 ? (
               <div className="card empty-card">
-                <p className="muted">Hiện tại lớp chưa có hoạt động hay bài tập nào mới.</p>
+                <p className="muted">{data.pendingCapabilities?.includes('Learning') ? 'Dịch vụ bài tập và kết quả học tập chưa được kết nối.' : 'Hiện tại lớp chưa có hoạt động hay bài tập nào mới.'}</p>
               </div>
             ) : (
               activities.map(act => (
@@ -155,7 +155,7 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
             <div className="materials-list">
               {materials.length === 0 ? (
                 <div className="card empty-card">
-                  <p className="muted">Chưa có tài liệu nào được đăng tải.</p>
+                  <p className="muted">{data.pendingCapabilities?.includes('Document') ? 'Dịch vụ tài liệu chưa được kết nối.' : 'Chưa có tài liệu nào được đăng tải.'}</p>
                 </div>
               ) : (
                 materials.map(mat => (

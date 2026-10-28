@@ -68,6 +68,18 @@ test('busy guard blocks duplicate single/all commands synchronously', async () =
   assert.equal(h.controller.getState().unreadCount, 0);
 });
 
+test('server unread count is preserved when unread notifications are outside the visible page', async () => {
+  const h = harness();
+  h.controller.receiveSnapshot([item('read', true)], undefined, 3);
+  assert.equal(h.controller.getState().items.length, 1);
+  assert.equal(h.controller.getState().unreadCount, 3);
+  const pending = h.controller.markAll();
+  assert.deepEqual(h.calls, ['all']);
+  h.gate().resolve();
+  assert.equal(await pending, 'confirmed');
+  assert.equal(h.controller.getState().unreadCount, 0);
+});
+
 test('unknown outcome blocks retry; only a matching explicit reconciliation snapshot clears it', async () => {
   const h = harness();
   const pending = h.controller.markOne('one');

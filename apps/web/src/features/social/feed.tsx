@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FeedComment, FeedPost, Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import { adapter, dataMode } from '@/lib/data';
 import { Dialog, ErrorNotice, Icon, StatePanel } from '@/components/ui';
@@ -17,6 +17,8 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   const [newPostContent, setNewPostContent] = useState('');
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingCommentsId, setLoadingCommentsId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
@@ -27,6 +29,12 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
     | { type: 'comment'; postId: string; commentId: string }
     | null
   >(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalPosts(null);
+    setNextCursor(data?.kind === 'ready' ? data.feedNextCursor ?? null : null);
+  }, [data, params.classId]);
 
   if (!data) return <StatePanel busy title="Đang tải bảng tin…"/>;
 
@@ -69,6 +77,37 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   const readyData = data;
   const posts = localPosts ?? readyData.feedPosts ?? [];
   const isTeacher = role === 'LECTURER';
+
+  async function handleLoadMorePosts() {
+    if (!nextCursor || !params.classId || loadingMore) return;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const page = await adapter.social.listPosts(params.classId, nextCursor);
+      setLocalPosts(current => [...(current ?? posts), ...page.items]);
+      setNextCursor(page.next_cursor);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Chưa thể tải thêm bài viết.');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  async function handleLoadMoreComments(postId: string, cursor: string) {
+    if (!params.classId || loadingCommentsId) return;
+    setLoadingCommentsId(postId);
+    setError(null);
+    try {
+      const page = await adapter.social.listComments(params.classId, postId, cursor);
+      setLocalPosts(current => (current ?? posts).map(post => post.id === postId
+        ? { ...post, comments: [...post.comments, ...page.items], commentsNextCursor: page.next_cursor }
+        : post));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Chưa thể tải thêm bình luận.');
+    } finally {
+      setLoadingCommentsId(null);
+    }
+  }
 
   async function handleUpdatePost(postId: string) {
     if (!editContent.trim()) return;
@@ -203,7 +242,8 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
           </div>
         ) : (
           posts.map(post => {
-            const canDeletePost = isTeacher || post.authorId === user.id;
+            const canEditPost = post.canEdit ?? post.authorId === user.id;
+            const canDeletePost = post.canDelete ?? (isTeacher || post.authorId === user.id);
             return (
               <article key={post.id} className={`card padded feed-post-card ${post.isAnnouncement ? 'announcement-post' : ''}`}>
                 <div className="feed-post-top">
@@ -214,16 +254,16 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                     <div>
                       <div className="feed-author-name-row">
                         <strong>{post.authorName}</strong>
-                        <span className={`tag ${post.authorRole === 'TEACHER' ? 'tag-amber' : 'tag-blue'}`}>
+                        {post.authorRole && <span className={`tag ${post.authorRole === 'TEACHER' ? 'tag-amber' : 'tag-blue'}`}>
                           {post.authorRole === 'TEACHER' ? 'Giáo viên' : 'Học sinh'}
-                        </span>
+                        </span>}
                       </div>
                       <time className="muted">{formatDateTime(post.createdAt)}</time>
                     </div>
                   </div>
 
                   <div className="feed-post-actions">
-                    {canDeletePost && (
+                    {canEditPost && (
                       <button
                         className="icon-button"
                         type="button"
@@ -295,7 +335,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                 <div className="feed-comments-region">
                   <div className="feed-comments-header">
                     <span className="muted" style={{ fontWeight: 600, fontSize: '12px' }}>
-                      Bình luận ({post.comments.length})
+                      Bình luận ({post.comments.length}{post.commentsNextCursor ? '+' : ''})
                     </span>
                   </div>
 
@@ -309,15 +349,15 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                               <strong>{comment.authorName}</strong>
                               {comment.authorRole === 'TEACHER' ? (
                                 <span className="tag tag-amber">Giáo viên</span>
-                              ) : (
+                              ) : comment.authorRole === 'STUDENT' ? (
                                 <span className="tag">{comment.authorClass ?? 'Học sinh'}</span>
-                              )}
+                              ) : null}
                               <time className="muted">{formatDateTime(comment.createdAt)}</time>
                             </div>
                             <p className="feed-comment-text">{comment.content}</p>
                           </div>
 
-                          {canDeleteComment && (
+                          {(comment.canDelete ?? canDeleteComment) && (
                             <button
                               className="icon-button"
                               type="button"
@@ -338,6 +378,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                         </div>
                       );
                     })}
+                    {post.commentsNextCursor && <button className="accounts-link" type="button" disabled={loadingCommentsId === post.id} onClick={() => void handleLoadMoreComments(post.id, post.commentsNextCursor!)}>{loadingCommentsId === post.id ? 'Đang tải…' : 'Tải thêm bình luận'}</button>}
                   </div>
 
                   {/* Inline Reply Field */}
@@ -371,6 +412,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
             );
           })
         )}
+        {nextCursor && <div className="feed-load-more"><button className="button" type="button" disabled={loadingMore} onClick={() => void handleLoadMorePosts()}>{loadingMore ? 'Đang tải…' : 'Tải bài viết cũ hơn'}</button></div>}
       </div>
 
       {/* Delete Confirmation Dialog */}

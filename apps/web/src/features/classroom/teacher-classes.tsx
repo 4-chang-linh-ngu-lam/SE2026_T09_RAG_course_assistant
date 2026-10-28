@@ -19,6 +19,7 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const allClasses = data && data.kind === 'ready' ? data.classes ?? data.teacherHome?.assignedClasses ?? [] : [];
+  const hasTeachingRoles = allClasses.some(cls => cls.teachingRole !== undefined);
 
   const filteredClasses = useMemo(() => {
     return allClasses.filter(cls => {
@@ -82,22 +83,22 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
           >
             Tất cả ({allClasses.length})
           </button>
-          <button
+          {hasTeachingRoles && <button
             type="button"
             aria-pressed={roleFilter === 'primary'}
             className={`tab-btn ${roleFilter === 'primary' ? 'active' : ''}`}
             onClick={() => setRoleFilter('primary')}
           >
             Giáo viên chính ({primaryCount})
-          </button>
-          <button
+          </button>}
+          {hasTeachingRoles && <button
             type="button"
             aria-pressed={roleFilter === 'assisting'}
             className={`tab-btn ${roleFilter === 'assisting' ? 'active' : ''}`}
             onClick={() => setRoleFilter('assisting')}
           >
             Giáo viên phối hợp ({assistingCount})
-          </button>
+          </button>}
         </div>
 
         <div className="classes-search-wrapper">
@@ -136,9 +137,9 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
             return (
               <article key={cls.id} className="card class-card teacher-class-card">
                 <div className="class-card-top" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                  <span className="tag primary">{cls.code}</span>
+                  {cls.code && <span className="tag primary">{cls.code}</span>}
                   <span className={`badge ${isPrimary ? 'primary' : 'secondary'}`}>
-                    {isPrimary ? 'Giáo viên chính' : 'Giáo viên phối hợp'}
+                    {cls.teachingRole ? (isPrimary ? 'Giáo viên chính' : 'Giáo viên phối hợp') : 'Được phân công'}
                   </span>
                   {cls.status === 'ARCHIVED' && <span className="badge warning">Đã lưu trữ</span>}
                 </div>

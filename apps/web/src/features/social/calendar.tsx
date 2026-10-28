@@ -184,6 +184,10 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
     const targetClass = assignedClasses.find(c => c.id === targetClassId) ?? readyData?.classSummary;
     const timeRange = newTimeRange.trim();
     const schedule = timeRange ? parseCalendarEventSchedule(newDate, timeRange) : null;
+    if (adapter.source === 'live' && !timeRange) {
+      setFormError('Hãy nhập giờ bắt đầu và kết thúc cho sự kiện trên máy chủ.');
+      return;
+    }
     if (!newDate || (timeRange && !schedule)) {
       setFormError(timeRange ? 'Ngày hoặc khung giờ không hợp lệ. Hãy nhập giờ kết thúc sau giờ bắt đầu.' : 'Vui lòng chọn ngày sự kiện.');
       return;
@@ -221,6 +225,11 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
       setEditError('Vui lòng nhập tiêu đề sự kiện.');
       return;
     }
+    const schedule = editTimeRange.trim() ? parseCalendarEventSchedule(editDate, editTimeRange) : null;
+    if (adapter.source === 'live' && (!selectedEvent.classId || !schedule)) {
+      setEditError('Hãy nhập ngày, giờ bắt đầu và kết thúc hợp lệ cho sự kiện trên máy chủ.');
+      return;
+    }
     setBusy(true);
     setEditError(null);
     try {
@@ -228,9 +237,10 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
         title: editTitle.trim(),
         date: editDate,
         timeRange: editTimeRange.trim() || undefined,
+        ...(schedule ? { start: schedule.start, end: schedule.end } : {}),
         description: editDescription.trim() || undefined,
         location: editLocation.trim() || undefined,
-      });
+      }, selectedEvent.classId ?? params.classId);
       setLocalEvents(prev => (prev ?? events).map(ev => (ev.id === updated.id ? updated : ev)));
       setEditDialogOpen(false);
     } catch (err: unknown) {
@@ -245,7 +255,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
     setBusy(true);
     setDeleteError(null);
     try {
-      await adapter.calendar.deleteEvent(selectedEvent.id);
+      await adapter.calendar.deleteEvent(selectedEvent.id, selectedEvent.classId ?? params.classId);
       setLocalEvents(prev => (prev ?? events).filter(ev => ev.id !== selectedEvent.id));
       setSelectedEventId(null);
       setDeleteDialogOpen(false);
@@ -642,7 +652,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
               >
                 {assignedClasses.map(cls => (
                   <option key={cls.id} value={cls.id}>
-                    {cls.name} ({cls.code})
+                    {cls.name}{cls.code ? ` (${cls.code})` : ''}
                   </option>
                 ))}
               </select>

@@ -572,6 +572,19 @@ export const adapter: DataAdapter = {
     async issueCode(userId, identityVerified) { return previewAccountStore.issueCode(signedIn().id, userId, identityVerified); },
   },
   social: {
+    async listPosts(classId, cursor) {
+      const offset = cursor ? Number(cursor) : 0;
+      const rows = feedPosts.filter(post => post.classId === classId);
+      const items = rows.slice(offset, offset + 20).map(post => structuredClone(post));
+      return { items, next_cursor: offset + items.length < rows.length ? String(offset + items.length) : null };
+    },
+    async listComments(classId, postId, cursor) {
+      const post = feedPosts.find(row => row.id === postId && row.classId === classId);
+      const offset = cursor ? Number(cursor) : 0;
+      const rows = post?.comments ?? [];
+      const items = rows.slice(offset, offset + 20).map(comment => structuredClone(comment));
+      return { items, next_cursor: offset + items.length < rows.length ? String(offset + items.length) : null };
+    },
     async createPost(classId, content) {
       const user = signedIn();
       if (!content.trim()) throw new ApiError('VALIDATION_ERROR', 'Nội dung bài viết không được để trống.');
@@ -731,7 +744,7 @@ export const adapter: DataAdapter = {
       calendarEvents = [...calendarEvents, newEvent];
       return structuredClone(newEvent);
     },
-    async updateEvent(id, patch) {
+    async updateEvent(id, patch, _classId) {
       const user = signedIn();
       if (!user.roles.includes('LECTURER')) {
         throw new ApiError('FORBIDDEN', 'Chỉ giáo viên phụ trách mới có quyền chỉnh sửa sự kiện lịch.', 403);
@@ -771,7 +784,7 @@ export const adapter: DataAdapter = {
       calendarEvents[idx] = updated;
       return structuredClone(updated);
     },
-    async deleteEvent(id) {
+    async deleteEvent(id, _classId) {
       const user = signedIn();
       if (!user.roles.includes('LECTURER')) {
         throw new ApiError('FORBIDDEN', 'Chỉ giáo viên phụ trách mới có quyền xóa sự kiện lịch.', 403);

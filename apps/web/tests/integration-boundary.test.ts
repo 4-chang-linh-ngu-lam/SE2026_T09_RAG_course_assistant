@@ -76,7 +76,12 @@ test('configured public origin works behind an internal proxy URL', async () => 
 test('only implemented public Core operations enter the proxy', () => {
   assert.equal(isImplementedOperation('POST', '/auth/login'), true);
   assert.equal(isImplementedOperation('POST', '/auth/register'), false);
-  assert.equal(isImplementedOperation('GET', '/classes'), false);
+  assert.equal(isImplementedOperation('GET', '/classes'), true);
+  assert.equal(isImplementedOperation('GET', '/classes/00000000-0000-4000-8000-000000000101/posts'), true);
+  assert.equal(isImplementedOperation('PUT', '/admin/classes/00000000-0000-4000-8000-000000000101/members'), true);
+  assert.equal(isImplementedOperation('GET', '/admin/students/imports/00000000-0000-4000-8000-000000000101'), true);
+  assert.equal(isImplementedOperation('DELETE', '/classes/00000000-0000-4000-8000-000000000101/posts/00000000-0000-4000-8000-000000000102'), true);
+  assert.equal(isImplementedOperation('GET', '/classes/not-a-uuid/posts'), false);
   assert.equal(isImplementedOperation('GET', '/internal/v1/classes/x/access'), false);
   assert.equal(isImplementedOperation('POST', '/admin/students/../../auth/login/activation-codes'), false);
 });
@@ -101,7 +106,28 @@ test('missing configuration, cross-origin mutation and uncontracted paths are cl
   let calls = 0; const fetcher = (async () => { calls++; return Response.json({}); }) as typeof fetch;
   assert.equal((await createCoreProxy(() => undefined, fetcher)(new Request('http://local/api/v1/users/me'), ['users','me'])).status, 503);
   assert.equal((await createCoreProxy(() => 'http://core', fetcher)(new Request('http://local/api/v1/auth/login', { method: 'POST', headers: { Origin: 'http://evil' } }), ['auth','login'])).status, 403);
-  assert.equal((await createCoreProxy(() => 'http://core', fetcher)(new Request('http://local/api/v1/classes'), ['classes'])).status, 404); assert.equal(calls, 0);
+  assert.equal((await createCoreProxy(() => 'http://core', fetcher)(new Request('http://local/api/v1/internal/v1/classes/x/access'), ['internal','v1','classes','x','access'])).status, 404); assert.equal(calls, 0);
+});
+
+test('proxy forwards only documented query parameters and Admin mutation headers', async () => {
+  let target = '';
+  let forwarded: Headers | undefined;
+  const proxy = createCoreProxy(() => 'http://core:8000', (async (url, init) => {
+    target = String(url);
+    forwarded = new Headers(init?.headers);
+    return Response.json({ id: 'ok' });
+  }) as typeof fetch, () => 'https://school.example');
+  const classId = '00000000-0000-4000-8000-000000000101';
+  const response = await proxy(new Request(`https://school.example/api/v1/classes/${classId}/posts?limit=10&cursor=opaque&ignored=secret`, { headers: { Authorization: 'Bearer opaque', 'Idempotency-Key': '00000000-0000-4000-8000-000000000103', 'X-Service-Key': 'must-not-forward' } }), ['classes', classId, 'posts']);
+  assert.equal(response.status, 200);
+  const query = new URL(target).searchParams;
+  assert.equal(new URL(target).pathname, `/api/v1/classes/${classId}/posts`);
+  assert.deepEqual([...query.entries()].sort(), [['cursor', 'opaque'], ['limit', '10']]);
+  const mutation = await proxy(new Request('https://school.example/api/v1/admin/users', { method: 'POST', headers: { Origin: 'https://school.example', 'X-Admin-Reason': 'ADMIN_INTERVENTION', 'Idempotency-Key': '00000000-0000-4000-8000-000000000103', 'X-Service-Key': 'must-not-forward' }, body: '{}' }), ['admin', 'users']);
+  assert.equal(mutation.status, 200);
+  assert.equal(forwarded?.get('Idempotency-Key'), '00000000-0000-4000-8000-000000000103');
+  assert.equal(forwarded?.get('X-Admin-Reason'), 'ADMIN_INTERVENTION');
+  assert.equal(forwarded?.has('X-Service-Key'), false);
 });
 test('return target rejects external URLs, unknown paths and wrong roles', () => {
   assert.equal(safeReturnTo('//evil/path', ['STUDENT'], '/student'), '/student');

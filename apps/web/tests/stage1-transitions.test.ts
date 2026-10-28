@@ -2,8 +2,8 @@ import { createLiveIdentity } from '../src/lib/data/live-identity';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { adapter as mockAdapter } from '../dev/mocks/adapter';
-import { adapter as liveAdapter } from '../src/lib/data/live';
 import { ApiError } from '../src/lib/api/errors';
+import { isImplementedOperation } from '../src/lib/api/operations';
 import { matchRoute, canOpenRoute, safeReturnTo } from '../src/lib/navigation';
 import { getRoute } from '../src/config/routes';
 import {
@@ -19,32 +19,18 @@ import { inspectSource } from '../scripts/boundary-policy.mjs';
 const STUDENT_LOGIN = { username: 'minh.anh10a1', password: 'ValidPassword123!' };
 const TEACHER_LOGIN = { email: 'ha.nguyen@lumi.example', password: 'ValidPassword123!' };
 
-test('live staff invitation uses approved password-reset contract; uncontracted social/calendar mutations remain unavailable', async () => {
+test('live staff invitation uses approved password-reset contract and Core Social operations are allowlisted', async () => {
   const sent: {url: string; method: string | undefined; body: unknown}[] = [];
   const identity = createLiveIdentity({ fetcher: (async (url, init) => { sent.push({ url: String(url), method: init?.method, body: JSON.parse(String(init?.body)) }); return new Response(null, { status: 204 }); }) as typeof fetch });
   await identity.acceptInvitation('token-123', 'NewPass123456!');
   assert.deepEqual(sent, [{ url: '/api/v1/auth/password/reset', method: 'POST', body: { token: 'token-123', new_password: 'NewPass123456!' } }]);
-  await assert.rejects(
-    () => liveAdapter.social.createPost('class-1', 'Test content'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.social.updatePost('class-1', 'post-1', 'Updated content'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.calendar.createEvent({
-      title: 'Họp phụ huynh',
-      category: 'CLASS',
-      date: '2026-10-20',
-      start: '2026-10-20T08:00:00Z',
-    }),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
-  await assert.rejects(
-    () => liveAdapter.notifications.markAsRead('notif-1'),
-    (err: unknown) => err instanceof ApiError && err.status === 503 && err.code === 'UNAVAILABLE'
-  );
+  const classId = '00000000-0000-4000-8000-000000000001';
+  const postId = '00000000-0000-4000-8000-000000000002';
+  assert.equal(isImplementedOperation('GET', `/classes/${classId}/posts`), true);
+  assert.equal(isImplementedOperation('POST', `/classes/${classId}/posts`), true);
+  assert.equal(isImplementedOperation('PATCH', `/classes/${classId}/posts/${postId}`), true);
+  assert.equal(isImplementedOperation('DELETE', `/classes/${classId}/posts/${postId}`), true);
+  assert.equal(isImplementedOperation('GET', '/notifications'), true);
 });
 
 test('preview adapter: actor authentication and class-scoped permissions for feed', async () => {

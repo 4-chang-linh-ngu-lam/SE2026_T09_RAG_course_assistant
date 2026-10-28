@@ -1,9 +1,10 @@
 import { ApiError } from './errors';
-import { operations, operationPath, successStatus, type OperationId } from './operations';
+import { operationPath, operationQueryParameters, operations, successStatus, type OperationId } from './operations';
 
-type Options = { body?: unknown; userId?: string; cursor?: string; signal?: AbortSignal };
+export type HttpOptions = { body?: unknown; userId?: string; pathParams?: Record<string, string>; cursor?: string; query?: Record<string, string | number | undefined>; headers?: Record<string, string>; onResponse?: (response: Response) => void; signal?: AbortSignal };
+export type HttpRequest = (id: OperationId, options?: HttpOptions) => Promise<unknown>;
 export function createHttpClient(getToken: () => string | null, fetcher: typeof fetch = fetch) {
-  return async function request(id: OperationId, options: Options = {}): Promise<unknown> {
+  return async function request(id: OperationId, options: HttpOptions = {}): Promise<unknown> {
     const [method] = operations[id];
     const controller = new AbortController();
     const abort = () => controller.abort();
@@ -14,14 +15,27 @@ export function createHttpClient(getToken: () => string | null, fetcher: typeof 
     const token = getToken();
     if (token) headers.set('Authorization', `Bearer ${token}`);
     if (options.body !== undefined) headers.set('Content-Type', 'application/json');
+    for (const [name, value] of Object.entries(options.headers ?? {})) {
+      if (['x-admin-reason', 'idempotency-key'].includes(name.toLowerCase())) headers.set(name, value);
+    }
     // No generic Idempotency-Key or retry: provisioning/activation forbid it,
     // and unknown mutations must be reconciled by the feature-specific contract.
     try {
-      const query = options.cursor ? `?cursor=${encodeURIComponent(options.cursor)}` : '';
-      const response = await fetcher(`/api/v1${operationPath(id, options.userId)}${query}`, {
+      const pathParams = { ...(options.pathParams ?? {}), ...(options.userId ? { userId: options.userId } : {}) };
+      const path = operationPath(id, pathParams);
+      const query = new URLSearchParams();
+      const values: Record<string, string | number | undefined> = { ...(options.query ?? {}), ...(options.cursor ? { cursor: options.cursor } : {}) };
+      for (const key of operationQueryParameters[id] ?? []) {
+        const value = values[key];
+        if (value !== undefined) query.set(key, String(value));
+      }
+      const queryString = query.toString();
+      const suffix = queryString ? `?${queryString}` : '';
+      const response = await fetcher(`/api/v1${path}${suffix}`, {
         method, headers, credentials: 'include', cache: 'no-store', signal: controller.signal,
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
       });
+      options.onResponse?.(response);
       if (response.ok && response.status !== successStatus[id]) throw new ApiError('CONTRACT_MISMATCH', 'Phản hồi chưa đúng trạng thái xác nhận.', response.status, method === 'GET' ? 'rejected' : 'unknown');
       if (response.status === 204) return undefined;
       let json: unknown;

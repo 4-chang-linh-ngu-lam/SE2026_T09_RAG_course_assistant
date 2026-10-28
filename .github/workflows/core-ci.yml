@@ -129,7 +129,10 @@ jobs:
       POSTGRES_PORT: '15432'
       CORE_PORT: '18000'
       WEB_PORT: '13000'
-      NEXT_PUBLIC_CORE_API_URL: http://localhost:18000
+      NEXT_PUBLIC_DATA_MODE: live
+      CORE_API_URL: http://core:8000
+      WEB_ORIGIN: http://localhost:13000
+      CORS_ORIGINS: '["http://localhost:13000"]'
     steps:
       - uses: actions/checkout@v4
       - name: Configure isolated test credentials
@@ -154,6 +157,8 @@ jobs:
           curl --fail --silent http://localhost:18000/health/live | python -c "import json,sys; assert json.load(sys.stdin) == {'status':'live'}"
           curl --fail --silent http://localhost:18000/health/ready | python -c "import json,sys; assert json.load(sys.stdin) == {'status':'ready','db':'connected'}"
           curl --fail --silent http://localhost:13000/ > /dev/null
+          test "$(curl --silent --output /tmp/web-proxy.json --write-out '%{http_code}' http://localhost:13000/api/v1/users/me)" = "401"
+          python -c "import json; assert json.load(open('/tmp/web-proxy.json'))['error']['code'] == 'UNAUTHENTICATED'"
       - name: Verify DB outage and recovery
         run: |
           docker compose stop db

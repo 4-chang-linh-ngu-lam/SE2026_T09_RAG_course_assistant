@@ -24,7 +24,7 @@ export type FeedComment = {
   postId: string;
   authorId: string;
   authorName: string;
-  authorRole: 'TEACHER' | 'STUDENT';
+  authorRole?: 'TEACHER' | 'STUDENT';
   authorClass?: string;
   content: string;
   createdAt: string;
@@ -36,7 +36,7 @@ export type FeedPost = {
   classId: string;
   authorId: string;
   authorName: string;
-  authorRole: 'TEACHER' | 'STUDENT';
+  authorRole?: 'TEACHER' | 'STUDENT';
   authorAvatar?: string;
   title?: string;
   content: string;
@@ -46,6 +46,7 @@ export type FeedPost = {
   canEdit?: boolean;
   canDelete?: boolean;
   comments: FeedComment[];
+  commentsNextCursor?: string | null;
 };
 
 export type CalendarEvent = {
@@ -614,10 +615,13 @@ export type WorkspaceData =
       classOverview?: ClassOverviewData;
       teacherMetrics?: { pendingGrading: number; openActivities: number };
       feedPosts?: FeedPost[];
+      feedNextCursor?: string | null;
       calendarEvents?: CalendarEvent[];
       notifications?: NotificationItem[];
       historyData?: HistoryClassData;
       displayDate?: string;
+      notificationUnreadCount?: number;
+      pendingCapabilities?: string[];
       // Stage 2 specific view models:
       libraryDocuments?: DocumentItem[];
       sourceDocumentDetail?: {

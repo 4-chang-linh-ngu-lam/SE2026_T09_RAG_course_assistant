@@ -54,6 +54,8 @@ export interface DataAdapter {
     issueCode(userId: string, identityVerified: boolean): Promise<IssuedCode>;
   };
   social: {
+    listPosts(classId: string, cursor?: string, signal?: AbortSignal): Promise<Page<FeedPost>>;
+    listComments(classId: string, postId: string, cursor?: string, signal?: AbortSignal): Promise<Page<FeedComment>>;
     createPost(classId: string, content: string): Promise<FeedPost>;
     updatePost(classId: string, postId: string, content: string): Promise<FeedPost>;
     deletePost(classId: string, postId: string): Promise<void>;
@@ -62,8 +64,8 @@ export interface DataAdapter {
   };
   calendar: {
     createEvent(event: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent>;
-    updateEvent(id: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent>;
-    deleteEvent(id: string): Promise<void>;
+    updateEvent(id: string, patch: Partial<CalendarEvent>, classId?: string): Promise<CalendarEvent>;
+    deleteEvent(id: string, classId?: string): Promise<void>;
   };
   notifications: {
     markAsRead(id: string): Promise<void>;

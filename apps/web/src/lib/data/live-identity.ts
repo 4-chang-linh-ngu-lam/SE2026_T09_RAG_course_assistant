@@ -5,12 +5,19 @@ import { ApiError } from '../api/errors';
 import { decodeCode, decodeMutation, decodeRequest, decodeRequests, decodeToken, decodeUser } from '../api/decoders';
 import { notifyAuthenticationLost } from '../auth-events';
 
+export type LiveIdentitySession = {
+  identity: DataAdapter['identity'];
+  authenticated<T>(run: (request: ReturnType<typeof createHttpClient>) => Promise<T>, mutation?: boolean): Promise<T>;
+  currentUser(): User | null;
+};
+
 // Access tokens live only in memory; refresh cookies remain HttpOnly. Credential
 // requests are serialized so an older response cannot replace a newer login cookie.
-export function createLiveIdentity(options: { fetcher?: typeof fetch; now?: () => number; onLost?: () => void } = {}): DataAdapter['identity'] {
+export function createLiveIdentitySession(options: { fetcher?: typeof fetch; now?: () => number; onLost?: () => void } = {}): LiveIdentitySession {
   const now = options.now ?? Date.now;
   const lost = options.onLost ?? notifyAuthenticationLost;
   let token: string | null = null, expiresAt = 0, generation = 0, suspended = false;
+  let user: User | null = null;
   let credentialQueue: Promise<unknown> = Promise.resolve();
   let refreshing: { generation: number; promise: Promise<void> } | null = null;
   let restoring: { generation: number; promise: Promise<User | null> } | null = null;
@@ -19,7 +26,7 @@ export function createLiveIdentity(options: { fetcher?: typeof fetch; now?: () =
   function check(expected: number, mutation = false) { if (expected !== generation || suspended) throw changed(mutation); }
   function clear(expected: number, notify = true) {
     if (expected !== generation) return;
-    token = null; expiresAt = 0; suspended = true; generation++;
+    token = null; expiresAt = 0; user = null; suspended = true; generation++;
     if (notify) lost();
   }
   function serialize<T>(run: () => Promise<T>): Promise<T> {
@@ -51,18 +58,24 @@ export function createLiveIdentity(options: { fetcher?: typeof fetch; now?: () =
   }
   async function logout(all: boolean): Promise<void> {
     const captured = token, expected = ++generation;
-    token = null; expiresAt = 0; suspended = true;
+    token = null; expiresAt = 0; user = null; suspended = true;
     await serialize(async () => {
       try { await http(captured)(all ? 'logoutAll' : 'logout'); }
-      finally { if (expected === generation) { token = null; expiresAt = 0; } }
+      finally { if (expected === generation) { token = null; expiresAt = 0; user = null; } }
     });
   }
-  return {
+  const identity: DataAdapter['identity'] = {
     restore() {
       if (suspended) return Promise.resolve(null);
+      if (user && token && now() < expiresAt) return Promise.resolve(user);
       const expected = generation;
       if (restoring?.generation === expected) return restoring.promise;
-      const promise = authenticated(async request => decodeUser(await request('me'))).catch(error => {
+      const promise = authenticated(async request => {
+        const current = decodeUser(await request('me'));
+        check(expected);
+        user = current;
+        return current;
+      }).catch(error => {
         if (error instanceof ApiError && (error.status === 401 || expected !== generation)) return null;
         throw error;
       });
@@ -73,27 +86,32 @@ export function createLiveIdentity(options: { fetcher?: typeof fetch; now?: () =
     },
     login(input) {
       const expected = ++generation;
-      token = null; expiresAt = 0; suspended = false;
+          token = null; expiresAt = 0; user = null; suspended = false;
       return serialize(async () => {
         check(expected);
         try {
           const value = decodeMutation(decodeToken, await http(null)('login', { body: input }));
           check(expected); install(value);
-          const user = decodeUser(await http(token)('me'));
+          const loggedInUser = decodeUser(await http(token)('me'));
           check(expected);
-          if (user.status !== 'ACTIVE') { clear(expected); throw new ApiError('FORBIDDEN', 'Tài khoản hiện không hoạt động.', 403); }
-          return user;
+          if (loggedInUser.status !== 'ACTIVE') { clear(expected); throw new ApiError('FORBIDDEN', 'Tài khoản hiện không hoạt động.', 403); }
+          user = loggedInUser;
+          return loggedInUser;
         } catch (error) {
           if (expected === generation) {
             const mayHaveCreatedSession = token !== null || (error instanceof ApiError && error.outcome === 'unknown');
-            token = null; expiresAt = 0; suspended = !mayHaveCreatedSession;
+            token = null; expiresAt = 0; user = null; suspended = !mayHaveCreatedSession;
           }
           throw error;
         }
       });
     },
     logout: () => logout(false), logoutAll: () => logout(true),
-    updateProfile: name => authenticated(async request => decodeMutation(decodeUser, await request('updateProfile', { body: { display_name: name } })), true),
+    updateProfile: name => authenticated(async request => {
+      const updated = decodeMutation(decodeUser, await request('updateProfile', { body: { display_name: name } }));
+      user = updated;
+      return updated;
+    }, true),
     async activate(input) { await http(null)('activate', { body: input }); },
     async forgot(email) { await http(null)('forgot', { body: { email } }); },
     async reset(code, newPassword) { await serialize(async () => { await http(null)('reset', { body: { token: code, new_password: newPassword } }); }); },
@@ -103,4 +121,9 @@ export function createLiveIdentity(options: { fetcher?: typeof fetch; now?: () =
     createStudent: (username, displayName) => authenticated(async request => decodeMutation(decodeCode, await request('createStudent', { body: { username, ...(displayName ? { display_name: displayName } : {}) } })), true),
     issueCode: (userId, identityVerified) => authenticated(async request => decodeMutation(decodeCode, await request('issueStudentCode', { userId, body: identityVerified ? { identity_verified: true } : {} })), true),
   };
+  return { identity, authenticated, currentUser: () => user };
+}
+
+export function createLiveIdentity(options: { fetcher?: typeof fetch; now?: () => number; onLost?: () => void } = {}): DataAdapter['identity'] {
+  return createLiveIdentitySession(options).identity;
 }

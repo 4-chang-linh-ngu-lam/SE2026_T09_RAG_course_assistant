@@ -24,9 +24,9 @@ All sample business identities, file rows and counts belong to the development f
 
 ## Backend boundary
 
-The browser uses same-origin `/api/v1`. The Next route handler forwards only an allowlist of Identity operations actually implemented in the current repo. It reads `CORE_API_URL` on the server, preserves cookies, Origin and correlation/retry metadata, refuses external redirects and never forwards service keys. Configure `WEB_ORIGIN` to the exact browser-facing scheme/host/port; state-changing requests must match it. This avoids relying on Next's internally constructed request URL behind a proxy. Missing/invalid origin configuration fails closed. Configure Core CORS for that browser origin, not `http://core:8000`. Use HTTPS/secure cookies in a real deployment. No backend access/permission/schema changes are introduced here.
+The browser uses same-origin `/api/v1`. The Next route handler forwards only allowlisted operations documented in [Core API Contract](../../docs/architect/microservices-v1/core/API_CONTRACT.md): Identity, Student provisioning, Classroom, Social, Calendar, Notification, staff administration and Student import. It reads `CORE_API_URL` on the server, preserves cookies, Origin and correlation/retry metadata, refuses external redirects and never forwards service keys. Admin mutations forward only the enumerated reason/idempotency headers. Configure `WEB_ORIGIN` to the exact browser-facing scheme/host/port; state-changing requests must match it. Missing/invalid origin configuration fails closed. Configure Core CORS for that browser origin, not `http://core:8000`. Use HTTPS/secure cookies in a real deployment.
 
-The current repo still marks Classroom payloads and other services as proposed. The newer UX snapshot's IMPLEMENTED label is not applied to this checkout. Missing operations therefore remain unavailable and the proxy refuses them; no guessed endpoint is called. `src/lib/data/integrations.ts` records current readiness.
+Live adapters validate Core response DTOs and do not fall back to preview fixtures. Classroom administration uses versioned roster replacement, one-student homeroom transfer, versioned AUTO sync and MANUAL roster replacement. AUTO overrides and legacy account School mapping remain unavailable. Student import reads the Core status endpoint after an unknown confirm outcome; that GET never retries the import and completed status never returns activation codes. The UI hides Classroom audit/history panels when the live API does not provide the required resource-scoped history. `src/lib/data/integrations.ts` records these operation-level boundaries.
 
 For each future capability:
 
@@ -40,7 +40,7 @@ For each future capability:
 
 From `apps/web`, run `node scripts/dev-mock.mjs --hostname 127.0.0.1 --port 4179` for explicit development preview. Use `npm run dev` for live mode with the documented server environment. Do not deploy the preview server or build with mock mode.
 
-Current acceptance (22 October 2026): `npm run check` passes boundaries, TypeScript and **226 behavioral tests**. The live `npm run build` and release fixture-canary scan pass. Chrome mock preview smoke checked **71 route IDs** (68 seeded routes plus 3 UI-created resources); focused journeys passed **214 assertions** with selected screens at 1440/768/390/320px. See [FRONTEND_COMPLETION.md](../FRONTEND_COMPLETION.md) for per-route evidence, worker ownership and limitations. This is not a real backend certification or all-canvas visual acceptance.
+Current acceptance (29 October 2026): `npm run check` passes boundaries, TypeScript and **239 behavioral tests**. The live `npm run build` and release fixture-canary scan are the release gate. Chrome mock preview smoke checked **71 route IDs** (68 seeded routes plus 3 UI-created resources); focused journeys passed **214 assertions** with selected screens at 1440/768/390/320px. See [FRONTEND_COMPLETION.md](../FRONTEND_COMPLETION.md) for preview evidence and limitations. These checks do not replace real Core/database/browser journey evidence.
 
 Historical evidence from 20 October 2026: production browser smoke checked 71 mapped URLs and 18 transport/access/failure/UI assertions against an isolated Core contract stub; this is not a real Core deployment.
 
@@ -52,7 +52,7 @@ Read repository `AGENTS.md`, `apps/web/AGENTS.md` and `.agents/skills/lumi-front
 
 ## Remaining integration work
 
-Approve missing service contracts, implement their live capability adapters/proxy decoders, and verify against actual services before calling those capabilities production-ready. The frontend intentionally reports unavailable rather than using fixture fallbacks. Real Core/database/email/AI integration and Docker/deployment are not certified by this delivery. No backend API/schema/business-rule changes are included.
+Document, AI Tutor, Learning and Learner Intelligence remain unavailable in live mode until their contracts and services are implemented. Admin data-request fulfillment/report exports remain unavailable or policy-deferred; student history and detailed resource-scoped Classroom audit still need read APIs. Staff invite/recovery delivery requires an operator-configured SMTP provider. A successful web build is not evidence that the deployed Core, database, email delivery or first-Admin onboarding is operational.
 
 
 ## Local development compiler
