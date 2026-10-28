@@ -7,10 +7,11 @@ from uuid import UUID, uuid4
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
-from sqlalchemy import inspect, select, text
+from sqlalchemy import func, inspect, select, text
 from sqlalchemy.orm import Session
 
 from app.common.audit import AuditEvent, AuditMetadata, record_audit
+from app.common.outbox import OUTBOX_SCHEMA_VERSION, OutboxEvent
 from app.maintenance.migration_safety import MIGRATION_LOCK
 from app.model_registry import load_metadata
 from app.modules.classroom.public import (
@@ -30,6 +31,34 @@ class MappingManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     schools: dict[UUID, str] = Field(default_factory=dict)
     assignments: dict[UUID, UUID] = Field(default_factory=dict)
+
+
+def outbox_delivery_report(session: Session) -> dict:
+    """Return only aggregate outbox counts; never select or serialize payloads."""
+    _head(session)
+    rows = session.execute(
+        select(
+            OutboxEvent.schema_version,
+            OutboxEvent.published_at.is_(None),
+            func.count(),
+        ).group_by(OutboxEvent.schema_version, OutboxEvent.published_at.is_(None))
+    ).all()
+    counts = {version: {"pending": 0, "published": 0} for version in {1, OUTBOX_SCHEMA_VERSION}}
+    for schema_version, is_pending, count in rows:
+        counts.setdefault(schema_version, {"pending": 0, "published": 0})[
+            "pending" if is_pending else "published"
+        ] = count
+    by_schema_version = [
+        {
+            "schema_version": version,
+            **counts[version],
+        }
+        for version in sorted(counts)
+    ]
+    return {
+        "total": sum(row["pending"] + row["published"] for row in by_schema_version),
+        "by_schema_version": by_schema_version,
+    }
 
 
 def _head(session: Session) -> None:

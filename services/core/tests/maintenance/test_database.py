@@ -335,6 +335,33 @@ def test_metadata_scope_single_head_and_empty_roundtrip(current):
         } | {"alembic_version"}
 
 
+def test_outbox_report_shows_aggregate_counts_without_payload(monkeypatch):
+    rows = [(1, True, 1), (1, False, 1), (2, True, 1), (2, False, 1), (3, True, 1)]
+
+    class Result:
+        def all(self):
+            return rows
+
+    class Session:
+        def execute(self, _statement):
+            return Result()
+
+    monkeypatch.setattr(maintenance, "_head", lambda _session: None)
+    report = maintenance.outbox_delivery_report(Session())
+
+    assert report == {
+        "total": 5,
+        "by_schema_version": [
+            {"schema_version": 1, "pending": 1, "published": 1},
+            {"schema_version": 2, "pending": 1, "published": 1},
+            {"schema_version": 3, "pending": 1, "published": 0},
+        ],
+    }
+    serialized = json.dumps(report)
+    assert "aggregate_id" not in serialized
+    assert "payload_json" not in serialized
+
+
 def test_actual_cli_seed_report_and_mapping_roundtrip(current, tmp_path):
     args = profile(current)
     environment = {

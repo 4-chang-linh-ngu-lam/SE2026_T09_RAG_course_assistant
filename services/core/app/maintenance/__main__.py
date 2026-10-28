@@ -16,6 +16,7 @@ from app.maintenance.database import (
     MappingManifest,
     apply_mapping,
     mapping_plan,
+    outbox_delivery_report,
     seed_development,
 )
 
@@ -25,6 +26,7 @@ def main(argv=None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     report = commands.add_parser("report", help="Read-only legacy migration report")
     report.set_defaults(manifest=None)
+    commands.add_parser("outbox-report", help="Read-only aggregate status by outbox schema version")
     plan = commands.add_parser("plan-school-mapping", help="Review explicit School mapping")
     plan.add_argument("--manifest", required=True)
     apply = commands.add_parser("apply-school-mapping", help="Apply a reviewed plan offline")
@@ -52,6 +54,8 @@ def main(argv=None) -> int:
                     school_name=args.school_name,
                     admin_password=SecretStr(password),
                 )
+            elif args.command == "outbox-report":
+                result = outbox_delivery_report(session)
             else:
                 manifest = (
                     MappingManifest.model_validate_json(
