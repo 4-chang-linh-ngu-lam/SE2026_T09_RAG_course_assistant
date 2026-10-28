@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import EmailStr, Field, SecretStr
+from pydantic import EmailStr, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     auth_rate_limit_max_keys: int = Field(default=10000, gt=0)
     auth_idempotency_max_keys: int = Field(default=1000, gt=0)
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("smtp_from", mode="before")
+    @classmethod
+    def blank_smtp_from_is_unconfigured(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
 
 
 settings = Settings()
