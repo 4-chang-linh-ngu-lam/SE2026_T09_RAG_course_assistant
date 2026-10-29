@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import type { FeedComment, FeedPost, Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import { mergeFeedComments } from '@/lib/feed-comments';
+import { updateFeedPosts } from '@/lib/feed-post-state';
 import { adapter, dataMode } from '@/lib/data';
 import { Dialog, ErrorNotice, Icon, StatePanel } from '@/components/ui';
 
@@ -85,7 +86,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
     setError(null);
     try {
       const page = await adapter.social.listPosts(params.classId, nextCursor);
-      setLocalPosts(current => [...(current ?? posts), ...page.items]);
+      setLocalPosts(current => updateFeedPosts(current, readyData.feedPosts, existing => [...existing, ...page.items]));
       setNextCursor(page.next_cursor);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Chưa thể tải thêm bài viết.');
@@ -116,9 +117,9 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
     setError(null);
     try {
       const updated = await adapter.social.updatePost(params.classId, postId, editContent.trim());
-      setLocalPosts(current => (current ?? posts).map(post => post.id === postId
+      setLocalPosts(current => updateFeedPosts(current, readyData.feedPosts, existing => existing.map(post => post.id === postId
         ? { ...updated, comments: post.comments, commentsNextCursor: post.commentsNextCursor }
-        : post));
+        : post)));
       setEditingPostId(null);
       setEditContent('');
     } catch (err: unknown) {
@@ -135,7 +136,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
     setError(null);
     try {
       const created = await adapter.social.createPost(params.classId, newPostContent.trim());
-      setLocalPosts([created, ...posts]);
+      setLocalPosts(current => updateFeedPosts(current, readyData.feedPosts, existing => [created, ...existing]));
       setNewPostContent('');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Chưa thể đăng bài.');
@@ -151,13 +152,9 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
     setError(null);
     try {
       const created = await adapter.social.createComment(params.classId, postId, text);
-      const updated = posts.map(p => {
-        if (p.id === postId) {
-          return { ...p, comments: [...p.comments, created] };
-        }
-        return p;
-      });
-      setLocalPosts(updated);
+      setLocalPosts(current => updateFeedPosts(current, readyData.feedPosts, existing => existing.map(post => post.id === postId
+        ? { ...post, comments: mergeFeedComments(post.comments, [created]) }
+        : post)));
       setCommentInputs(prev => ({ ...prev, [postId]: '' }));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Chưa thể gửi phản hồi.');
@@ -173,17 +170,12 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
     try {
       if (deleteTarget.type === 'post') {
         await adapter.social.deletePost(params.classId, deleteTarget.postId);
-        setLocalPosts(posts.filter(p => p.id !== deleteTarget.postId));
+        setLocalPosts(current => updateFeedPosts(current, readyData.feedPosts, existing => existing.filter(post => post.id !== deleteTarget.postId)));
       } else {
         await adapter.social.deleteComment(params.classId, deleteTarget.postId, deleteTarget.commentId);
-        setLocalPosts(
-          posts.map(p => {
-            if (p.id === deleteTarget.postId) {
-              return { ...p, comments: p.comments.filter(c => c.id !== deleteTarget.commentId) };
-            }
-            return p;
-          })
-        );
+        setLocalPosts(current => updateFeedPosts(current, readyData.feedPosts, existing => existing.map(post => post.id === deleteTarget.postId
+          ? { ...post, comments: post.comments.filter(comment => comment.id !== deleteTarget.commentId) }
+          : post)));
       }
       setDeleteTarget(null);
     } catch (err: unknown) {

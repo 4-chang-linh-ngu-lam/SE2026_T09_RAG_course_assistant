@@ -56,7 +56,10 @@ function harness(options: { loseImportResponse?: boolean; emptyAdminPages?: bool
       }
       return Response.json({ items: [user(ids.admin, ['ADMIN'], null, 'Admin'), user(ids.teacher, ['LECTURER'], null, 'Teacher'), user(ids.teacher2, ['LECTURER'], null, 'Locked Teacher', 'LOCKED'), user(ids.student, ['STUDENT'], 'student.one', 'Student One'), user(ids.student2, ['STUDENT'], 'student.two', 'Student Two', 'LOCKED')], next_cursor: null });
     }
-    if (path === '/api/v1/admin/audit-events') return Response.json({ items: [{ id: '00000000-0000-4000-8000-000000000030', actor_id: ids.admin, action: 'ADMIN_SET_MANUAL_ROSTER', target_type: 'CLASS', target_id: ids.klass, correlation_id: '00000000-0000-4000-8000-000000000031', metadata_json: { reason_code: 'USER_REQUEST' }, occurred_at: '2026-10-29T01:00:00Z' }], next_cursor: 'opaque-cursor' });
+    if (path === '/api/v1/admin/audit-events') return Response.json({ items: [
+      { id: '00000000-0000-4000-8000-000000000030', actor_id: ids.admin, action: 'ADMIN_SET_MANUAL_ROSTER', target_type: 'CLASS', target_id: ids.klass, correlation_id: '00000000-0000-4000-8000-000000000031', metadata_json: { reason_code: 'USER_REQUEST' }, occurred_at: '2026-10-29T01:00:00Z' },
+      { id: '00000000-0000-4000-8000-000000000032', actor_id: ids.teacher, action: 'SOCIAL_MODERATE_COMMENT', target_type: 'COMMENT', target_id: '00000000-0000-4000-8000-000000000033', correlation_id: '00000000-0000-4000-8000-000000000034', metadata_json: { reason_code: 'POLICY_VIOLATION' }, occurred_at: '2026-10-29T01:01:00Z' },
+    ], next_cursor: 'opaque-cursor' });
     if (path === '/api/v1/admin/catalog') return Response.json({ courses: [{ id: ids.course, code: 'MATH', name: 'Toán', school_id: actor.school_id }], academic_years: [{ id: ids.year, school_id: actor.school_id, label: '2026-2027' }], semesters: [{ id: ids.semester, academic_year_id: ids.year, name: '1' }], homerooms: [{ id: ids.homeroom, school_id: actor.school_id, academic_year_id: ids.year, name: '9A', grade_level: 9, roster_version: 3, student_count: 1 }], grades: [9] });
     if (path === '/api/v1/classes') return Response.json({ items: [klass], next_cursor: null });
     if (path === `/api/v1/admin/classes/${ids.klass}/management`) return Response.json({ subject_class: klass, teaching_assignments: [{ id: '00000000-0000-4000-8000-000000000011', class_id: ids.klass, lecturer_id: ids.teacher, role: 'PRIMARY', assigned_at: '2026-10-01T00:00:00Z', ended_at: null }, { id: '00000000-0000-4000-8000-000000000016', class_id: ids.klass, lecturer_id: ids.teacher2, role: 'ASSISTING', assigned_at: '2026-10-01T00:00:00Z', ended_at: null }], members: [{ id: '00000000-0000-4000-8000-000000000012', class_id: ids.klass, student_id: ids.student, source: 'MANUAL', status: 'ACTIVE', joined_at: '2026-10-01T00:00:00Z', ended_at: null }] });
@@ -121,8 +124,10 @@ test('live Admin audit reads Core pages without enabling deferred data-request f
   assert.equal(audit.kind, 'audit');
   if (audit.kind !== 'audit') return;
   assert.equal(audit.items[0].action, 'ADMIN_SET_MANUAL_ROSTER');
-  assert.equal(audit.items[0].actorName, 'Quản trị viên');
+  assert.equal(audit.items[0].actorName, ids.admin);
   assert.equal(audit.items[0].reason, 'USER_REQUEST');
+  assert.equal(audit.items[1].actorName, ids.teacher);
+  assert.equal(audit.items[1].action, 'SOCIAL_MODERATE_COMMENT');
   assert.equal(audit.nextCursor, 'opaque-cursor');
   await assert.rejects(() => intelligence.load('a.dataRequests', {}, {}));
 });
