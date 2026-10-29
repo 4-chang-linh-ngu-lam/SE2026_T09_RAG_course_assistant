@@ -11,7 +11,14 @@ from sqlalchemy.orm import Session
 from app.common.audit import AuditMetadata, record_audit
 from app.common.config import settings
 from app.common.security import generate_refresh_token, hash_password
-from app.modules.identity.models import Role, RoleAssignment, TokenPurpose, User, UserStatus
+from app.modules.identity.models import (
+    OneTimeToken,
+    Role,
+    RoleAssignment,
+    TokenPurpose,
+    User,
+    UserStatus,
+)
 from app.modules.identity.repository import IdentityRepository
 from app.modules.identity.schemas import (
     ActivateStudentRequest,
@@ -205,3 +212,96 @@ def bootstrap_staging_admin(
     )
     session.flush()
     return IdentityService._summary(user)
+
+
+def maintenance_correct_staging_admin_email(
+    *,
+    user_id: UUID,
+    school_id: UUID,
+    expected_email: str,
+    new_email: str,
+    correlation_id: UUID,
+    session: Session,
+) -> tuple[UserSummaryDTO, bool]:
+    """Correct an unsent staging invitation recipient without rotating its token.
+
+    The original token is retained only while its delivery is still pending with
+    zero attempts, so no previous recipient could have received it.
+    """
+    expected = AdminCreateUserRequest(email=expected_email, roles=[Role.ADMIN]).email
+    requested = AdminCreateUserRequest(email=new_email, roles=[Role.ADMIN]).email
+    if expected == requested:
+        raise ValueError("The corrected staging Admin email must differ from the current email")
+
+    repository = IdentityRepository(session)
+    user = repository.lock_users([user_id]).get(user_id)
+    if (
+        user is None
+        or user.school_id != school_id
+        or user.status != UserStatus.PENDING_VERIFICATION
+        or user.email_verified_at is not None
+        or Role.ADMIN not in repository.get_user_roles(user_id)
+    ):
+        raise ValueError(
+            "Only the pending staging Admin can have its invitation recipient corrected"
+        )
+
+    if user.email == requested:
+        changed = False
+    elif user.email == expected:
+        if repository.get_by_email(requested) is not None:
+            raise ValueError("The corrected staging Admin email is already registered")
+        changed = True
+    else:
+        raise ValueError("Staging Admin email does not match the expected correction profile")
+
+    now = datetime.now(UTC)
+    tokens = list(
+        session.scalars(
+            select(OneTimeToken)
+            .where(
+                OneTimeToken.user_id == user_id,
+                OneTimeToken.purpose == TokenPurpose.ADMIN_INVITATION,
+                OneTimeToken.consumed_at.is_(None),
+                OneTimeToken.expires_at > now,
+            )
+            .order_by(OneTimeToken.created_at, OneTimeToken.id)
+            .with_for_update()
+        )
+    )
+    if len(tokens) != 1:
+        raise ValueError("Expected exactly one unexpired staging Admin invitation")
+    delivery = repository.get_credential_delivery(tokens[0].id, for_update=True)
+    if (
+        delivery is None
+        or delivery.status != "PENDING"
+        or delivery.attempts != 0
+        or delivery.delivered_at is not None
+    ):
+        raise ValueError("Staging Admin invitation recipient can only change before delivery")
+
+    if changed:
+        user.email = requested
+        service = IdentityService(session)
+        repository.invalidate_one_time_tokens(user.id, TokenPurpose.ADMIN_INVITATION, now)
+        service._issue_one_time_token(
+            user,
+            TokenPurpose.ADMIN_INVITATION,
+            timedelta(hours=settings.admin_invitation_expire_hours),
+        )
+        record_audit(
+            session,
+            actor_id=None,
+            school_id=school_id,
+            action="STAGING_BOOTSTRAP_ADMIN_EMAIL_CORRECTED",
+            target_type="USER",
+            target_id=user_id,
+            correlation_id=correlation_id,
+            metadata_json=AuditMetadata(
+                changed_fields=["credentials"],
+                new_status=UserStatus.PENDING_VERIFICATION.value,
+                reason_code="USER_REQUEST",
+            ),
+        )
+        session.flush()
+    return IdentityService._summary(user), changed

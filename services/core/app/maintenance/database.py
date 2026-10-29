@@ -32,6 +32,9 @@ from app.modules.identity.public import (
 from app.modules.identity.public import (
     bootstrap_staging_admin as identity_bootstrap_staging_admin,
 )
+from app.modules.identity.public import (
+    maintenance_correct_staging_admin_email as identity_correct_staging_admin_email,
+)
 
 
 class MappingManifest(BaseModel):
@@ -307,6 +310,80 @@ def bootstrap_staging_admin(
         "school_id": str(school_id),
         "admin_user_id": str(admin.id),
         "status": str(admin.status),
+        "invitation_delivery": "PENDING",
+        "correlation_id": str(correlation_id),
+    }
+
+
+def correct_staging_admin_email(
+    session: Session,
+    *,
+    environment: str,
+    expected_database: str,
+    expected_host: str,
+    school_name: str,
+    expected_email: str,
+    new_email: str,
+    confirm_staging_admin_email_correction: bool,
+) -> dict:
+    """Correct an unsent bootstrap invitation recipient on the approved staging DB."""
+    if environment != "staging" or not confirm_staging_admin_email_correction:
+        raise ValueError("Staging Admin email correction requires explicit staging confirmation")
+    if not expected_database or not expected_host:
+        raise ValueError("Provide the exact staging database name and host")
+    if session.scalar(text("SELECT current_database()")) != expected_database:
+        raise ValueError("Staging bootstrap database name mismatch")
+    bind = session.get_bind()
+    database_url = getattr(bind, "url", None) or getattr(getattr(bind, "engine", None), "url", None)
+    if database_url is None:
+        raise ValueError("Staging bootstrap database host is unavailable")
+    validate_staging_database_url(database_url, expected_host=expected_host)
+    _lock_core(session)
+
+    markers = list(
+        session.scalars(
+            select(AuditEvent)
+            .where(AuditEvent.action == "STAGING_BOOTSTRAP_ADMIN")
+            .order_by(AuditEvent.occurred_at, AuditEvent.id)
+        )
+    )
+    if len(markers) != 1:
+        raise ValueError("Expected exactly one staging bootstrap Admin marker")
+    marker = markers[0]
+    if marker.target_type != "USER" or marker.school_id is None:
+        raise ValueError("Staging bootstrap marker is invalid")
+    school = next(
+        (
+            item
+            for item in maintenance_schools(session=session)
+            if item["school_id"] == str(marker.school_id)
+        ),
+        None,
+    )
+    admin = get_user_summary(marker.target_id, session=session)
+    if (
+        school is None
+        or school["name"] != school_name
+        or admin is None
+        or admin.school_id != marker.school_id
+        or "ADMIN" not in get_user_roles(admin.id, session=session)
+    ):
+        raise ValueError("Staging bootstrap marker does not match the requested School and Admin")
+
+    correlation_id = uuid4()
+    corrected_admin, changed = identity_correct_staging_admin_email(
+        user_id=admin.id,
+        school_id=marker.school_id,
+        expected_email=expected_email,
+        new_email=new_email,
+        correlation_id=correlation_id,
+        session=session,
+    )
+    return {
+        "changed": changed,
+        "school_id": str(marker.school_id),
+        "admin_user_id": str(corrected_admin.id),
+        "status": str(corrected_admin.status),
         "invitation_delivery": "PENDING",
         "correlation_id": str(correlation_id),
     }
