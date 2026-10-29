@@ -1,59 +1,31 @@
-import { createUnavailableIntelligencePort } from './intelligence-unavailable';
-import { createLiveIdentity } from './live-identity';
-import { createUnavailableClassroomAdminPort } from './classroom-admin-unavailable';
+import { createLiveIntelligencePort } from './live-intelligence';
+import { createLiveIdentitySession } from './live-identity';
+import { createLiveCore } from './live-core';
+import { createLiveAccounts } from './live-accounts';
+import { createLiveClassroomAdminPort } from './live-classroom-admin';
 import { createUnavailablePracticeAuthoringPort } from './practice-authoring-unavailable';
-import { createUnavailableAccountsPort } from './accounts-unavailable';
 import { createUnavailableAssignmentPort } from './assignment-unavailable';
 import { createUnavailableAssessmentPort } from './assessment-unavailable';
 import type { DataAdapter } from './port';
 import { ApiError } from '../api/errors';
 
+const session = createLiveIdentitySession();
+const core = createLiveCore(session);
+const accounts = createLiveAccounts(session);
+
 export const adapter: DataAdapter = {
   source: 'live',
   personalData: { async download() { throw new ApiError('UNAVAILABLE', 'Vui lòng xem hướng dẫn bàn giao trong ghi chú xử lý hoặc liên hệ nhà trường để nhận bản sao.', 503); } },
-  intelligence: createUnavailableIntelligencePort(),
-  classroom: createUnavailableClassroomAdminPort(),
+  intelligence: createLiveIntelligencePort(session),
+  classroom: createLiveClassroomAdminPort(session),
   practiceAuthoring: createUnavailablePracticeAuthoringPort(),
-  accounts: createUnavailableAccountsPort(),
+  accounts,
   assignment: createUnavailableAssignmentPort(),
   assessment: createUnavailableAssessmentPort(),
-  identity: createLiveIdentity(),
-  social: {
-    async createPost() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ bảng tin lớp chưa sẵn sàng trên máy chủ.', 503);
-    },
-    async updatePost() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ bảng tin lớp chưa sẵn sàng trên máy chủ.', 503);
-    },
-    async deletePost() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ bảng tin lớp chưa sẵn sàng trên máy chủ.', 503);
-    },
-    async createComment() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ bảng tin lớp chưa sẵn sàng trên máy chủ.', 503);
-    },
-    async deleteComment() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ bảng tin lớp chưa sẵn sàng trên máy chủ.', 503);
-    },
-  },
-  calendar: {
-    async createEvent() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ lịch học chưa sẵn sàng trên máy chủ.', 503);
-    },
-    async updateEvent() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ lịch học chưa sẵn sàng trên máy chủ.', 503);
-    },
-    async deleteEvent() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ lịch học chưa sẵn sàng trên máy chủ.', 503);
-    },
-  },
-  notifications: {
-    async markAsRead() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ thông báo chưa sẵn sàng trên máy chủ.', 503);
-    },
-    async markAllAsRead() {
-      throw new ApiError('UNAVAILABLE', 'Dịch vụ thông báo chưa sẵn sàng trên máy chủ.', 503);
-    },
-  },
+  identity: core.identity,
+  social: core.social,
+  calendar: core.calendar,
+  notifications: core.notifications,
   document: {
     async previewClassSource() { throw new ApiError('UNAVAILABLE', 'Nguồn tài liệu chưa sẵn sàng. Vui lòng quay lại sau.', 503); },
     async uploadDocument() {
@@ -124,10 +96,5 @@ export const adapter: DataAdapter = {
       throw new ApiError('UNAVAILABLE', 'Dịch vụ rà soát câu hỏi luyện tập chưa sẵn sàng trên máy chủ.', 503);
     },
   },
-  workspace: {
-    async load() {
-      // No invented wire DTOs or endpoints for uncontracted services.
-      return { kind: 'unavailable', message: 'Nội dung này chưa sẵn sàng trên máy chủ. Vui lòng quay lại sau.' };
-    },
-  },
+  workspace: core.workspace,
 };

@@ -114,7 +114,9 @@ export function StudentClassesFeature({ route: _route, data, reload }: Props) {
               ? `Không tìm thấy lớp học nào phù hợp với từ khóa "${searchQuery}".`
               : activeTab === 'active'
               ? 'Hiện bạn chưa có lớp học nào đang hoạt động.'
-              : 'Chưa có lớp học nào trong danh sách lưu trữ.'}
+              : data.pendingCapabilities?.includes('Class history')
+                ? 'Lịch sử lớp học chưa được kết nối. Hiện chỉ hiển thị các lớp đang tham gia.'
+                : 'Chưa có lớp học nào trong danh sách lưu trữ.'}
           </p>
           {searchQuery.trim() && (
             <button
@@ -137,7 +139,7 @@ export function StudentClassesFeature({ route: _route, data, reload }: Props) {
               <article key={cls.id} className="card class-card student-class-card">
                 <div className="class-card-top">
                   <span className={`tag ${isHistorical ? 'default' : 'primary'}`}>
-                    {cls.code}
+                    {cls.code || 'Lớp học'}
                   </span>
                   {cls.membershipStatus === 'ENDED' ? (
                     <span className="badge warning">Đã kết thúc ghi danh</span>

@@ -19,19 +19,24 @@ from app.common.pagination import Page, Pagination, get_pagination
 from app.modules.classroom.permissions import require_admin
 from app.modules.classroom.public import check_class_action
 from app.modules.classroom.schemas import (
+    AdminCatalogResponse,
     ClassAccessAction,
     ClassCreateRequest,
+    ClassManagementResponse,
     ClassResponse,
+    ClassVersionRequest,
     CourseCreateRequest,
     CourseResponse,
     EnrollmentModeRequest,
     EnrollmentPreviewResponse,
+    EnrollmentSyncRequest,
     HomeroomCreateRequest,
     HomeroomResponse,
     HomeroomTransferRequest,
     InternalAccessResponse,
     MembershipRequest,
     MembershipResponse,
+    MembershipRosterRequest,
     RosterRequest,
     RosterResponse,
     TeachingAssignmentResponse,
@@ -141,6 +146,21 @@ def create_course(body: CourseCreateRequest, user: User, service: Service, mutat
     )
 
 
+@router.get("/admin/catalog", response_model=AdminCatalogResponse)
+def admin_catalog(user: User, service: Service):
+    return _json(service.admin_catalog(user))
+
+
+@router.get("/admin/homeroom-classes/{homeroom_id}/roster", response_model=RosterResponse)
+def get_admin_roster(homeroom_id: UUID, user: User, service: Service):
+    return _json(service.admin_roster(homeroom_id, user))
+
+
+@router.get("/admin/classes/{class_id}/management", response_model=ClassManagementResponse)
+def get_admin_class_management(class_id: UUID, user: User, service: Service):
+    return _json(service.admin_class_management(class_id, user))
+
+
 @router.post("/admin/homeroom-classes", response_model=HomeroomResponse, status_code=201)
 def create_homeroom(body: HomeroomCreateRequest, user: User, service: Service, mutation: Mutator):
     return _mutate(
@@ -164,7 +184,14 @@ def set_roster(
         mutation,
         f"roster:{homeroom_id}",
         body.model_dump(mode="json"),
-        lambda: _json(service.set_roster(user, homeroom_id, body.student_ids)),
+        lambda: _json(
+            service.set_roster(
+                user,
+                homeroom_id,
+                body.student_ids,
+                expected_roster_version=body.expected_roster_version,
+            )
+        ),
         reason_required=True,
         homeroom_ids=(homeroom_id,),
     )
@@ -190,7 +217,12 @@ def transfer_homeroom_student(
         body.model_dump(mode="json"),
         lambda: _json(
             service.transfer_homeroom_student(
-                homeroom_id, body.destination_homeroom_id, student_id, user
+                homeroom_id,
+                body.destination_homeroom_id,
+                student_id,
+                user,
+                expected_source_roster_version=body.expected_source_roster_version,
+                expected_destination_roster_version=body.expected_destination_roster_version,
             )
         ),
         reason_required=True,
@@ -280,14 +312,27 @@ def set_enrollment_mode(
 
 
 @router.post("/admin/classes/{class_id}/enrollment/sync", response_model=ClassResponse)
-def sync_enrollment(class_id: UUID, user: User, service: Service, mutation: Mutator):
+def sync_enrollment(
+    class_id: UUID,
+    user: User,
+    service: Service,
+    mutation: Mutator,
+    body: EnrollmentSyncRequest | None = None,
+):
     return _mutate(
         user,
         service,
         mutation,
         f"sync:{class_id}",
-        {},
-        lambda: _json(service.sync_enrollment(class_id, user)),
+        body.model_dump(mode="json") if body else {},
+        lambda: _json(
+            service.sync_enrollment(
+                class_id,
+                user,
+                expected_class_version=body.expected_class_version if body else None,
+                expected_roster_version=body.expected_roster_version if body else None,
+            )
+        ),
         reason_required=True,
         class_ids=(class_id,),
     )
@@ -306,6 +351,33 @@ def add_member(
         f"member:{class_id}",
         body.model_dump(mode="json"),
         lambda: _json(service.add_member(class_id, user, body.student_id), 201),
+        reason_required=True,
+        class_ids=(class_id,),
+    )
+
+
+@router.put("/admin/classes/{class_id}/members", response_model=ClassManagementResponse)
+def set_manual_roster(
+    class_id: UUID,
+    body: MembershipRosterRequest,
+    user: User,
+    service: Service,
+    mutation: Mutator,
+):
+    return _mutate(
+        user,
+        service,
+        mutation,
+        f"members:{class_id}",
+        body.model_dump(mode="json"),
+        lambda: _json(
+            service.set_manual_roster(
+                class_id,
+                user,
+                body.student_ids,
+                expected_class_version=body.expected_class_version,
+            )
+        ),
         reason_required=True,
         class_ids=(class_id,),
     )
@@ -354,28 +426,54 @@ def transfer_member(
 
 
 @router.post("/admin/classes/{class_id}/archive", response_model=ClassResponse)
-def archive_class(class_id: UUID, user: User, service: Service, mutation: Mutator):
+def archive_class(
+    class_id: UUID,
+    user: User,
+    service: Service,
+    mutation: Mutator,
+    body: ClassVersionRequest | None = None,
+):
     return _mutate(
         user,
         service,
         mutation,
         f"archive:{class_id}",
-        {},
-        lambda: _json(service.set_archived(class_id, user, archived=True)),
+        body.model_dump(mode="json") if body else {},
+        lambda: _json(
+            service.set_archived(
+                class_id,
+                user,
+                archived=True,
+                expected_class_version=body.expected_class_version if body else None,
+            )
+        ),
         reason_required=True,
         class_ids=(class_id,),
     )
 
 
 @router.post("/admin/classes/{class_id}/restore", response_model=ClassResponse)
-def restore_class(class_id: UUID, user: User, service: Service, mutation: Mutator):
+def restore_class(
+    class_id: UUID,
+    user: User,
+    service: Service,
+    mutation: Mutator,
+    body: ClassVersionRequest | None = None,
+):
     return _mutate(
         user,
         service,
         mutation,
         f"restore:{class_id}",
-        {},
-        lambda: _json(service.set_archived(class_id, user, archived=False)),
+        body.model_dump(mode="json") if body else {},
+        lambda: _json(
+            service.set_archived(
+                class_id,
+                user,
+                archived=False,
+                expected_class_version=body.expected_class_version if body else None,
+            )
+        ),
         reason_required=True,
         class_ids=(class_id,),
     )

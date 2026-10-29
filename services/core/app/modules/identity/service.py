@@ -399,6 +399,7 @@ class IdentityService:
                 user = self.repository.create_user(
                     User(
                         email=request.email,
+                        display_name=request.display_name,
                         password_hash=hash_password(generate_refresh_token()),
                         status=UserStatus.PENDING_VERIFICATION,
                         school_id=actor.school_id,

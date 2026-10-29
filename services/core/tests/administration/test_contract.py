@@ -50,6 +50,50 @@ def test_parser_normalizes_csv_and_xlsx_identically():
     assert not errors and actual == expected
 
 
+def test_parser_accepts_selected_headers_and_ignores_unmapped_cells():
+    rows, errors = parse_students(
+        csv_request(
+            "Student code,Full name,Private note\nstudent.9,Học sinh tổng hợp,không xuất ra response\n",
+            username_header="Student code",
+            display_name_header="Full name",
+            user_id_header=None,
+        )
+    )
+    assert not errors
+    assert rows[0]["values"] == {
+        "username": "student.9",
+        "display_name": "Học sinh tổng hợp",
+        "user_id": None,
+    }
+
+
+def test_parser_normalizes_header_whitespace_like_the_frontend_mapping():
+    rows, errors = parse_students(
+        csv_request(
+            " Student code , Full name \nstudent.9,Học sinh tổng hợp\n",
+            username_header="Student code",
+            display_name_header="Full name",
+            user_id_header=None,
+        )
+    )
+    assert not errors and rows[0]["values"]["username"] == "student.9"
+
+
+def test_parser_does_not_use_legacy_user_ids_without_explicit_selection():
+    rows, errors = parse_students(csv_request("username,user_id\nstudent.9,ignored-id\n"))
+    assert not errors and rows[0]["values"] == {
+        "username": "student.9",
+        "display_name": None,
+        "user_id": None,
+    }
+
+
+def test_parser_rejects_missing_explicit_user_id_header():
+    with pytest.raises(AppError) as invalid:
+        parse_students(csv_request("username\nlegacy.student\n", user_id_header="user_id"))
+    assert invalid.value.status_code == 422
+
+
 def test_duplicate_and_invalid_rows_do_not_echo_input():
     rows, errors = parse_students(
         csv_request(
@@ -64,12 +108,19 @@ def test_duplicate_and_invalid_rows_do_not_echo_input():
     assert "secret" not in str(errors) and "private input" not in str(errors)
 
 
+def test_csv_error_rows_match_physical_lines_after_quoted_newlines():
+    rows, errors = parse_students(
+        csv_request('username,display_name\nsame,"First\ncontinued"\nsame,Second\n')
+    )
+    assert [item["number"] for item in rows] == [2, 4]
+    assert [(error.row, error.code) for error in errors] == [(4, "DUPLICATE_ROW")]
+
+
 @pytest.mark.parametrize(
     "value",
     [
         "",
         "email\nstudent@example.com\n",
-        "username,password\nstudent,secret\n",
         "username,username\na,b\n",
         "username\n" + "\n".join(f"s{i}" for i in range(101)),
     ],
@@ -81,15 +132,24 @@ def test_csv_rejects_wrong_shape_or_oversized_batch(value):
         assert invalid.value.status_code == 422
 
 
-@pytest.mark.parametrize(
-    "rows", [[["username"], ["=1+1"]], [["username", "extra"], ["s", "v"]], [["username"], [5]]]
-)
-def test_xlsx_rejects_formulas_unknown_columns_and_numeric_identifiers(rows):
+@pytest.mark.parametrize("rows", [[["username"], ["=1+1"]], [["username"], [5]]])
+def test_xlsx_rejects_formulas_and_numeric_identifiers(rows):
     try:
         values, errors = parse_students(xlsx_request(rows))
         assert errors and not values
     except AppError as invalid:
         assert invalid.status_code == 422
+
+
+def test_xlsx_ignores_unselected_columns():
+    rows, errors = parse_students(
+        xlsx_request([["username", "private_note"], ["student.9", "private"]])
+    )
+    assert not errors and rows[0]["values"] == {
+        "username": "student.9",
+        "display_name": None,
+        "user_id": None,
+    }
 
 
 def test_xlsx_rejects_archive_bomb_before_loading():
@@ -142,6 +202,7 @@ def test_administration_routes_are_authenticated_admin_only():
         ("patch", f"/users/{id}/status", {"status": "LOCKED"}),
         ("put", f"/users/{id}/roles", {"roles": ["LECTURER"]}),
         ("get", "/audit-events", None),
+        ("get", f"/users?user_id={id}", None),
         ("get", "/data-requests", None),
         ("get", f"/data-requests/{id}", None),
         (
@@ -151,6 +212,7 @@ def test_administration_routes_are_authenticated_admin_only():
         ),
         ("post", "/students/imports/preview", csv_request("username\nstudent\n").model_dump()),
         ("post", "/students/imports/confirm", {"preview_id": id}),
+        ("get", f"/students/imports/{id}", None),
     ]
     previous = app.dependency_overrides.copy()
     try:

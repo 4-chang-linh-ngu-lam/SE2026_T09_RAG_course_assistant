@@ -71,6 +71,7 @@ def admin_append_roster(
         actor,
         homeroom_id,
         sorted(set(snapshot.student_ids) | set(student_ids)),
+        expected_roster_version=expected_roster_version,
         commit=False,
     )
 

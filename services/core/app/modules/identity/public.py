@@ -14,11 +14,15 @@ from app.modules.identity.admin_public import (
     admin_check_student_import,
     admin_get_data_request,
     admin_list_data_requests,
+    admin_list_users,
     admin_resolve_data_request,
+    admin_update_account,
     admin_update_user_roles,
 )
 from app.modules.identity.admin_schemas import (
     AdminReason,
+    AdminUserListItem,
+    AdminUserUpdateCommand,
     DataResolutionCommand,
     ResolutionNote,
     RoleUpdateCommand,
@@ -49,6 +53,8 @@ from app.modules.identity.service import StudentCode, TokenDelivery
 
 __all__ = [
     "AdminReason",
+    "AdminUserListItem",
+    "AdminUserUpdateCommand",
     "DataRequestResponse",
     "DataResolutionCommand",
     "Mutation",
@@ -67,9 +73,11 @@ __all__ = [
     "admin_get_data_request",
     "admin_issue_student_code",
     "admin_list_data_requests",
+    "admin_list_users",
     "admin_reissue_user_invitation",
     "admin_resolve_data_request",
     "admin_set_user_status",
+    "admin_update_account",
     "admin_update_user_roles",
     "attempt_token_delivery",
     "bootstrap_dev_identity",
@@ -131,10 +139,11 @@ def admin_create_user(
     *,
     actor_id: UUID,
     correlation_id: UUID,
+    display_name: str | None = None,
     session: Session | None = None,
     reason_code: str | None = None,
 ) -> tuple[UserSummaryDTO, TokenDelivery]:
-    request = _AdminCreateUserRequest(email=email, roles=roles)
+    request = _AdminCreateUserRequest(email=email, roles=roles, display_name=display_name)
     with _session_scope(session, write=True) as db:
         return _IdentityService(db).admin_create_user(
             request,

@@ -6,6 +6,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 .coverage
+*.tsbuildinfo
 /services/core/coverage.xml
 /services/core/test-results.xml
 /services/core/rule-evidence.json

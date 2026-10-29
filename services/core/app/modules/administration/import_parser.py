@@ -19,7 +19,7 @@ from app.modules.identity.public import StudentImportRow
 MAX_FILE_BYTES = 2_000_000
 MAX_XML_BYTES = 10_000_000
 MAX_ROWS = 100
-COLUMNS = {"username", "display_name", "user_id"}
+MAX_COLUMNS = 64
 
 
 def parse_students(request: ImportPreviewRequest) -> tuple[list[dict], list[ImportErrorResponse]]:
@@ -27,12 +27,19 @@ def parse_students(request: ImportPreviewRequest) -> tuple[list[dict], list[Impo
         content = base64.b64decode(request.content_base64, validate=True)
         if len(content) > MAX_FILE_BYTES:
             raise ValueError("File too large")
+        source_rows = []
         if request.format == "CSV":
             matrix = []
-            for values in csv.reader(io.StringIO(content.decode("utf-8-sig"))):
+            reader = csv.reader(io.StringIO(content.decode("utf-8-sig")))
+            previous_line = 0
+            for values in reader:
                 matrix.append(values)
+                source_rows.append(previous_line + 1)
+                previous_line = reader.line_num
                 if len(matrix) > MAX_ROWS + 1:
                     raise ValueError("Too many rows")
+                if len(values) > MAX_COLUMNS:
+                    raise ValueError("Too many columns")
         else:
             with zipfile.ZipFile(io.BytesIO(content)) as archive:
                 infos = archive.infolist()
@@ -50,38 +57,62 @@ def parse_students(request: ImportPreviewRequest) -> tuple[list[dict], list[Impo
                 if len(workbook.worksheets) != 1:
                     raise ValueError("Exactly one worksheet required")
                 sheet = workbook.worksheets[0]
-                if (sheet.max_row or 0) > MAX_ROWS + 1 or (sheet.max_column or 0) > len(COLUMNS):
+                if (sheet.max_row or 0) > MAX_ROWS + 1 or (sheet.max_column or 0) > MAX_COLUMNS:
                     raise ValueError("Worksheet limits exceeded")
                 matrix = []
-                for cells in sheet.iter_rows():
+                for row_number, cells in enumerate(sheet.iter_rows(), start=1):
                     if any(cell.data_type == "f" for cell in cells):
                         raise ValueError("Formula cells are not accepted")
                     matrix.append([cell.value for cell in cells])
+                    source_rows.append(row_number)
                     if len(matrix) > MAX_ROWS + 1:
                         raise ValueError("Too many rows")
             finally:
                 workbook.close()
         if not matrix or len(matrix) < 2:
             raise ValueError("Missing rows")
-        header = matrix[0]
-        if not all(isinstance(value, str) for value in header):
+        raw_header = matrix[0]
+        if not all(isinstance(value, str) for value in raw_header):
             raise ValueError("Invalid columns")
-        if len(set(header)) != len(header) or set(header) - COLUMNS or "username" not in header:
+        header = [value.strip() for value in raw_header]
+        if len(header) > MAX_COLUMNS or len({value.casefold() for value in header}) != len(header):
             raise ValueError("Invalid columns")
+        if not all(header):
+            raise ValueError("Invalid columns")
+        display_name_header = request.display_name_header
+        if (
+            "display_name_header" not in request.model_fields_set
+            and display_name_header is None
+            and "display_name" in header
+        ):
+            display_name_header = "display_name"
+        selected_columns = [(request.username_header, "username")]
+        if display_name_header is not None:
+            selected_columns.append((display_name_header, "display_name"))
+        if request.user_id_header is not None:
+            selected_columns.append((request.user_id_header, "user_id"))
+        selected_headers = [source.casefold() for source, _target in selected_columns]
+        if any(source not in header for source, _target in selected_columns) or len(
+            selected_headers
+        ) != len(set(selected_headers)):
+            raise ValueError("Invalid column mapping")
+        column_indexes = [(header.index(source), target) for source, target in selected_columns]
         rows, errors, names, user_ids = [], [], set(), set()
-        for number, values in enumerate(matrix[1:], start=2):
+        for index, values in enumerate(matrix[1:], start=1):
+            number = source_rows[index]
             if not any(value is not None and value != "" for value in values):
                 continue
             try:
                 if len(values) != len(header) or any(
-                    value is not None and (not isinstance(value, str) or len(value) > 500)
-                    for value in values
+                    values[index] is not None
+                    and (not isinstance(values[index], str) or len(values[index]) > 500)
+                    for index, _target in column_indexes
                 ):
                     raise ValueError("Invalid row")
                 data = {
-                    key: value
-                    for key, value in zip(header, values, strict=True)
-                    if value not in (None, "")
+                    target: values[index]
+                    for index, target in column_indexes
+                    if values[index] not in (None, "")
                 }
                 row = StudentImportRow.model_validate(data)
                 if row.username in names or (row.user_id is not None and row.user_id in user_ids):

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import exists, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from app.modules.classroom.models import (
     Semester,
     SubjectClass,
     TeachingAssignment,
+    TeachingRole,
 )
 
 
@@ -61,6 +62,59 @@ class ClassroomRepository:
         return self.session.scalar(
             select(Course).where(Course.school_id == school_id, Course.code == code)
         )
+
+    def list_courses(self, school_id: UUID) -> list[Course]:
+        return list(
+            self.session.scalars(
+                select(Course).where(Course.school_id == school_id).order_by(Course.code, Course.id)
+            )
+        )
+
+    def list_academic_years(self, school_id: UUID) -> list[AcademicYear]:
+        return list(
+            self.session.scalars(
+                select(AcademicYear)
+                .where(AcademicYear.school_id == school_id)
+                .order_by(AcademicYear.label, AcademicYear.id)
+            )
+        )
+
+    def list_semesters(self, school_id: UUID) -> list[Semester]:
+        return list(
+            self.session.scalars(
+                select(Semester)
+                .join(AcademicYear, AcademicYear.id == Semester.academic_year_id)
+                .where(AcademicYear.school_id == school_id)
+                .order_by(AcademicYear.label, Semester.name, Semester.id)
+            )
+        )
+
+    def list_homerooms(self, school_id: UUID) -> list[HomeroomClass]:
+        return list(
+            self.session.scalars(
+                select(HomeroomClass)
+                .where(HomeroomClass.school_id == school_id)
+                .order_by(
+                    HomeroomClass.academic_year_id,
+                    HomeroomClass.grade_level,
+                    HomeroomClass.name,
+                    HomeroomClass.id,
+                )
+            )
+        )
+
+    def active_roster_counts(self, homeroom_ids: list[UUID]) -> dict[UUID, int]:
+        if not homeroom_ids:
+            return {}
+        rows = self.session.execute(
+            select(HomeroomRoster.homeroom_class_id, func.count(HomeroomRoster.id))
+            .where(
+                HomeroomRoster.homeroom_class_id.in_(homeroom_ids),
+                HomeroomRoster.ended_at.is_(None),
+            )
+            .group_by(HomeroomRoster.homeroom_class_id)
+        )
+        return {homeroom_id: count for homeroom_id, count in rows}
 
     def get_homeroom(self, homeroom_id: UUID, *, for_update: bool = False) -> HomeroomClass | None:
         query = select(HomeroomClass).where(HomeroomClass.id == homeroom_id)
@@ -189,6 +243,20 @@ class ClassroomRepository:
                 TeachingAssignment.ended_at.is_(None),
             )
         )
+
+    def active_teacher_roles(
+        self, class_ids: list[UUID], lecturer_id: UUID
+    ) -> dict[UUID, TeachingRole]:
+        if not class_ids:
+            return {}
+        rows = self.session.execute(
+            select(TeachingAssignment.class_id, TeachingAssignment.role).where(
+                TeachingAssignment.class_id.in_(class_ids),
+                TeachingAssignment.lecturer_id == lecturer_id,
+                TeachingAssignment.ended_at.is_(None),
+            )
+        )
+        return {class_id: role for class_id, role in rows}
 
     def add(self, row):
         self.session.add(row)

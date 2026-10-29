@@ -10,6 +10,7 @@ import {
   getInitialCalendarState,
   getRoleAwareEventHref,
   parseCalendarEventSchedule,
+  spansMultipleLocalDays,
 } from '@/lib/calendar';
 
 type Props = {
@@ -42,6 +43,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
   const [editTitle, setEditTitle] = useState('');
   const [editDate, setEditDate] = useState('');
   const [editTimeRange, setEditTimeRange] = useState('');
+  const [editScheduleChanged, setEditScheduleChanged] = useState(false);
   const [editDescription, setEditDescription] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
@@ -122,6 +124,11 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
     (selectedEventId ? monthEvents.find(e => e.id === selectedEventId) : null) ??
     monthEvents[0] ??
     null;
+  const selectedEventSpansDays = Boolean(
+    adapter.source === 'live'
+    && selectedEvent?.end
+    && spansMultipleLocalDays(selectedEvent.start, selectedEvent.end),
+  );
   const isTeacher = role === 'LECTURER';
 
   const assignedClasses = readyData?.classes ?? (readyData?.classSummary ? [readyData.classSummary] : []);
@@ -163,6 +170,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
     setEditTitle(selectedEvent.title);
     setEditDate(selectedEvent.date);
     setEditTimeRange(selectedEvent.timeRange ?? '');
+    setEditScheduleChanged(false);
     setEditDescription(selectedEvent.description ?? '');
     setEditLocation(selectedEvent.location ?? '');
     setEditDialogOpen(true);
@@ -184,6 +192,10 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
     const targetClass = assignedClasses.find(c => c.id === targetClassId) ?? readyData?.classSummary;
     const timeRange = newTimeRange.trim();
     const schedule = timeRange ? parseCalendarEventSchedule(newDate, timeRange) : null;
+    if (adapter.source === 'live' && !timeRange) {
+      setFormError('Hãy nhập giờ bắt đầu và kết thúc cho sự kiện trên máy chủ.');
+      return;
+    }
     if (!newDate || (timeRange && !schedule)) {
       setFormError(timeRange ? 'Ngày hoặc khung giờ không hợp lệ. Hãy nhập giờ kết thúc sau giờ bắt đầu.' : 'Vui lòng chọn ngày sự kiện.');
       return;
@@ -221,6 +233,16 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
       setEditError('Vui lòng nhập tiêu đề sự kiện.');
       return;
     }
+    const schedule = editTimeRange.trim() ? parseCalendarEventSchedule(editDate, editTimeRange) : null;
+    const updateSchedule = adapter.source === 'live' ? (editScheduleChanged ? schedule : null) : schedule;
+    if (adapter.source === 'live' && (!selectedEvent.classId || (editScheduleChanged && !schedule))) {
+      setEditError('Hãy nhập ngày, giờ bắt đầu và kết thúc hợp lệ cho sự kiện trên máy chủ.');
+      return;
+    }
+    if (selectedEventSpansDays && editScheduleChanged) {
+      setEditError('Sự kiện kéo dài nhiều ngày; API hiện chưa hỗ trợ sửa riêng ngày kết thúc. Hãy chỉ sửa tiêu đề hoặc mô tả.');
+      return;
+    }
     setBusy(true);
     setEditError(null);
     try {
@@ -228,9 +250,10 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
         title: editTitle.trim(),
         date: editDate,
         timeRange: editTimeRange.trim() || undefined,
+        ...(updateSchedule ? { start: updateSchedule.start, end: updateSchedule.end } : {}),
         description: editDescription.trim() || undefined,
         location: editLocation.trim() || undefined,
-      });
+      }, selectedEvent.classId ?? params.classId);
       setLocalEvents(prev => (prev ?? events).map(ev => (ev.id === updated.id ? updated : ev)));
       setEditDialogOpen(false);
     } catch (err: unknown) {
@@ -245,7 +268,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
     setBusy(true);
     setDeleteError(null);
     try {
-      await adapter.calendar.deleteEvent(selectedEvent.id);
+      await adapter.calendar.deleteEvent(selectedEvent.id, selectedEvent.classId ?? params.classId);
       setLocalEvents(prev => (prev ?? events).filter(ev => ev.id !== selectedEvent.id));
       setSelectedEventId(null);
       setDeleteDialogOpen(false);
@@ -642,7 +665,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
               >
                 {assignedClasses.map(cls => (
                   <option key={cls.id} value={cls.id}>
-                    {cls.name} ({cls.code})
+                    {cls.name}{cls.code ? ` (${cls.code})` : ''}
                   </option>
                 ))}
               </select>
@@ -723,14 +746,17 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
             />
           </label>
 
+          {selectedEventSpansDays && <p className="notice">Sự kiện kéo dài nhiều ngày. Bạn có thể sửa tiêu đề và mô tả; ngày/giờ được giữ nguyên vì biểu mẫu chưa có ngày kết thúc.</p>}
+
           <label htmlFor="edit-date">
             Ngày diễn ra
             <input
               id="edit-date"
               type="date"
               required
+              disabled={busy || selectedEventSpansDays}
               value={editDate}
-              onChange={e => setEditDate(e.target.value)}
+              onChange={e => { setEditDate(e.target.value); setEditScheduleChanged(true); }}
             />
           </label>
 
@@ -738,8 +764,9 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
             Khung giờ
             <input
               id="edit-time"
+              disabled={busy || selectedEventSpansDays}
               value={editTimeRange}
-              onChange={e => setEditTimeRange(e.target.value)}
+              onChange={e => { setEditTimeRange(e.target.value); setEditScheduleChanged(true); }}
             />
           </label>
 
@@ -753,14 +780,14 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
             />
           </label>
 
-          <label htmlFor="edit-location">
+          {adapter.source === 'mock' && <label htmlFor="edit-location">
             Địa điểm
             <input
               id="edit-location"
               value={editLocation}
               onChange={e => setEditLocation(e.target.value)}
             />
-          </label>
+          </label>}
 
           <ErrorNotice message={editError} />
 

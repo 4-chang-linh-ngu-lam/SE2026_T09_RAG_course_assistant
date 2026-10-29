@@ -2,7 +2,7 @@ import type {ResourceSelectionMode} from './activity-selection';
 import type { ClassSummary, DataRequest, RouteParams } from './domain';
 import type { LearningEvidence } from './learning-evidence';
 // Frontend-only projections; these are not proposed Intelligence/Core wire DTOs.
-export type IntelligenceFilter = { asOf?: string; from?: string; resourceIds?: string[]; resourceSelectionMode?: ResourceSelectionMode };
+export type IntelligenceFilter = { asOf?: string; from?: string; resourceIds?: string[]; resourceSelectionMode?: ResourceSelectionMode; cursor?: string };
 export type TopicEvidence = { topic: string; count: number; independentResourceCount: number; conclusion: 'INSUFFICIENT_DATA' };
 export type TutorTopicAggregate = { topic: string; participantCount: number | null; suppressed: boolean; reason: string | null };
 export type TutorAggregateView = { available: boolean; minimumParticipants: number; totalParticipants: number | null; topics: TutorTopicAggregate[]; message: string };
@@ -21,7 +21,7 @@ export type IntelligencePage =
  | {kind:'student';classSummary:ClassSummary;studentId:string;studentName:string;asOf:string;from:string;limitedHistory:boolean;evidence:LearningEvidence[];topics:TopicEvidence[];availableActivities:ActivityOption[];selectedResourceIds:string[];resourceSelectionMode:ResourceSelectionMode}
  | {kind:'class';classSummary:ClassSummary;asOf:string;from:string;rosterCount:number;activities:ActivityAggregate[];availableActivities:ActivityOption[];selectedResourceIds:string[];resourceSelectionMode:ResourceSelectionMode;topics:TopicEvidence[];students:{id:string;name:string;officialResults:number;practiceAttempts:number}[];tutor:TutorAggregateView}
  | {kind:'requests';items:AdminDataRequest[];unavailableReason?:string}
- | {kind:'audit';items:IntelligenceAuditRecord[];unavailableReason?:string}
+ | {kind:'audit';items:IntelligenceAuditRecord[];nextCursor?:string|null;unavailableReason?:string}
  | {kind:'reports';classes:ClassSummary[];asOf:string;from:string;unavailableReason?:string}
  | {kind:'exports';jobs:ExportJob[]};
 export interface IntelligencePort {

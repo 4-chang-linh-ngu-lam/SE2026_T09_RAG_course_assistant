@@ -88,9 +88,9 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
               return (
                 <article key={cls.id} className="card class-card teacher-class-card">
                   <div className="class-card-top" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                    <span className="tag primary">{cls.code}</span>
+                    {cls.code && <span className="tag primary">{cls.code}</span>}
                     <span className={`badge ${isPrimary ? 'primary' : 'secondary'}`}>
-                      {isPrimary ? 'Giáo viên chính' : 'Giáo viên phối hợp'}
+                      {cls.teachingRole ? (isPrimary ? 'Giáo viên chính' : 'Giáo viên phối hợp') : 'Được phân công'}
                     </span>
                   {cls.status === 'ARCHIVED' && <span className="badge warning">Đã lưu trữ</span>}
                   </div>
@@ -169,15 +169,15 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
         <section className="teacher-section">
           <div className="section-header">
             <div>
-              <h2>Thảo luận gần đây từ học sinh</h2>
-              <p className="muted">Câu hỏi mới đăng cần giải đáp</p>
+              <h2>Bài viết gần đây trong lớp</h2>
+              <p className="muted">Bài viết mới trong các lớp đang được phân công</p>
             </div>
           </div>
 
           <div className="discussion-list">
             {discussions.length === 0 ? (
               <div className="card empty-card">
-                <p className="muted">Chưa có câu hỏi mới nào từ học sinh.</p>
+                <p className="muted">Chưa có bài viết gần đây trong các lớp đang phụ trách.</p>
               </div>
             ) : (
               discussions.map(disc => (
@@ -193,7 +193,7 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
                       className="link-button text-sm"
                       href={routeHref('t.feed', { classId: disc.classId }) ?? `/teacher/classes/${disc.classId}/feed`}
                     >
-                      Xem và trả lời <Icon name="chevronRight" />
+                      Mở bảng tin <Icon name="chevronRight" />
                     </Link>
                   </div>
                 </article>

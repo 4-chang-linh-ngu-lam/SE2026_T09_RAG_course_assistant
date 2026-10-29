@@ -49,18 +49,22 @@ Chỉ Admin cùng trường tạo môn/lớp hành chính/lớp môn học, phâ
 | Method | Endpoint | Quyền / Body → Kết quả |
 |---|---|---|
 | POST | /admin/courses | Admin; {code,name} → 201 course trong trường hiện hành |
+| GET | /admin/catalog | Admin cùng trường; `{courses,academic_years,semesters,homerooms,grades}`; roster chỉ trả số lượng, không kèm danh sách học sinh |
 | POST | /admin/homeroom-classes | Admin; {name,academic_year,grade_level:6..12} → 201 |
-| PUT | /admin/homeroom-classes/{id}/roster | Admin; {student_ids:UUID[]} thay roster, đồng bộ lớp AUTO, giữ lịch sử → 200 |
-| POST | /admin/homeroom-classes/{id}/students/{student_id}/transfer | Admin; {destination_homeroom_id} → 200; cùng năm/khối, đổi hai roster và sync AUTO trong một transaction |
-| POST | /admin/classes | Admin; {course_id,name,academic_year,semester,grade_level,homeroom_class_id?,enrollment_mode:AUTO/MANUAL,primary_lecturer_id} → 201 |
-| GET | /classes; /classes/{id}; /classes/{id}/members | Chỉ lớp cùng trường và còn quyền hiện hành; Admin xem trong phạm vi trường |
-| PUT | /admin/classes/{id}/teaching-assignments | Admin; {primary_lecturer_id,assisting_lecturer_ids:[]} → 200; giữ lịch sử PRIMARY/ASSISTING |
+| GET | /admin/homeroom-classes/{id}/roster | Admin cùng trường; `{homeroom_class_id,student_ids,roster_version}` |
+| PUT | /admin/homeroom-classes/{id}/roster | Admin; `{student_ids:UUID[],expected_roster_version?}` thay roster, đồng bộ lớp AUTO, giữ lịch sử; frontend live gửi version và stale trả 409; field tùy chọn để giữ tương thích caller cũ |
+| POST | /admin/homeroom-classes/{id}/students/{student_id}/transfer | Admin; `{destination_homeroom_id,expected_source_roster_version?,expected_destination_roster_version?}` → 200; cùng năm/khối, đổi hai roster và sync AUTO trong một transaction; frontend live gửi cả hai version, stale trả 409 |
+| POST | /admin/classes | Admin; `{course_id,name,academic_year,semester,grade_level,homeroom_class_id?,enrollment_mode:AUTO/MANUAL,primary_lecturer_id,assisting_lecturer_ids?}` → 201; kiểm tra mọi Lecturer cùng trường và tạo toàn bộ phân công trong transaction |
+| GET | /admin/classes/{id}/management | Admin cùng trường; lớp cùng phân công PRIMARY/ASSISTING hiện hành và membership hiện hành; không trả dữ liệu ngoài phạm vi |
+| GET | /classes; /classes/{id}; /classes/{id}/members | Chỉ lớp cùng trường và còn quyền hiện hành; Admin xem trong phạm vi trường. `ClassResponse.teaching_role` chỉ có PRIMARY/ASSISTING cho Lecturer được phân công hiện hành; Student/Admin nhận null. |
+| PUT | /admin/classes/{id}/teaching-assignments | Admin; `{primary_lecturer_id,assisting_lecturer_ids:[],expected_class_version?}` → 200; giữ lịch sử PRIMARY/ASSISTING; stale version 409 |
 | POST | /admin/classes/{id}/enrollment/preview | Admin; xem add/end và class_version/roster_version trước MANUAL→AUTO |
 | PATCH | /admin/classes/{id}/enrollment-mode | Admin; {mode,expected_class_version?,expected_roster_version?}; MANUAL→AUTO buộc version từ preview, stale trả 409 |
-| POST | /admin/classes/{id}/enrollment/sync | Admin; AUTO đồng bộ lại roster, không ghi đè lớp MANUAL |
+| POST | /admin/classes/{id}/enrollment/sync | Admin; `{expected_class_version,expected_roster_version}` từ preview → đồng bộ AUTO; stale 409. Body tùy chọn cho client cũ, frontend live gửi version |
 | POST/DELETE | /admin/classes/{id}/members[/{student_id}] | Admin; chỉ MANUAL, thêm/kết thúc membership, không xóa lịch sử |
+| PUT | /admin/classes/{id}/members | Admin; `{student_ids,expected_class_version}` thay roster MANUAL nguyên tử, giữ episode đã kết thúc; stale 409 |
 | POST | /admin/classes/{id}/members/{student_id}/transfer | Admin; {destination_class_id}; chuyển MANUAL cùng môn/năm/học kỳ trong một transaction |
-| POST | /admin/classes/{id}/archive; /admin/classes/{id}/restore | Chỉ Admin; archived chặn hoạt động chung mới, restore kiểm tra lại quyền hiện hành |
+| POST | /admin/classes/{id}/archive; /admin/classes/{id}/restore | Chỉ Admin; `{expected_class_version?}` chặn thao tác trên bản cũ; archived chặn hoạt động chung mới, restore kiểm tra lại quyền hiện hành |
 | GET | /internal/v1/classes/{id}/access?user_id=&action= | Service credential scope core:check_access → quyết định quyền theo action/trường/lớp/trạng thái hiện hành |
 
 Các mutation quản trị quan trọng yêu cầu `X-Admin-Reason` là một trong `ADMIN_INTERVENTION`, `POLICY_VIOLATION`, `USER_REQUEST`; audit chỉ lưu reason_code hợp lệ, không lưu nguyên văn tự do. Roster và membership dùng constraint, version và transaction để chống trùng/mất lịch sử; HTTP Idempotency-Key vẫn dùng RAM một process theo phần Auth, không bảo đảm replay response qua restart. Chuyển lớp hiện có mốc hiệu lực khi transaction ghi dữ liệu; Learning xử lý attempt/bài nộp dở theo hợp đồng riêng chưa triển khai. School row được tạo từ school_id đã gán cho Admin; hệ thống không tự mapping trường cho user legacy.
@@ -120,15 +124,18 @@ Consumer dedup theo SHA-256 của recipient + schema version + type + aggregate/
 ## Administration — IMPLEMENTED (TASK-013)
 | Method | Endpoint | Quyền / Body |
 |---|---|---|
-| POST | /admin/users | Admin; `{email,roles:[ADMIN/LECTURER]}` → 201 UserSummaryDTO; header `X-Token-Delivery-Status: DELIVERED/PENDING/NEEDS_REISSUE`; không trả token |
+| GET | /admin/users | Admin cùng trường; `user_id?,account_type?(STUDENT/STAFF),role?,status?,search?,username_missing?,limit,cursor` → Page[AdminUserListItem]; hỗ trợ tra cứu một tài khoản/nhóm để phân trang server-side; chỉ email/username/display_name/status/roles/revision/timestamp và trạng thái delivery, không có credential/token/hash |
+| POST | /admin/users | Admin; `{email,roles:[ADMIN/LECTURER],display_name?}` → 201 UserSummaryDTO; header `X-Token-Delivery-Status: DELIVERED/PENDING/NEEDS_REISSUE`; không trả token |
+| PATCH | /admin/users/{id} | Admin cùng trường; `{expected_revision,roles?,status?}` atomically cập nhật các trường đã gửi, revoke phiên một lần và ghi một audit; stale revision trả 409 |
 | POST | /admin/users/{id}/invitation/reissue | Admin cùng trường; chỉ invitation staff PENDING; vô hiệu invitation token cũ, tạo token mới và thử gửi; header `X-Token-Delivery-Status: DELIVERED/PENDING/NEEDS_REISSUE`; hỗ trợ Idempotency-Key |
 | PATCH | /admin/users/{id}/status | Admin cùng trường; `{status:ACTIVE/LOCKED}` → 204, revoke phiên + audit |
 | PUT | /admin/users/{id}/roles | Admin cùng trường; `{roles:[ADMIN/LECTURER/STUDENT]}` → UserSummaryDTO; danh sách không rỗng/trùng; revoke phiên khi đổi |
 | GET | /admin/audit-events | Admin; `limit,cursor,actor_id?,action?,since?,until?` → `{items,next_cursor}`, chỉ audit cùng trường, metadata allowlist |
 | GET/PATCH | /admin/data-requests/{id} | Admin cùng trường với chủ request; GET DataRequestResponse; PATCH body theo quy trình bên dưới |
 | GET | /admin/data-requests | Admin; `limit,cursor` → Page[DataRequestResponse], cùng trường |
-| POST | /admin/students/imports/preview | Admin; `{format:CSV/XLSX,content_base64,homeroom_class_id?}` → `{valid,preview_id?,expires_at?,items,errors}` |
+| POST | /admin/students/imports/preview | Admin; `{format:CSV/XLSX,content_base64,homeroom_class_id?,username_header?,display_name_header?,user_id_header?}` → `{valid,preview_id?,expires_at?,items,errors}`. Header mapping selects input columns; unselected cells are ignored and never returned. `user_id_header` is not inferred unless explicitly selected; an explicitly selected header missing from the file returns 422 |
 | POST | /admin/students/imports/confirm | Admin đã tạo preview; `{preview_id}` → `{preview_id,status:COMPLETED,replayed,items}` |
+| GET | /admin/students/imports/{preview_id} | Cùng Admin tạo preview + cùng trường; trả PREVIEW/COMPLETED/EXPIRED và trạng thái dòng để đối chiếu timeout; không trả mã kích hoạt |
 
 Mọi route trên dùng Bearer với role/status hiện hành. Ngoài role ADMIN, Identity public kiểm tra actor ACTIVE, email đã xác minh và school scope trong DB; thiếu scope/khác trường trả 404, Student/Lecturer trả 403, token đã revoke/LOCKED trả 401. Response có `Cache-Control: no-store`. POST user, invitation reissue, PATCH status, PUT roles, PATCH data request và confirm import bắt buộc `X-Admin-Reason` thuộc `ADMIN_INTERVENTION`, `POLICY_VIOLATION`, `USER_REQUEST`; thiếu header 422, giá trị lạ 400. Không nhận lý do tự do trong body/header. Audit chỉ lưu code đã kiểm tra và trường cấu trúc, không chép nguyên input.
 

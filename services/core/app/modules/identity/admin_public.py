@@ -8,7 +8,7 @@ import json
 from contextlib import contextmanager, nullcontext
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.common.audit import AuditMetadata, record_audit
@@ -18,6 +18,8 @@ from app.common.errors import AppError
 from app.common.pagination import Page, Pagination, encode_cursor
 from app.modules.identity.admin_schemas import (
     AdminReason,
+    AdminUserListItem,
+    AdminUserUpdateCommand,
     DataResolutionCommand,
     RoleUpdateCommand,
     StudentImportCheck,
@@ -25,10 +27,14 @@ from app.modules.identity.admin_schemas import (
 )
 from app.modules.identity.admin_security import ensure_other_admin, lock_admin_changes
 from app.modules.identity.models import (
+    CredentialDelivery,
     DataRequest,
     DataRequestStatus,
+    OneTimeToken,
     Role,
     RoleAssignment,
+    TokenPurpose,
+    User,
     UserStatus,
 )
 from app.modules.identity.repository import IdentityRepository
@@ -77,6 +83,232 @@ def admin_actor(
             status=str(user.status),
             session_version=user.session_version,
         )
+
+
+def admin_list_users(
+    pagination: Pagination,
+    *,
+    actor_id: UUID,
+    user_id: UUID | None = None,
+    account_type: str | None = None,
+    role: str | None = None,
+    status: str | None = None,
+    search: str | None = None,
+    username_missing: bool = False,
+    session: Session | None = None,
+) -> Page[AdminUserListItem]:
+    with _scope(session) as db:
+        actor = _actor(db, actor_id)
+        query = select(User).where(User.school_id == actor.school_id)
+        if user_id is not None:
+            query = query.where(User.id == user_id)
+        if account_type is not None:
+            if account_type == "STUDENT":
+                account_roles = [Role.STUDENT]
+            elif account_type == "STAFF":
+                account_roles = [Role.ADMIN, Role.LECTURER]
+            else:
+                raise AppError(422, "Unknown account type")
+            query = query.where(
+                exists(
+                    select(RoleAssignment.id).where(
+                        RoleAssignment.user_id == User.id,
+                        RoleAssignment.role.in_(account_roles),
+                    )
+                )
+            )
+        if username_missing:
+            query = query.where(User.username.is_(None))
+        if role is not None:
+            try:
+                selected_role = Role(role)
+            except ValueError:
+                raise AppError(422, "Unknown account role") from None
+            query = query.where(
+                exists(
+                    select(RoleAssignment.id).where(
+                        RoleAssignment.user_id == User.id,
+                        RoleAssignment.role == selected_role,
+                    )
+                )
+            )
+        if status is not None:
+            try:
+                selected_status = UserStatus(status)
+            except ValueError:
+                raise AppError(422, "Unknown account status") from None
+            query = query.where(User.status == selected_status)
+        if search:
+            value = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            if value:
+                pattern = f"%{value}%"
+                query = query.where(
+                    or_(
+                        User.email.ilike(pattern, escape="\\"),
+                        User.username.ilike(pattern, escape="\\"),
+                        User.display_name.ilike(pattern, escape="\\"),
+                    )
+                )
+        if pagination.cursor is not None:
+            query = query.where(User.id > pagination.cursor)
+        rows = list(db.scalars(query.order_by(User.id).limit(pagination.limit + 1)))
+        users = rows[: pagination.limit]
+        user_ids = [user.id for user in users]
+        role_rows = (
+            db.execute(
+                select(RoleAssignment.user_id, RoleAssignment.role).where(
+                    RoleAssignment.user_id.in_(user_ids)
+                )
+            ).all()
+            if user_ids
+            else []
+        )
+        roles_by_user: dict[UUID, list[str]] = {}
+        for role_user_id, assigned_role in role_rows:
+            roles_by_user.setdefault(role_user_id, []).append(str(assigned_role))
+        active_admin_count = (
+            db.scalar(
+                select(func.count(User.id))
+                .join(RoleAssignment, RoleAssignment.user_id == User.id)
+                .where(
+                    User.school_id == actor.school_id,
+                    User.status == UserStatus.ACTIVE,
+                    User.email_verified_at.is_not(None),
+                    RoleAssignment.role == Role.ADMIN,
+                )
+            )
+            or 0
+        )
+        invitation_rows = (
+            db.execute(
+                select(
+                    OneTimeToken.user_id,
+                    OneTimeToken.expires_at,
+                    CredentialDelivery.status,
+                )
+                .join(CredentialDelivery, CredentialDelivery.token_id == OneTimeToken.id)
+                .where(
+                    OneTimeToken.user_id.in_(user_ids),
+                    OneTimeToken.purpose == TokenPurpose.ADMIN_INVITATION,
+                    OneTimeToken.consumed_at.is_(None),
+                )
+                .order_by(OneTimeToken.created_at.desc())
+            ).all()
+            if user_ids
+            else []
+        )
+        invitations = {}
+        for invitation_user_id, expires_at, delivery_status in invitation_rows:
+            invitations.setdefault(invitation_user_id, (expires_at, delivery_status))
+        items = []
+        for user in users:
+            assigned = roles_by_user.get(user.id, [])
+            expires_at, delivery_status = invitations.get(user.id, (None, None))
+            items.append(
+                AdminUserListItem(
+                    id=user.id,
+                    email=user.email,
+                    username=user.username,
+                    school_id=user.school_id,
+                    display_name=user.display_name,
+                    status=str(user.status),
+                    roles=assigned,
+                    revision=user.session_version,
+                    created_at=user.created_at,
+                    email_verified=user.email_verified_at is not None,
+                    activation_required=(
+                        user.status == UserStatus.PENDING_VERIFICATION
+                        and Role.STUDENT in {Role(value) for value in assigned}
+                    ),
+                    last_admin=(
+                        Role.ADMIN.value in assigned
+                        and user.status == UserStatus.ACTIVE
+                        and user.email_verified_at is not None
+                        and active_admin_count == 1
+                    ),
+                    invitation_expires_at=expires_at,
+                    invitation_delivery_status=delivery_status,
+                )
+            )
+        return Page[AdminUserListItem](
+            items=items,
+            next_cursor=encode_cursor(users[-1].id) if len(rows) > pagination.limit else None,
+        )
+
+
+def admin_update_account(
+    user_id: UUID,
+    command: AdminUserUpdateCommand,
+    *,
+    actor_id: UUID,
+    correlation_id: UUID,
+    reason_code: AdminReason,
+    session: Session | None = None,
+) -> UserSummaryDTO:
+    with _scope(session, write=True) as db, db.begin_nested():
+        lock_admin_changes(db)
+        repository = IdentityRepository(db)
+        users = repository.lock_users([actor_id, user_id])
+        actor, user = users.get(actor_id), users.get(user_id)
+        service = IdentityService(db)
+        service._require_admin(actor)
+        if user is None:
+            raise AppError(404)
+        require_school_scope(actor.school_id, user.school_id)
+        if user.session_version != command.expected_revision:
+            raise AppError(409, "Account changed; reload before updating")
+
+        current_roles = set(repository.get_user_roles(user.id))
+        desired_roles = (
+            {Role(role) for role in command.roles} if command.roles is not None else current_roles
+        )
+        desired_status = UserStatus(command.status) if command.status is not None else user.status
+        roles_changed = desired_roles != current_roles
+        status_changed = desired_status != user.status
+        if status_changed and desired_status == UserStatus.PENDING_VERIFICATION:
+            raise AppError(409, "An account cannot return to pending verification")
+
+        if (
+            (roles_changed or status_changed)
+            and Role.ADMIN in current_roles
+            and (Role.ADMIN not in desired_roles or desired_status == UserStatus.LOCKED)
+        ):
+            ensure_other_admin(db, user.id)
+        if roles_changed:
+            if desired_roles & {Role.ADMIN, Role.LECTURER} and user.email is None:
+                raise AppError(409, "Staff roles require staff credentials")
+            if desired_roles == {Role.STUDENT} and user.username is None:
+                raise AppError(409, "Student credential migration required")
+            db.execute(delete(RoleAssignment).where(RoleAssignment.user_id == user.id))
+            db.add_all(RoleAssignment(user_id=user.id, role=role) for role in desired_roles)
+            db.flush()
+        if desired_status == UserStatus.ACTIVE and not service._credentials_ready(user):
+            raise AppError(409, "Account activation required")
+        if status_changed:
+            service._apply_status(user, desired_status)
+        elif roles_changed:
+            service._revoke_all(user)
+        changed_fields = []
+        if roles_changed:
+            changed_fields.append("roles")
+        if status_changed:
+            changed_fields.append("status")
+        if changed_fields:
+            record_audit(
+                db,
+                actor_id=actor_id,
+                school_id=actor.school_id,
+                action="ADMIN_UPDATE_USER",
+                target_type="USER",
+                target_id=user.id,
+                correlation_id=correlation_id,
+                metadata_json=AuditMetadata(
+                    changed_fields=changed_fields,
+                    new_status=user.status.value,
+                    reason_code=reason_code,
+                ),
+            )
+        return IdentityService._summary(user)
 
 
 def admin_update_user_roles(

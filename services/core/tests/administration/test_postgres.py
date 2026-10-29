@@ -140,6 +140,55 @@ def test_staff_invitation_failure_stays_pending_and_admin_reissue_rotates_token(
     )
 
 
+def test_admin_user_list_is_school_scoped_searchable_and_redacts_credentials(system):
+    response = system.client.get("/api/v1/admin/users?limit=100", headers=system.headers())
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    rows = response.json()["items"]
+    listed_ids = {row["id"] for row in rows}
+    assert listed_ids == {
+        str(system.users[name].id) for name in ("admin", "admin2", "teacher", "student")
+    }
+    assert all(row["school_id"] == str(system.school_id) for row in rows)
+    assert all("password_hash" not in row and "token_hash" not in row for row in rows)
+    assert all("session_version" not in row and "revision" in row for row in rows)
+    assert next(row for row in rows if row["display_name"] == "student")["roles"] == ["STUDENT"]
+    assert (
+        next(row for row in rows if row["display_name"] == "student")["activation_required"]
+        is False
+    )
+
+    filtered = system.client.get(
+        "/api/v1/admin/users?role=LECTURER&search=teacher", headers=system.headers()
+    )
+    assert filtered.status_code == 200
+    assert [row["display_name"] for row in filtered.json()["items"]] == ["teacher"]
+    teacher = filtered.json()["items"][0]
+    updated = system.client.patch(
+        f"/api/v1/admin/users/{teacher['id']}",
+        json={
+            "expected_revision": teacher["revision"],
+            "roles": ["ADMIN", "LECTURER"],
+            "status": "LOCKED",
+        },
+        headers=system.headers(),
+    )
+    assert updated.status_code == 200 and updated.json()["status"] == "LOCKED"
+    stale = system.client.patch(
+        f"/api/v1/admin/users/{teacher['id']}",
+        json={"expected_revision": teacher["revision"], "status": "ACTIVE"},
+        headers=system.headers(),
+    )
+    assert stale.status_code == 409
+
+    first = system.client.get("/api/v1/admin/users?limit=2", headers=system.headers()).json()
+    second = system.client.get(
+        f"/api/v1/admin/users?limit=2&cursor={first['next_cursor']}", headers=system.headers()
+    ).json()
+    assert len(first["items"]) == len(second["items"]) == 2
+    assert not ({row["id"] for row in first["items"]} & {row["id"] for row in second["items"]})
+
+
 def test_lock_revokes_access_refresh_and_unlock_does_not_bypass_activation(system):
     teacher = system.users["teacher"]
     old_headers = system.headers("teacher")
@@ -253,6 +302,28 @@ def test_cross_school_and_null_scope_are_hidden_and_current_role_is_authoritativ
         )
         db.add(RoleAssignment(user_id=system.users["admin2"].id, role=Role.LECTURER))
     assert system.client.get("/api/v1/admin/audit-events", headers=old).status_code == 403
+
+
+def test_user_list_marks_only_the_active_last_admin(system):
+    with system.factory.begin() as db:
+        db.get(User, system.users["admin2"].id).status = UserStatus.LOCKED
+    response = system.client.get("/api/v1/admin/users", headers=system.headers())
+    assert response.status_code == 200, response.text
+    accounts = {item["id"]: item for item in response.json()["items"]}
+    assert accounts[str(system.users["admin"].id)]["last_admin"] is True
+    assert accounts[str(system.users["admin2"].id)]["last_admin"] is False
+    students = system.client.get(
+        "/api/v1/admin/users?account_type=STUDENT&limit=100", headers=system.headers()
+    )
+    assert students.status_code == 200
+    assert {row["id"] for row in students.json()["items"]} == {
+        str(system.users["student"].id),
+    }
+    detail = system.client.get(
+        f"/api/v1/admin/users?user_id={system.users['admin2'].id}", headers=system.headers()
+    )
+    assert detail.status_code == 200
+    assert [row["id"] for row in detail.json()["items"]] == [str(system.users["admin2"].id)]
 
 
 @pytest.mark.parametrize("operation", ["roles", "status"])
@@ -370,7 +441,11 @@ def test_import_legacy_assign_preserves_identity_credentials_and_lock(system):
         )
         db.flush()
         db.add(RoleAssignment(user_id=id, role=Role.STUDENT))
-    draft = preview(system, f"username,user_id\nlegacy.student,{id}\n")
+    draft = preview(
+        system,
+        f"username,user_id\nlegacy.student,{id}\n",
+        user_id_header="user_id",
+    )
     assert draft["items"][0]["action"] == "ASSIGN_USERNAME"
     result = confirm(system, draft["preview_id"])
     assert result.status_code == 200, result.text
@@ -461,6 +536,41 @@ def test_concurrent_confirm_only_one_response_has_codes(system):
     assert sum(result.items[0].code is not None for result in results) == 1
 
 
+def test_import_status_and_confirm_share_batch_then_actor_lock_order(system):
+    draft = preview(system)
+    barrier = Barrier(2)
+
+    def read_status(_):
+        with system.factory() as session:
+            barrier.wait(timeout=10)
+            return (
+                AdministrationService(session, uuid4())
+                .import_status(system.users["admin"].id, UUID(draft["preview_id"]))
+                .status
+            )
+
+    def confirm_batch(_):
+        with system.factory() as session:
+            barrier.wait(timeout=10)
+            return AdministrationService(session, uuid4()).confirm_students(
+                system.users["admin"].id, UUID(draft["preview_id"]), "ADMIN_INTERVENTION"
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        status_future = pool.submit(read_status, None)
+        confirm_future = pool.submit(confirm_batch, None)
+        status = status_future.result(timeout=30)
+        result = confirm_future.result(timeout=30)
+    assert status in ("PREVIEW", "COMPLETED")
+    assert result.status == "COMPLETED"
+    assert (
+        AdministrationService(system.session, uuid4())
+        .import_status(system.users["admin"].id, UUID(draft["preview_id"]))
+        .status
+        == "COMPLETED"
+    )
+
+
 def test_xlsx_http_preview_confirm(system):
     workbook = Workbook()
     workbook.active.append(["username", "display_name"])
@@ -474,11 +584,22 @@ def test_xlsx_http_preview_confirm(system):
         headers=system.headers(),
     )
     assert response.status_code == 200 and response.json()["valid"]
-    result = confirm(system, response.json()["preview_id"])
+    preview_id = response.json()["preview_id"]
+    status = system.client.get(
+        f"/api/v1/admin/students/imports/{preview_id}", headers=system.headers()
+    )
+    assert status.status_code == 200 and status.json()["status"] == "PREVIEW"
+    result = confirm(system, preview_id)
     assert (
         result.status_code == 200
         and result.json()["items"][0]["student"]["username"] == "excel.student"
     )
+    status = system.client.get(
+        f"/api/v1/admin/students/imports/{preview_id}", headers=system.headers()
+    )
+    assert status.status_code == 200 and status.json()["status"] == "COMPLETED"
+    assert status.json()["items"][0]["outcome"] == "CREATED"
+    assert "code" not in status.json()["items"][0]
 
 
 def test_import_auto_enrollment_outbox_failure_rolls_back_every_owner(system, monkeypatch):

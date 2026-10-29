@@ -2,8 +2,17 @@ import type { ImportCell, ImportFile } from '@/lib/accounts';
 
 export class ImportFileError extends Error {}
 
+function base64FromBytes(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+  }
+  return btoa(binary);
+}
+
 // Parses RFC4180-style fields while retaining each source row's first physical line.
-export function parseCsv(text: string, filename: string): ImportFile {
+export function parseCsv(text: string, filename: string, contentBase64?: string): ImportFile {
   const source = text.replace(/^\uFEFF/u, '');
   const parsed: { rowNumber: number; cells: string[] }[] = [];
   let cells: string[] = [], field = '', quoted = false, closed = false;
@@ -25,10 +34,10 @@ export function parseCsv(text: string, filename: string): ImportFile {
   }
   if (quoted) throw new ImportFileError(`Chưa đóng dấu nháy ở dòng ${rowStart}.`);
   if (field || cells.length || closed) { finishField(); if (cells.some(cell => cell.trim())) parsed.push({ rowNumber: rowStart, cells }); }
-  return fromRows(parsed, filename);
+  return fromRows(parsed, filename, 'CSV', contentBase64 ?? base64FromBytes(new TextEncoder().encode(text).buffer));
 }
 
-export function fromRows(rows: { rowNumber: number; cells: ImportCell[] }[], filename: string): ImportFile {
+export function fromRows(rows: { rowNumber: number; cells: ImportCell[] }[], filename: string, format: 'CSV' | 'XLSX' = 'CSV', contentBase64?: string): ImportFile {
   const populated = rows.filter(row => row.cells.some(cell => cell !== null && String(cell).trim()));
   const first = populated[0];
   if (!first || !populated.slice(1).length) throw new ImportFileError('Tệp cần có một dòng tiêu đề và ít nhất một dòng học sinh.');
@@ -36,25 +45,27 @@ export function fromRows(rows: { rowNumber: number; cells: ImportCell[] }[], fil
   const headers = first.cells.map(cell => String(cell).trim());
   if (new Set(headers.map(header => header.toLowerCase())).size !== headers.length) throw new ImportFileError('Tên cột tiêu đề bị trùng.');
   if (populated.slice(1).some(row => row.cells.length > headers.length)) throw new ImportFileError('Có dòng nhiều ô hơn số cột tiêu đề. Hãy kiểm tra dấu phẩy hoặc tệp nguồn.');
-  return { filename, headers, rows: populated.slice(1).map(row => ({ rowNumber: row.rowNumber, cells: [...row.cells] })) };
+  return { filename, format, headers, rows: populated.slice(1).map(row => ({ rowNumber: row.rowNumber, cells: [...row.cells] })), contentBase64 };
 }
 
 export function normalizeImportCells(cells: readonly unknown[]): ImportCell[] { return cells.map(cell => { if (cell === null || typeof cell === 'string' || typeof cell === 'number' || typeof cell === 'boolean' || cell instanceof Date) return cell; throw new ImportFileError('Bảng tính có ô không đọc được. Hãy lưu lại tệp XLSX và kiểm tra nội dung.'); }); }
 
 export async function readImportFile(file: File): Promise<ImportFile> {
   if (!file.size) throw new ImportFileError('Tệp đã chọn đang rỗng.');
+  if (file.size > 2_000_000) throw new ImportFileError('Tệp vượt quá giới hạn 2 MB. Hãy chia danh sách thành các tệp nhỏ hơn.');
   const extension = file.name.split('.').pop()?.toLowerCase();
   if (extension === 'csv') {
+    const bytes = await file.arrayBuffer();
     let text: string;
-    try { text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()); }
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
     catch { throw new ImportFileError('Không đọc được mã hóa tệp. Hãy lưu CSV bằng UTF-8 và chọn lại.'); }
-    return parseCsv(text, file.name);
+    return parseCsv(text, file.name, base64FromBytes(bytes));
   }
   if (extension === 'xlsx') {
     try {
       const { readSheet } = await import('read-excel-file/browser');
       const rows = await readSheet(file);
-      return fromRows(rows.map((cells, index) => ({ rowNumber: index + 1, cells: normalizeImportCells(cells) })), file.name);
+      return fromRows(rows.map((cells, index) => ({ rowNumber: index + 1, cells: normalizeImportCells(cells) })), file.name, 'XLSX', base64FromBytes(await file.arrayBuffer()));
     } catch (error) {
       if (error instanceof ImportFileError) throw error;
       throw new ImportFileError('Không đọc được bảng tính. Hãy kiểm tra đây là tệp XLSX hợp lệ, không có mật khẩu.');

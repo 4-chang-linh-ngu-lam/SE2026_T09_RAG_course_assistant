@@ -165,6 +165,17 @@ class UserSummaryDTO(BaseModel):
 
 class AdminCreateUserRequest(EmailRequest):
     roles: list[Role] = Field(min_length=1, max_length=3)
+    display_name: str | None = Field(default=None, min_length=1, max_length=200)
+
+    @field_validator("display_name")
+    @classmethod
+    def normalize_display_name(cls, value):
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("Display name cannot be blank")
+        return value
 
     @field_validator("roles")
     @classmethod

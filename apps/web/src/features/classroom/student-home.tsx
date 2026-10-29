@@ -67,7 +67,7 @@ export function StudentHomeFeature({ route: _route, data, reload }: Props) {
             {activeClasses.map(cls => (
               <article key={cls.id} className="card class-card student-class-card">
                 <div className="class-card-top">
-                  <span className="tag primary">{cls.code}</span>
+                  {cls.code && <span className="tag primary">{cls.code}</span>}
                   {typeof cls.studentCount === 'number' && (
                     <span className="muted small">{cls.studentCount} học sinh</span>
                   )}
@@ -105,7 +105,7 @@ export function StudentHomeFeature({ route: _route, data, reload }: Props) {
           <div className="task-list">
             {upcomingTasks.length === 0 ? (
               <div className="card empty-card">
-                <p className="muted">Không có nhiệm vụ nào cần hoàn thành ngay.</p>
+                <p className="muted">{data.pendingCapabilities?.includes('Learning') ? 'Bài tập và kết quả sẽ xuất hiện khi dịch vụ học tập được kết nối.' : 'Không có nhiệm vụ nào cần hoàn thành ngay.'}</p>
               </div>
             ) : (
               upcomingTasks.map(task => (
@@ -145,7 +145,7 @@ export function StudentHomeFeature({ route: _route, data, reload }: Props) {
             <div className="study-list">
               {recentStudies.length === 0 ? (
                 <div className="card empty-card">
-                  <p className="muted">Chưa có hoạt động học tập nào được ghi nhận.</p>
+                  <p className="muted">{data.pendingCapabilities?.includes('Learning') ? 'Tiến độ học tập chưa được kết nối với dịch vụ Learning.' : 'Chưa có hoạt động học tập nào được ghi nhận.'}</p>
                 </div>
               ) : (
                 recentStudies.map(study => (

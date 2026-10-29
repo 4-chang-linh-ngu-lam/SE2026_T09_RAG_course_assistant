@@ -26,7 +26,10 @@ from app.modules.classroom.permissions import require_admin, require_class_read
 from app.modules.classroom.public import get_notification_audience
 from app.modules.classroom.repository import ClassroomRepository
 from app.modules.classroom.schemas import (
+    AcademicYearResponse,
+    AdminCatalogResponse,
     ClassCreateRequest,
+    ClassManagementResponse,
     ClassResponse,
     CourseCreateRequest,
     CourseResponse,
@@ -36,6 +39,7 @@ from app.modules.classroom.schemas import (
     HomeroomResponse,
     MembershipResponse,
     RosterResponse,
+    SemesterResponse,
     TeachingAssignmentResponse,
     TeachingAssignmentsRequest,
 )
@@ -173,6 +177,49 @@ class ClassroomService:
         except IntegrityError as exc:
             raise AppError(409, "Course code already exists") from exc
 
+    def admin_catalog(self, actor: CurrentUser) -> AdminCatalogResponse:
+        school_id = require_admin(actor)
+        repository = self.repository
+        courses = repository.list_courses(school_id)
+        years = repository.list_academic_years(school_id)
+        semesters = repository.list_semesters(school_id)
+        homerooms = repository.list_homerooms(school_id)
+        counts = repository.active_roster_counts([room.id for room in homerooms])
+        return AdminCatalogResponse(
+            courses=[CourseResponse.model_validate(row) for row in courses],
+            academic_years=[AcademicYearResponse.model_validate(row) for row in years],
+            semesters=[SemesterResponse.model_validate(row) for row in semesters],
+            homerooms=[
+                HomeroomResponse.model_validate(room).model_copy(
+                    update={"student_count": counts.get(room.id, 0)}
+                )
+                for room in homerooms
+            ],
+            grades=list(range(6, 13)),
+        )
+
+    def admin_roster(self, homeroom_id: UUID, actor: CurrentUser) -> RosterResponse:
+        room = self._homeroom_for_admin(homeroom_id, actor)
+        return RosterResponse(
+            homeroom_class_id=room.id,
+            student_ids=sorted(row.student_id for row in self.repository.active_roster(room.id)),
+            roster_version=room.roster_version,
+        )
+
+    def admin_class_management(self, class_id: UUID, actor: CurrentUser) -> ClassManagementResponse:
+        klass = self._class_for_admin(class_id, actor)
+        return ClassManagementResponse(
+            subject_class=ClassResponse.model_validate(klass),
+            teaching_assignments=[
+                TeachingAssignmentResponse.model_validate(row)
+                for row in self.repository.active_teachers(klass.id)
+            ],
+            members=[
+                MembershipResponse.model_validate(row)
+                for row in self.repository.active_memberships(klass.id)
+            ],
+        )
+
     def create_homeroom(
         self, actor: CurrentUser, request: HomeroomCreateRequest, *, commit: bool = True
     ) -> HomeroomResponse:
@@ -197,10 +244,21 @@ class ClassroomService:
             raise AppError(409, "Homeroom already exists") from exc
 
     def set_roster(
-        self, actor: CurrentUser, homeroom_id: UUID, student_ids: list[UUID], *, commit: bool = True
+        self,
+        actor: CurrentUser,
+        homeroom_id: UUID,
+        student_ids: list[UUID],
+        *,
+        expected_roster_version: int | None = None,
+        commit: bool = True,
     ) -> RosterResponse:
         with transaction(self.session) if commit else nullcontext(self.session):
             homeroom = self._homeroom_for_admin(homeroom_id, actor, for_update=True)
+            if (
+                expected_roster_version is not None
+                and homeroom.roster_version != expected_roster_version
+            ):
+                raise AppError(409, "Roster changed; preview the change again")
             for student_id in sorted(student_ids):
                 self._student(student_id, homeroom.school_id)
             existing = {row.student_id: row for row in self.repository.active_roster(homeroom_id)}
@@ -233,6 +291,9 @@ class ClassroomService:
         destination_id: UUID,
         student_id: UUID,
         actor: CurrentUser,
+        *,
+        expected_source_roster_version: int | None = None,
+        expected_destination_roster_version: int | None = None,
     ) -> RosterResponse:
         if source_id == destination_id:
             raise AppError(400, "Select a different destination homeroom")
@@ -242,6 +303,14 @@ class ClassroomService:
                 for homeroom_id in sorted([source_id, destination_id])
             }
             source, destination = homerooms[source_id], homerooms[destination_id]
+            if (
+                expected_source_roster_version is not None
+                and source.roster_version != expected_source_roster_version
+            ) or (
+                expected_destination_roster_version is not None
+                and destination.roster_version != expected_destination_roster_version
+            ):
+                raise AppError(409, "Roster changed; preview the transfer again")
             if (
                 source.academic_year_id != destination.academic_year_id
                 or source.grade_level != destination.grade_level
@@ -314,6 +383,8 @@ class ClassroomService:
                         raise AppError(400, "Homeroom must match year and grade")
                 if request.enrollment_mode == EnrollmentMode.AUTO and homeroom is None:
                     raise AppError(400, "AUTO enrollment requires a homeroom")
+                for lecturer_id in sorted(request.assisting_lecturer_ids):
+                    self._lecturer(lecturer_id, school_id)
                 klass = self.repository.add(
                     SubjectClass(
                         school_id=school_id,
@@ -334,6 +405,15 @@ class ClassroomService:
                         assigned_at=_now(),
                     )
                 )
+                for lecturer_id in request.assisting_lecturer_ids:
+                    self.repository.add(
+                        TeachingAssignment(
+                            class_id=klass.id,
+                            lecturer_id=lecturer_id,
+                            role=TeachingRole.ASSISTING,
+                            assigned_at=_now(),
+                        )
+                    )
                 if request.enrollment_mode == EnrollmentMode.AUTO:
                     self._sync_class(
                         klass,
@@ -355,12 +435,37 @@ class ClassroomService:
             limit=pagination.limit,
             cursor=pagination.cursor,
         )
-        return _page(rows, pagination.limit, ClassResponse)
+        items = rows[: pagination.limit]
+        teaching_roles = (
+            self.repository.active_teacher_roles([row.id for row in items], actor.id)
+            if "LECTURER" in actor.roles
+            else {}
+        )
+        return Page[ClassResponse](
+            items=[
+                self._class_response(row, teaching_role=teaching_roles.get(row.id)) for row in items
+            ],
+            next_cursor=encode_cursor(items[-1].id) if len(rows) > pagination.limit else None,
+        )
 
     def get_class(self, class_id: UUID, actor: CurrentUser) -> ClassResponse:
         require_class_read(self.session, class_id, actor)
         klass = self.repository.get_class(class_id)
-        return ClassResponse.model_validate(klass)
+        assignment = (
+            self.repository.active_teacher(class_id, actor.id)
+            if "LECTURER" in actor.roles
+            else None
+        )
+        return self._class_response(
+            klass, teaching_role=assignment.role if assignment is not None else None
+        )
+
+    @staticmethod
+    def _class_response(
+        klass: SubjectClass, *, teaching_role: TeachingRole | None = None
+    ) -> ClassResponse:
+        response = ClassResponse.model_validate(klass)
+        return response.model_copy(update={"teaching_role": teaching_role})
 
     def list_members(self, class_id: UUID, actor: CurrentUser) -> list[MembershipResponse]:
         require_class_read(self.session, class_id, actor)
@@ -380,6 +485,11 @@ class ClassroomService:
         with transaction(self.session) if commit else nullcontext(self.session):
             klass = self._class_for_admin(class_id, actor, for_update=True)
             self._active(klass)
+            if (
+                request.expected_class_version is not None
+                and klass.version != request.expected_class_version
+            ):
+                raise AppError(409, "Class changed; reload before updating teachers")
             desired = {request.primary_lecturer_id: TeachingRole.PRIMARY}
             desired.update(
                 {
@@ -482,13 +592,25 @@ class ClassroomService:
             self._event("CLASS_ENROLLMENT_MODE_CHANGED", class_id, version=klass.version)
             return ClassResponse.model_validate(klass)
 
-    def sync_enrollment(self, class_id: UUID, actor: CurrentUser) -> ClassResponse:
+    def sync_enrollment(
+        self,
+        class_id: UUID,
+        actor: CurrentUser,
+        *,
+        expected_class_version: int | None = None,
+        expected_roster_version: int | None = None,
+    ) -> ClassResponse:
         with transaction(self.session):
             klass = self._class_for_admin(class_id, actor, for_update=True)
             self._active(klass)
             if klass.enrollment_mode != EnrollmentMode.AUTO or klass.homeroom_class_id is None:
                 raise AppError(409, "Only AUTO classes can sync a roster")
             homeroom = self._homeroom_for_admin(klass.homeroom_class_id, actor)
+            if (expected_class_version is not None and klass.version != expected_class_version) or (
+                expected_roster_version is not None
+                and homeroom.roster_version != expected_roster_version
+            ):
+                raise AppError(409, "Class or roster changed; preview the sync again")
             target = {row.student_id for row in self.repository.active_roster(homeroom.id)}
             if self._sync_class(klass, target, bump_version=True):
                 self._audit(actor.id, "ADMIN_SYNC_ENROLLMENT", class_id)
@@ -518,6 +640,62 @@ class ClassroomService:
                 self._audit(actor.id, "ADMIN_ADD_STUDENT", class_id)
                 self._event("CLASS_ENROLLMENT_CHANGED", class_id, version=klass.version)
             return MembershipResponse.model_validate(member)
+
+    def set_manual_roster(
+        self,
+        class_id: UUID,
+        actor: CurrentUser,
+        student_ids: list[UUID],
+        *,
+        expected_class_version: int,
+    ) -> ClassManagementResponse:
+        with transaction(self.session):
+            klass = self._class_for_admin(class_id, actor, for_update=True)
+            self._active(klass)
+            if klass.version != expected_class_version:
+                raise AppError(409, "Class changed; preview the roster again")
+            if klass.enrollment_mode != EnrollmentMode.MANUAL:
+                raise AppError(409, "Only MANUAL classes accept a managed roster")
+            for student_id in sorted(student_ids):
+                self._student(student_id, klass.school_id)
+            current = {row.student_id: row for row in self.repository.active_memberships(class_id)}
+            target = set(student_ids)
+            added = target - set(current)
+            ended = set(current) - target
+            if added or ended:
+                now = _now()
+                for student_id in ended:
+                    current[student_id].status = MembershipStatus.ENDED
+                    current[student_id].ended_at = now
+                for student_id in added:
+                    self.repository.add(
+                        ClassMembership(
+                            class_id=class_id,
+                            student_id=student_id,
+                            source=EnrollmentMode.MANUAL,
+                            status=MembershipStatus.ACTIVE,
+                            joined_at=now,
+                        )
+                    )
+                klass.version += 1
+                self._audit(actor.id, "ADMIN_SET_MANUAL_ROSTER", class_id)
+                self._event(
+                    "CLASS_ENROLLMENT_CHANGED",
+                    class_id,
+                    version=klass.version,
+                    extra_recipients=ended,
+                )
+            return ClassManagementResponse(
+                subject_class=self._class_response(klass),
+                teaching_assignments=[
+                    TeachingAssignmentResponse.model_validate(row)
+                    for row in self.repository.active_teachers(class_id)
+                ],
+                members=[
+                    MembershipResponse.model_validate(row)
+                    for row in self.repository.active_memberships(class_id)
+                ],
+            )
 
     def end_member(self, class_id: UUID, actor: CurrentUser, student_id: UUID) -> None:
         with transaction(self.session):
@@ -598,9 +776,18 @@ class ClassroomService:
             )
             return MembershipResponse.model_validate(new)
 
-    def set_archived(self, class_id: UUID, actor: CurrentUser, *, archived: bool) -> ClassResponse:
+    def set_archived(
+        self,
+        class_id: UUID,
+        actor: CurrentUser,
+        *,
+        archived: bool,
+        expected_class_version: int | None = None,
+    ) -> ClassResponse:
         with transaction(self.session):
             klass = self._class_for_admin(class_id, actor, for_update=True)
+            if expected_class_version is not None and klass.version != expected_class_version:
+                raise AppError(409, "Class changed; reload before changing its status")
             target = ClassStatus.ARCHIVED if archived else ClassStatus.ACTIVE
             if klass.status != target:
                 klass.status = target

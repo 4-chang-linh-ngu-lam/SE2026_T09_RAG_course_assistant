@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCalendarEventSchedule } from '../src/lib/calendar';
+import { parseCalendarEventSchedule, spansMultipleLocalDays } from '../src/lib/calendar';
 
 test('calendar event timestamps follow the entered date and time range', () => {
   const schedule = parseCalendarEventSchedule('2026-10-25', '14:00 – 15:30');
@@ -21,4 +21,10 @@ test('calendar event schedule rejects malformed, invalid, and reversed ranges', 
   assert.equal(parseCalendarEventSchedule('2026-10-25', '24:00 – 25:00'), null);
   assert.equal(parseCalendarEventSchedule('2026-10-25', '14:00 – 13:00'), null);
   assert.equal(parseCalendarEventSchedule('2026-10-25', 'after lunch'), null);
+});
+
+test('multi-day calendar events are distinguished from same-day schedules', () => {
+  assert.equal(spansMultipleLocalDays('2026-10-29T09:00:00+07:00', '2026-10-30T10:00:00+07:00'), true);
+  assert.equal(spansMultipleLocalDays('2026-10-29T09:00:00+07:00', '2026-10-29T10:00:00+07:00'), false);
+  assert.equal(spansMultipleLocalDays('invalid', 'invalid'), false);
 });
