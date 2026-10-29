@@ -144,7 +144,6 @@ export function createNotificationReadController(deps: NotificationReadDependenc
       else await deps.markAll();
       if (!current()) return 'ignored';
       for (const id of ids) acknowledged.add(id);
-      if (target.kind === 'one' && serverUnreadCount !== undefined) serverUnreadCount = Math.max(0, serverUnreadCount - 1);
       if (target.kind === 'all' && serverUnreadCount !== undefined) serverUnreadCount = 0;
       busy = false;
       emit();

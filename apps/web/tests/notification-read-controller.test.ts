@@ -80,6 +80,17 @@ test('server unread count is preserved when unread notifications are outside the
   assert.equal(h.controller.getState().unreadCount, 0);
 });
 
+test('marking one visible item subtracts it only once from the server total', async () => {
+  const h = harness();
+  h.controller.receiveSnapshot([item('one'), item('read', true)], undefined, 3);
+  const pending = h.controller.markOne('one');
+  h.gate().resolve();
+  assert.equal(await pending, 'confirmed');
+  assert.equal(h.controller.getState().unreadCount, 2);
+  h.controller.rejectSnapshot(new Error('refresh unavailable'), h.requests[0]);
+  assert.equal(h.controller.getState().unreadCount, 2);
+});
+
 test('unknown outcome blocks retry; only a matching explicit reconciliation snapshot clears it', async () => {
   const h = harness();
   const pending = h.controller.markOne('one');

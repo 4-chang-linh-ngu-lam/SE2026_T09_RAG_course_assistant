@@ -167,6 +167,22 @@ async function allPages<T>(request: Request, id: 'classes' | 'calendarEvents', d
   throw new ApiError('PAGE_LIMIT', 'Dữ liệu có quá nhiều trang để tải an toàn. Hãy thu hẹp phạm vi.', 413);
 }
 
+async function allNotificationPages(request: Request, signal?: AbortSignal): Promise<{ items: unknown[]; unreadCount: number }> {
+  const items: unknown[] = [];
+  let cursor: string | undefined, unreadCount = 0;
+  for (let pageNumber = 0; pageNumber < 20; pageNumber++) {
+    const source = record(await request('notifications', { query: { limit: 100, cursor }, signal }));
+    if (!Array.isArray(source.items) || typeof source.unread_count !== 'number'
+      || !Number.isInteger(source.unread_count) || source.unread_count < 0) return invalid();
+    items.push(...source.items);
+    unreadCount = source.unread_count;
+    const next = optionalString(source.next_cursor);
+    if (!next) return { items, unreadCount };
+    cursor = next;
+  }
+  throw new ApiError('PAGE_LIMIT', 'Thông báo có quá nhiều trang để tải an toàn. Hãy tải lại sau.', 413);
+}
+
 function toIso(value: string | undefined): string {
   if (!value) throw new ApiError('VALIDATION_ERROR', 'Cần có thời gian bắt đầu và kết thúc.', 422);
   const date = new Date(value);
@@ -284,15 +300,13 @@ export function createLiveCore(session: LiveIdentitySession) {
       return { kind: 'ready', classes, calendarEvents: events, displayDate: new Date().toISOString(), pendingCapabilities };
     }
     if (routeId === 'account.notifications') {
-      const [classes, raw] = await Promise.all([
+      const [classes, inbox] = await Promise.all([
         readClasses(signal),
-        session.authenticated(request => request('notifications', { query: { limit: 100 }, signal })),
+        session.authenticated(request => allNotificationPages(request, signal)),
       ]);
-      const source = record(raw);
-      if (!Array.isArray(source.items) || typeof source.unread_count !== 'number' || !Number.isInteger(source.unread_count) || source.unread_count < 0) return invalid();
       const classNames = new Map(classes.map(cls => [cls.id, cls.name]));
-      const notifications = source.items.map(item => decodeNotification(item, current, classNames));
-      return { kind: 'ready', notifications, notificationUnreadCount: source.unread_count, pendingCapabilities };
+      const notifications = inbox.items.map(item => decodeNotification(item, current, classNames));
+      return { kind: 'ready', notifications, notificationUnreadCount: inbox.unreadCount, pendingCapabilities };
     }
     return { kind: 'unavailable', message: 'Luồng này chưa có adapter Core được triển khai.' };
   }

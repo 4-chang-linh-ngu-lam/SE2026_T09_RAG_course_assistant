@@ -17,11 +17,11 @@ const ids = {
   klass: '00000000-0000-4000-8000-000000000009',
 };
 
-function user(id: string, roles: string[], username: string | null, displayName: string) {
+function user(id: string, roles: string[], username: string | null, displayName: string, status = 'ACTIVE') {
   return {
     id, email: roles.includes('STUDENT') ? null : `${displayName.toLowerCase().replaceAll(' ', '.')}@example.com`,
     username, school_id: '00000000-0000-4000-8000-000000000010', display_name: displayName,
-    status: 'ACTIVE', roles, revision: 1, created_at: '2026-10-01T00:00:00Z', email_verified: true,
+    status, roles, revision: 1, created_at: '2026-10-01T00:00:00Z', email_verified: true,
     activation_required: false, last_admin: roles.includes('ADMIN'), invitation_expires_at: null,
     invitation_delivery_status: null,
   };
@@ -43,12 +43,12 @@ function harness(options: { loseImportResponse?: boolean } = {}) {
     calls.push({ path, method, body, headers });
     if (path === '/api/v1/auth/login') return Response.json({ token_type: 'bearer', access_token: 'access-test', expires_in: 900 });
     if (path === '/api/v1/users/me') return Response.json(actor);
-    if (path === '/api/v1/admin/users') return Response.json({ items: [user(ids.admin, ['ADMIN'], null, 'Admin'), user(ids.teacher, ['LECTURER'], null, 'Teacher'), user(ids.student, ['STUDENT'], 'student.one', 'Student One'), user(ids.student2, ['STUDENT'], 'student.two', 'Student Two')], next_cursor: null });
+    if (path === '/api/v1/admin/users') return Response.json({ items: [user(ids.admin, ['ADMIN'], null, 'Admin'), user(ids.teacher, ['LECTURER'], null, 'Teacher'), user(ids.student, ['STUDENT'], 'student.one', 'Student One'), user(ids.student2, ['STUDENT'], 'student.two', 'Student Two', 'LOCKED')], next_cursor: null });
     if (path === '/api/v1/admin/audit-events') return Response.json({ items: [{ id: '00000000-0000-4000-8000-000000000030', actor_id: ids.admin, action: 'ADMIN_SET_MANUAL_ROSTER', target_type: 'CLASS', target_id: ids.klass, correlation_id: '00000000-0000-4000-8000-000000000031', metadata_json: { reason_code: 'USER_REQUEST' }, occurred_at: '2026-10-29T01:00:00Z' }], next_cursor: 'opaque-cursor' });
     if (path === '/api/v1/admin/catalog') return Response.json({ courses: [{ id: ids.course, code: 'MATH', name: 'Toán', school_id: actor.school_id }], academic_years: [{ id: ids.year, school_id: actor.school_id, label: '2026-2027' }], semesters: [{ id: ids.semester, academic_year_id: ids.year, name: '1' }], homerooms: [{ id: ids.homeroom, school_id: actor.school_id, academic_year_id: ids.year, name: '9A', grade_level: 9, roster_version: 3, student_count: 1 }], grades: [9] });
     if (path === '/api/v1/classes') return Response.json({ items: [klass], next_cursor: null });
     if (path === `/api/v1/admin/classes/${ids.klass}/management`) return Response.json({ subject_class: klass, teaching_assignments: [{ id: '00000000-0000-4000-8000-000000000011', class_id: ids.klass, lecturer_id: ids.teacher, role: 'PRIMARY', assigned_at: '2026-10-01T00:00:00Z', ended_at: null }], members: [{ id: '00000000-0000-4000-8000-000000000012', class_id: ids.klass, student_id: ids.student, source: 'MANUAL', status: 'ACTIVE', joined_at: '2026-10-01T00:00:00Z', ended_at: null }] });
-    if (path === `/api/v1/admin/homeroom-classes/${ids.homeroom}/roster`) return Response.json({ homeroom_class_id: ids.homeroom, student_ids: [ids.student], roster_version: 3 });
+    if (path === `/api/v1/admin/homeroom-classes/${ids.homeroom}/roster`) return Response.json({ homeroom_class_id: ids.homeroom, student_ids: [ids.student, ids.student2], roster_version: 3 });
     if (path === `/api/v1/admin/classes/${ids.klass}/members` && method === 'PUT') return Response.json({ subject_class: klass, teaching_assignments: [], members: [] });
     if (path === `/api/v1/admin/homeroom-classes/${ids.homeroom}/roster` && method === 'PUT') return Response.json({ homeroom_class_id: ids.homeroom, student_ids: (body as { student_ids: string[] }).student_ids, roster_version: 4 });
     if (path === '/api/v1/admin/students/imports/preview') return Response.json({ valid: true, preview_id: '00000000-0000-4000-8000-000000000020', expires_at: '2026-10-29T01:00:00Z', items: [{ row: 2, action: 'CREATE', username: 'new.student', user_id: null }], errors: [] });
@@ -73,6 +73,7 @@ test('live Classroom Admin loads Core DTOs and atomically replaces a MANUAL rost
   assert.equal(loaded.subjectClass?.summary.name, 'Toán 9A');
   assert.equal(loaded.subjectClass?.summary.studentCount, 1);
   assert.deepEqual(loaded.subjectClass?.members.map(item => item.userId), [ids.student]);
+  assert.equal(loaded.students.find(item => item.id === ids.student2)?.status, 'LOCKED');
   assert.equal(loaded.historyAvailable, false);
   const preview = await classroom.previewEnrollment({ classId: ids.klass, revision: 5, mode: 'MANUAL', studentIds: [ids.student, ids.student2] });
   assert.deepEqual(preview.addedIds, [ids.student2]);
@@ -90,11 +91,11 @@ test('live homeroom roster preview confirms with Core roster version', async () 
   const classroom = createLiveClassroomAdminPort(h.session);
   const loaded = await classroom.load('a.homeroom', { homeroomId: ids.homeroom });
   const room = loaded.homeroom!;
-  const preview = await classroom.previewHomeroomRoster({ homeroomId: room.id, revision: room.revision, studentIds: [ids.student, ids.student2] });
-  assert.deepEqual(preview.addedIds, [ids.student2]);
+  const preview = await classroom.previewHomeroomRoster({ homeroomId: room.id, revision: room.revision, studentIds: [ids.student] });
+  assert.deepEqual(preview.endedIds, [ids.student2]);
   await classroom.confirmHomeroomRoster({ previewId: preview.id, reason: 'USER_REQUEST' });
   const write = h.calls.find(call => call.path === `/api/v1/admin/homeroom-classes/${ids.homeroom}/roster` && call.method === 'PUT');
-  assert.deepEqual(write?.body, { student_ids: [ids.student, ids.student2], expected_roster_version: 3 });
+  assert.deepEqual(write?.body, { student_ids: [ids.student], expected_roster_version: 3 });
   assert.equal(write?.headers.get('X-Admin-Reason'), 'USER_REQUEST');
 });
 

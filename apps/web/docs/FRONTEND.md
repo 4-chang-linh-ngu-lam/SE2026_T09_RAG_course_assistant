@@ -40,7 +40,7 @@ For each future capability:
 
 From `apps/web`, run `node scripts/dev-mock.mjs --hostname 127.0.0.1 --port 4179` for explicit development preview. Use `npm run dev` for live mode with the documented server environment. Do not deploy the preview server or build with mock mode.
 
-Current acceptance (29 October 2026): `npm run check` passes boundaries, TypeScript and **240 behavioral tests**. The live `npm run build` and release fixture-canary scan are the release gate. Chrome mock preview smoke checked **71 route IDs** (68 seeded routes plus 3 UI-created resources); focused journeys passed **214 assertions** with selected screens at 1440/768/390/320px. See [FRONTEND_COMPLETION.md](../FRONTEND_COMPLETION.md) for preview evidence and limitations. These checks do not replace real Core/database/browser journey evidence.
+Current acceptance (29 October 2026): `npm run check` passes boundaries, TypeScript and **244 behavioral tests**. The live `npm run build` and release fixture-canary scan are the release gate. Chrome mock preview smoke checked **71 route IDs** (68 seeded routes plus 3 UI-created resources); focused journeys passed **214 assertions** with selected screens at 1440/768/390/320px. See [FRONTEND_COMPLETION.md](../FRONTEND_COMPLETION.md) for preview evidence and limitations. These checks do not replace real Core/database/browser journey evidence.
 
 Historical evidence from 20 October 2026: production browser smoke checked 71 mapped URLs and 18 transport/access/failure/UI assertions against an isolated Core contract stub; this is not a real Core deployment.
 

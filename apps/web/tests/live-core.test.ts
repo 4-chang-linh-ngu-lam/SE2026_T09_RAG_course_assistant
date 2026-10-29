@@ -52,3 +52,34 @@ test('live notification workspace preserves Core unread count and read-all uses 
   await core.notifications.markAllAsRead();
   assert.ok(calls.some(call => call.path.startsWith('/api/v1/notifications/read-all') && call.method === 'POST'));
 });
+
+test('live notification workspace consumes all Core pages and retains the total unread count', async () => {
+  const pages: string[] = [];
+  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), 'https://web.example');
+    const method = String(init?.method ?? 'GET');
+    const headers = new Headers(init?.headers);
+    if (url.pathname === '/api/v1/auth/login') return Response.json({ token_type: 'bearer', access_token: 'access-test', expires_in: 900 });
+    if (url.pathname === '/api/v1/users/me') return Response.json({ id: actorId, email: 'student@example.com', username: null, school_id: '00000000-0000-4000-8000-000000000004', display_name: 'Học sinh', roles: ['STUDENT'], status: 'ACTIVE' });
+    if (url.pathname === '/api/v1/classes') return Response.json({ items: [], next_cursor: null });
+    if (url.pathname === '/api/v1/notifications') {
+      const cursor = url.searchParams.get('cursor') ?? '';
+      pages.push(cursor);
+      const item = (id: string) => ({ id, type: 'UNKNOWN_EVENT', payload_json: {}, read: false, created_at: '2026-10-29T10:00:00Z' });
+      return cursor
+        ? Response.json({ items: [item('00000000-0000-4000-8000-000000000013')], unread_count: 3, next_cursor: null })
+        : Response.json({ items: [item('00000000-0000-4000-8000-000000000014')], unread_count: 3, next_cursor: 'cursor-2' });
+    }
+    if (method === 'POST') return new Response(null, { status: 204 });
+    return Response.json({ error: { code: 'NOT_FOUND', message: 'not found' } }, { status: 404 });
+  }) as typeof fetch;
+  const session = createLiveIdentitySession({ fetcher, onLost() {} });
+  await session.identity.login({ email: 'student@example.com', password: 'test-password' });
+  const core = createLiveCore(session);
+  const result = await core.workspace.load('account.notifications', {});
+  assert.equal(result.kind, 'ready');
+  if (result.kind !== 'ready') return;
+  assert.equal(result.notifications?.length, 2);
+  assert.equal(result.notificationUnreadCount, 3);
+  assert.deepEqual(pages, ['', 'cursor-2']);
+});

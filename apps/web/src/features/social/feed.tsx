@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { FeedComment, FeedPost, Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
+import { mergeFeedComments } from '@/lib/feed-comments';
 import { adapter, dataMode } from '@/lib/data';
 import { Dialog, ErrorNotice, Icon, StatePanel } from '@/components/ui';
 
@@ -100,7 +101,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
     try {
       const page = await adapter.social.listComments(params.classId, postId, cursor);
       setLocalPosts(current => (current ?? posts).map(post => post.id === postId
-        ? { ...post, comments: [...post.comments, ...page.items], commentsNextCursor: page.next_cursor }
+        ? { ...post, comments: mergeFeedComments(post.comments, page.items), commentsNextCursor: page.next_cursor }
         : post));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Chưa thể tải thêm bình luận.');
@@ -115,7 +116,9 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
     setError(null);
     try {
       const updated = await adapter.social.updatePost(params.classId, postId, editContent.trim());
-      setLocalPosts(posts.map(p => (p.id === postId ? updated : p)));
+      setLocalPosts(current => (current ?? posts).map(post => post.id === postId
+        ? { ...updated, comments: post.comments, commentsNextCursor: post.commentsNextCursor }
+        : post));
       setEditingPostId(null);
       setEditContent('');
     } catch (err: unknown) {

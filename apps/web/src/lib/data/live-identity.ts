@@ -107,11 +107,15 @@ export function createLiveIdentitySession(options: { fetcher?: typeof fetch; now
       });
     },
     logout: () => logout(false), logoutAll: () => logout(true),
-    updateProfile: name => authenticated(async request => {
-      const updated = decodeMutation(decodeUser, await request('updateProfile', { body: { display_name: name } }));
+    async updateProfile(name) {
+      const expected = generation;
+      const updated = await authenticated(async request =>
+        decodeMutation(decodeUser, await request('updateProfile', { body: { display_name: name } })), true,
+      );
+      check(expected, true);
       user = updated;
       return updated;
-    }, true),
+    },
     async activate(input) { await http(null)('activate', { body: input }); },
     async forgot(email) { await http(null)('forgot', { body: { email } }); },
     async reset(code, newPassword) { await serialize(async () => { await http(null)('reset', { body: { token: code, new_password: newPassword } }); }); },

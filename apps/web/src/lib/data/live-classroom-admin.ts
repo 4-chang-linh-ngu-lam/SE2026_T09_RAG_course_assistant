@@ -264,7 +264,7 @@ export function createLiveClassroomAdminPort(session: LiveIdentitySession): Clas
           studentIds: roster.studentIds,
         } satisfies Homeroom;
       });
-      const students = users.filter(user => user.status === 'ACTIVE' && user.roles.includes('STUDENT'));
+      const students = users.filter(user => user.roles.includes('STUDENT'));
       const teachers = users.filter(user => user.status === 'ACTIVE' && user.roles.includes('LECTURER'));
       const selectedClassId = params.classId;
       const selectedHomeroomId = params.homeroomId;

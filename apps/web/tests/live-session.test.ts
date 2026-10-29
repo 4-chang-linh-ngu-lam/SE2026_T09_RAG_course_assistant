@@ -94,6 +94,21 @@ test('an acknowledged mutation from an old session reports unknown instead of up
   await identity.login({ username: 'new', password: 'p' }); gate.resolve(json(user('old')));
   await assert.rejects(mutation, (error: unknown) => error instanceof ApiError && error.code === 'SESSION_CHANGED' && error.outcome === 'unknown');
 });
+test('late profile update cannot overwrite the next actor cached by the identity session', async () => {
+  const gate = pending<Response>(); let logins = 0;
+  const identity = createLiveIdentity({ onLost() {}, fetcher: fetcher((path, init) => {
+    if (path.endsWith('/login')) return access(++logins === 1 ? 'old' : 'new', 600);
+    if (path.endsWith('/me') && init.method === 'PATCH') return gate.promise;
+    if (path.endsWith('/me')) return json(user(new Headers(init.headers).get('Authorization') === 'Bearer new' ? 'new' : 'old'));
+    return json({});
+  }) });
+  await identity.login({ username: 'old', password: 'p' });
+  const mutation = identity.updateProfile('Old profile edit'); await tick();
+  await identity.login({ username: 'new', password: 'p' });
+  gate.resolve(json(user('old')));
+  await assert.rejects(mutation, (error: unknown) => error instanceof ApiError && error.code === 'SESSION_CHANGED' && error.outcome === 'unknown');
+  assert.equal((await identity.restore())?.id, 'new');
+});
 test('session loss and same-actor relogin cannot resurrect delayed practice drafts', () => {
   draftStore.bindActor('actor'); const epoch = draftStore.epoch;
   const draft: ScopedPracticeAttemptDraft = { pinnedContext: { actorId: 'actor', classId: 'class', practiceId: 'practice', attemptId: 'attempt', version: 1 }, lastVisitedQuestionIndex: 1, localAnswers: {}, confirmedAnswers: {}, checkedFeedbacks: {}, checkedAnswerSnapshots: {}, ackStatus: 'pending', updatedAt: 0 };
