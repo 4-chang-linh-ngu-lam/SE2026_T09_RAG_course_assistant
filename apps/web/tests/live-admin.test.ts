@@ -160,6 +160,15 @@ test('live account list keeps both account groups for its client-side filters', 
   assert.equal(query.has('account_type'), false);
   assert.equal(query.has('status'), false);
   assert.equal(query.has('search'), false);
+
+  await accounts.load('a.legacy', {});
+  const legacyQuery = new URLSearchParams(h.calls.filter(call => call.path === '/api/v1/admin/users').at(-1)?.query);
+  assert.equal(legacyQuery.get('account_type'), 'STUDENT');
+  assert.equal(legacyQuery.get('username_missing'), 'true');
+
+  await accounts.load('a.staffInvite', {});
+  const staffQuery = new URLSearchParams(h.calls.filter(call => call.path === '/api/v1/admin/users').at(-1)?.query);
+  assert.equal(staffQuery.get('account_type'), 'STAFF');
 });
 
 test('live account and Classroom Admin workspaces do not reject schools after 2,000 user rows', async () => {
