@@ -10,6 +10,7 @@ type AdminUser = ManagedAccount & {
 };
 type Row = Record<string, unknown>;
 type PendingImport = { job: ImportJob; previewId: string | null; reason?: string; operationKey: string };
+type UserFilters = { user_id?: string; account_type?: 'STUDENT' | 'STAFF'; username_missing?: 'true' };
 
 function invalid(): never {
   throw new ApiError('CONTRACT_MISMATCH', 'Dữ liệu danh sách tài khoản chưa đúng hợp đồng Core.', 502);
@@ -63,18 +64,26 @@ function decodePage(value: unknown): Page<AdminUser> {
   return { items: row.items.map(decodeUser), next_cursor: row.next_cursor === null || row.next_cursor === undefined ? null : text(row.next_cursor) };
 }
 
-async function listAccounts(request: HttpRequest, signal?: AbortSignal, userId?: string): Promise<AdminUser[]> {
+async function listAccounts(request: HttpRequest, filters: UserFilters = {}, signal?: AbortSignal): Promise<AdminUser[]> {
   const result: AdminUser[] = [];
   let cursor: string | undefined;
   const seen = new Set<string>();
   while (true) {
-    const response = decodePage(await request('adminUsers', { query: { limit: 100, cursor, user_id: userId }, signal }));
+    const response = decodePage(await request('adminUsers', { query: { limit: 100, cursor, ...filters }, signal }));
     result.push(...response.items);
     if (!response.next_cursor) return result;
     if (seen.has(response.next_cursor)) throw new ApiError('CONTRACT_MISMATCH', 'Core trả cursor lặp khi tải danh sách tài khoản.', 502);
     seen.add(response.next_cursor);
     cursor = response.next_cursor;
   }
+}
+
+function accountFilters(routeId: string, params: Record<string, string>): UserFilters {
+  if (routeId === 'a.account' && params.userId) return { user_id: params.userId };
+  if (routeId === 'a.legacy') return { account_type: 'STUDENT', username_missing: 'true' };
+  if (routeId === 'a.staffInvite') return { account_type: 'STAFF' };
+  if (routeId === 'a.import') return { account_type: 'STUDENT' };
+  return {};
 }
 
 function invitationFor(account: AdminUser): StaffInvitation | null {
@@ -179,7 +188,7 @@ export function createLiveAccounts(session: LiveIdentitySession): AccountsPort {
   const imports = new Map<string, PendingImport>();
   return {
     async load(routeId, params, signal): Promise<AccountsWorkspace> {
-      const accounts = await session.authenticated(request => listAccounts(request, signal, routeId === 'a.account' ? params.userId : undefined));
+      const accounts = await session.authenticated(request => listAccounts(request, accountFilters(routeId, params), signal));
       cachedAccounts = accounts;
       if (routeId === 'a.import' && params.importId) {
         const imported = imports.get(params.importId);

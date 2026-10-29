@@ -537,7 +537,7 @@ def test_concurrent_confirm_only_one_response_has_codes(system):
 
 
 def test_import_status_and_confirm_share_batch_then_actor_lock_order(system):
-    draft = preview()
+    draft = preview(system)
     barrier = Barrier(2)
 
     def read_status(_):

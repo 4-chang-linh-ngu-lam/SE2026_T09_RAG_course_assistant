@@ -149,6 +149,19 @@ test('live account detail uses server-side ID filtering instead of loading the w
   assert.equal(new URLSearchParams(request?.query).get('user_id'), ids.student);
 });
 
+test('live account list keeps both account groups for its client-side filters', async () => {
+  const h = harness();
+  await h.session.identity.login({ email: 'admin@example.com', password: 'test-password' });
+  const accounts = createLiveAccounts(h.session);
+  const workspace = await accounts.load('a.accounts', { group: 'staff', status: 'LOCKED', q: 'locked' });
+  const request = h.calls.find(call => call.path === '/api/v1/admin/users');
+  const query = new URLSearchParams(request?.query);
+  assert.equal(workspace.accounts.length, 5);
+  assert.equal(query.has('account_type'), false);
+  assert.equal(query.has('status'), false);
+  assert.equal(query.has('search'), false);
+});
+
 test('live account and Classroom Admin workspaces do not reject schools after 2,000 user rows', async () => {
   const h = harness({ emptyAdminPages: true });
   await h.session.identity.login({ email: 'admin@example.com', password: 'test-password' });
