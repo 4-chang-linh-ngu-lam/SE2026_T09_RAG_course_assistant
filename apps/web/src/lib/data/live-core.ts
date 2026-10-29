@@ -60,6 +60,10 @@ function decodeClass(value: unknown): ClassSummary {
   };
 }
 
+function isCurrentlyAssignedTeacher(klass: ClassSummary): boolean {
+  return klass.teachingRole === 'PRIMARY' || klass.teachingRole === 'ASSISTING';
+}
+
 function decodeComment(value: unknown, postId: string, actor: User, canModerate = false): FeedComment {
   const source = record(value), author = record(source.author);
   const authorId = string(author.id);
@@ -263,9 +267,13 @@ export function createLiveCore(session: LiveIdentitySession) {
   async function loadWorkspace(routeId: string, params: Record<string, string>, signal?: AbortSignal): Promise<WorkspaceData> {
     const current = await actor();
     const pendingCapabilities = ['Class history', 'Document', 'Learning', 'AI Tutor', 'Learner Intelligence'];
-    if (['s.home', 's.classes', 't.home', 't.classes'].includes(routeId)) {
+    if (['s.home', 's.classes'].includes(routeId)) {
       const classes = await readClasses(signal);
       if (routeId === 's.home') return { kind: 'ready', classes, pendingCapabilities, studentHome: { activeClasses: classes.filter(row => row.status === 'ACTIVE'), upcomingTasks: [], recentStudies: [], tutorSuggestions: [] } };
+      return { kind: 'ready', classes, pendingCapabilities };
+    }
+    if (['t.home', 't.classes'].includes(routeId)) {
+      const classes = (await readClasses(signal)).filter(isCurrentlyAssignedTeacher);
       if (routeId === 't.home') {
         const range = localDayRange();
         const [todaySchedule, recentDiscussions] = await Promise.all([

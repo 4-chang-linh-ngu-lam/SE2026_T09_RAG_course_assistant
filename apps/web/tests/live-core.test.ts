@@ -42,6 +42,43 @@ test('live workspace decodes class feed and comments from documented Core operat
   assert.ok(calls.every(call => call.method === 'POST' || call.authorization === 'Bearer access-test'));
 });
 
+test('teacher workspaces limit mixed Admin/Lecturer accounts to currently assigned classes', async () => {
+  const assignedClassId = classId;
+  const unassignedClassId = '00000000-0000-4000-8000-000000000009';
+  const socialClassIds: string[] = [];
+  const actor = { id: actorId, email: 'admin@example.com', username: null, school_id: '00000000-0000-4000-8000-000000000004', display_name: 'Admin & teacher', roles: ['ADMIN', 'LECTURER'], status: 'ACTIVE' };
+  const classRow = (id: string, name: string, teachingRole: 'PRIMARY' | 'ASSISTING' | null) => ({
+    id, school_id: actor.school_id, academic_year_id: '00000000-0000-4000-8000-000000000005', semester_id: '00000000-0000-4000-8000-000000000006', course_id: '00000000-0000-4000-8000-000000000007', homeroom_class_id: null, name, grade_level: 9, enrollment_mode: 'AUTO', status: 'ACTIVE', version: 1, teaching_role: teachingRole,
+  });
+  const fetcher = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), 'https://web.example');
+    if (url.pathname === '/api/v1/auth/login') return Response.json({ token_type: 'bearer', access_token: 'access-test', expires_in: 900 });
+    if (url.pathname === '/api/v1/users/me') return Response.json(actor);
+    if (url.pathname === '/api/v1/classes') return Response.json({ items: [classRow(assignedClassId, 'Toán 9A', 'PRIMARY'), classRow(unassignedClassId, 'Văn 9B', null)], next_cursor: null });
+    if (url.pathname.endsWith('/calendar') || url.pathname.endsWith('/posts')) {
+      const pathClassId = url.pathname.split('/')[4];
+      socialClassIds.push(pathClassId);
+      if (pathClassId === unassignedClassId) return Response.json({ error: { code: 'NOT_FOUND', message: 'not found' } }, { status: 404 });
+      return Response.json({ items: [], next_cursor: null });
+    }
+    return Response.json({ error: { code: 'NOT_FOUND', message: 'not found' } }, { status: 404 });
+  }) as typeof fetch;
+  const session = createLiveIdentitySession({ fetcher, onLost() {} });
+  await session.identity.login({ email: 'admin@example.com', password: 'test-password' });
+  const core = createLiveCore(session);
+
+  const home = await core.workspace.load('t.home', {});
+  assert.equal(home.kind, 'ready');
+  if (home.kind !== 'ready') return;
+  assert.deepEqual(home.classes?.map(klass => klass.id), [assignedClassId]);
+  assert.deepEqual(home.teacherHome?.assignedClasses.map(klass => klass.id), [assignedClassId]);
+  assert.deepEqual(socialClassIds, [assignedClassId, assignedClassId]);
+
+  const list = await core.workspace.load('t.classes', {});
+  assert.equal(list.kind, 'ready');
+  if (list.kind === 'ready') assert.deepEqual(list.classes?.map(klass => klass.id), [assignedClassId]);
+});
+
 test('live notification workspace preserves Core unread count and read-all uses the real endpoint', async () => {
   const { session, core, calls } = harness();
   await session.identity.login({ email: 'student@example.com', password: 'test-password' });
