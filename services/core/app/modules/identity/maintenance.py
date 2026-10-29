@@ -1,7 +1,7 @@
 """Offline maintenance owned by Identity; never registered as HTTP onboarding."""
 
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from pydantic import SecretStr, TypeAdapter, ValidationError
@@ -9,8 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.audit import AuditMetadata, record_audit
+from app.common.config import settings
 from app.common.security import generate_refresh_token, hash_password
-from app.modules.identity.models import Role, RoleAssignment, User, UserStatus
+from app.modules.identity.models import Role, RoleAssignment, TokenPurpose, User, UserStatus
 from app.modules.identity.repository import IdentityRepository
 from app.modules.identity.schemas import (
     ActivateStudentRequest,
@@ -18,6 +19,7 @@ from app.modules.identity.schemas import (
     AdminCreateUserRequest,
     ResetPasswordRequest,
     Username,
+    UserSummaryDTO,
 )
 from app.modules.identity.service import IdentityService
 
@@ -152,3 +154,54 @@ def bootstrap_dev_identity(*, school_id: UUID, admin_password: SecretStr, sessio
         students.append(code.student.id)
     session.flush()
     return {"admin_id": admin.id, "lecturer_ids": lecturers, "student_ids": students}
+
+
+def bootstrap_staging_admin(
+    *, email: str, school_id: UUID, correlation_id: UUID, session: Session
+) -> UserSummaryDTO:
+    """Create one pending staging Admin and queue an invitation without exposing its token."""
+    request = AdminCreateUserRequest(email=email, roles=[Role.ADMIN])
+    repository = IdentityRepository(session)
+    if repository.get_by_email(request.email) is not None:
+        raise ValueError("Staging Admin email is already registered")
+    if (
+        session.scalar(
+            select(User.id)
+            .join(RoleAssignment, RoleAssignment.user_id == User.id)
+            .where(User.school_id == school_id, RoleAssignment.role == Role.ADMIN)
+            .limit(1)
+        )
+        is not None
+    ):
+        raise ValueError("Staging School already has an Admin")
+
+    user = repository.create_user(
+        User(
+            email=request.email,
+            school_id=school_id,
+            password_hash=hash_password(generate_refresh_token()),
+            status=UserStatus.PENDING_VERIFICATION,
+        )
+    )
+    session.add(RoleAssignment(user_id=user.id, role=Role.ADMIN))
+    session.flush()
+    IdentityService(session)._issue_one_time_token(
+        user,
+        TokenPurpose.ADMIN_INVITATION,
+        timedelta(hours=settings.admin_invitation_expire_hours),
+    )
+    record_audit(
+        session,
+        actor_id=None,
+        school_id=school_id,
+        action="STAGING_BOOTSTRAP_ADMIN",
+        target_type="USER",
+        target_id=user.id,
+        correlation_id=correlation_id,
+        metadata_json=AuditMetadata(
+            changed_fields=["roles", "status", "credentials"],
+            new_status=UserStatus.PENDING_VERIFICATION.value,
+        ),
+    )
+    session.flush()
+    return IdentityService._summary(user)
