@@ -7,6 +7,7 @@ import { createLiveIntelligencePort } from '../src/lib/data/live-intelligence';
 
 const ids = {
   admin: '00000000-0000-4000-8000-000000000001',
+  admin2: '00000000-0000-4000-8000-000000000017',
   teacher: '00000000-0000-4000-8000-000000000002',
   teacher2: '00000000-0000-4000-8000-000000000015',
   student: '00000000-0000-4000-8000-000000000003',
@@ -33,6 +34,8 @@ function harness(options: { loseImportResponse?: boolean; emptyAdminPages?: bool
   let importStatus: 'PREVIEW' | 'COMPLETED' = 'PREVIEW';
   let confirmCalls = 0;
   const actor = { id: ids.admin, email: 'admin@example.com', username: null, school_id: '00000000-0000-4000-8000-000000000010', display_name: 'Admin', roles: ['ADMIN'], status: 'ACTIVE' };
+  const otherActor = { ...actor, id: ids.admin2, email: 'other-admin@example.com', school_id: '00000000-0000-4000-8000-000000000018', display_name: 'Other Admin' };
+  let currentActor = actor;
   const klass = { id: ids.klass, school_id: actor.school_id, academic_year_id: ids.year, semester_id: ids.semester, course_id: ids.course, homeroom_class_id: ids.homeroom, name: 'Toán 9A', grade_level: 9, enrollment_mode: 'MANUAL', status: 'ACTIVE', version: 5, teaching_role: null };
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'https://web.example');
@@ -42,9 +45,11 @@ function harness(options: { loseImportResponse?: boolean; emptyAdminPages?: bool
     let body: unknown;
     if (init?.body) body = JSON.parse(String(init.body));
     calls.push({ path, query: url.searchParams.toString(), method, body, headers });
-    if (path === '/api/v1/auth/login') return Response.json({ token_type: 'bearer', access_token: 'access-test', expires_in: 900 });
-    if (path === '/api/v1/users/me') return Response.json(actor);
+    if (path === '/api/v1/auth/login') { currentActor = (body as { email?: string } | undefined)?.email === otherActor.email ? otherActor : actor; return Response.json({ token_type: 'bearer', access_token: 'access-test', expires_in: 900 }); }
+    if (path === '/api/v1/auth/logout') return new Response(null, { status: 204 });
+    if (path === '/api/v1/users/me') return Response.json(currentActor);
     if (path === '/api/v1/admin/users') {
+      if (currentActor.id !== ids.admin) return Response.json({ items: [], next_cursor: null });
       if (options.emptyAdminPages) {
         const page = Number(url.searchParams.get('cursor') ?? '0');
         return Response.json({ items: [], next_cursor: page < 20 ? String(page + 1) : null });
@@ -137,6 +142,22 @@ test('live import consumes only explicit columns and activation code is never re
   assert.equal(result.createdCount, 1);
   const reloaded = await accounts.load('a.import', { importId: job.id });
   assert.equal(reloaded.importJob?.rows[0].activationCode, undefined);
+});
+
+test('live import cache never crosses authenticated Admin sessions or school scopes', async () => {
+  const h = harness();
+  await h.session.identity.login({ email: 'admin@example.com', password: 'test-password' });
+  const accounts = createLiveAccounts(h.session);
+  const file = { filename: 'students.csv', format: 'CSV' as const, headers: ['username', 'name'], contentBase64: 'YQ==', rows: [{ rowNumber: 2, cells: ['private.student', 'Private Student'] }] };
+  const job = await accounts.previewImport({ file, mapping: { username: 0, displayName: 1 } });
+
+  await h.session.identity.logout();
+  await h.session.identity.login({ email: 'other-admin@example.com', password: 'test-password' });
+  const unavailable = (error: unknown) => error instanceof Error && 'code' in error && error.code === 'CAPABILITY_UNAVAILABLE';
+  await assert.rejects(() => accounts.load('a.import', { importId: job.id }), unavailable);
+  await assert.rejects(() => accounts.confirmImport({ importId: job.id, revision: 1, reason: 'ADMIN_INTERVENTION' }), unavailable);
+  await assert.rejects(() => accounts.reconcileImport(job.id), unavailable);
+  assert.equal(h.calls.some(call => call.path.includes('/admin/students/imports/confirm') || call.path.includes('/admin/students/imports/') && call.method === 'GET'), false);
 });
 
 test('live account detail uses server-side ID filtering instead of loading the whole school', async () => {

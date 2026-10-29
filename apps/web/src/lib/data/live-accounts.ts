@@ -9,7 +9,8 @@ type AdminUser = ManagedAccount & {
   invitation_delivery_status: TokenDeliveryStatus | null;
 };
 type Row = Record<string, unknown>;
-type PendingImport = { job: ImportJob; previewId: string | null; reason?: string; operationKey: string };
+type ImportOwner = { userId: string; schoolId: string | null; sessionGeneration: number };
+type PendingImport = { job: ImportJob; previewId: string | null; owner: ImportOwner; reason?: string; operationKey: string };
 type UserFilters = { user_id?: string; account_type?: 'STUDENT' | 'STAFF'; username_missing?: 'true' };
 
 function invalid(): never {
@@ -186,13 +187,34 @@ function withoutImportCodes(job: ImportJob): ImportJob {
 export function createLiveAccounts(session: LiveIdentitySession): AccountsPort {
   let cachedAccounts: AdminUser[] = [];
   const imports = new Map<string, PendingImport>();
+  async function currentImportOwner(): Promise<ImportOwner> {
+    const user = session.currentUser() ?? await session.identity.restore();
+    if (!user) throw new ApiError('UNAUTHENTICATED', 'Phiên đăng nhập đã hết hạn.', 401);
+    return { userId: user.id, schoolId: user.school_id, sessionGeneration: session.sessionGeneration() };
+  }
+  function sameImportOwner(left: ImportOwner, right: ImportOwner): boolean {
+    return left.userId === right.userId && left.schoolId === right.schoolId && left.sessionGeneration === right.sessionGeneration;
+  }
+  function ensureImportOwner(owner: ImportOwner): void {
+    const user = session.currentUser();
+    if (!user || user.id !== owner.userId || user.school_id !== owner.schoolId || session.sessionGeneration() !== owner.sessionGeneration) {
+      throw new ApiError('SESSION_CHANGED', 'Phiên đăng nhập đã thay đổi. Hãy mở lại lần nhập.', 401);
+    }
+  }
+  async function ownedImport(importId: string): Promise<PendingImport> {
+    const pending = imports.get(importId);
+    const owner = await currentImportOwner();
+    if (!pending || !sameImportOwner(pending.owner, owner)) {
+      throw new ApiError('CAPABILITY_UNAVAILABLE', 'Bản xem trước import không còn trong phiên. Hãy chọn lại tệp để kiểm tra dữ liệu mới.', 410);
+    }
+    return pending;
+  }
   return {
     async load(routeId, params, signal): Promise<AccountsWorkspace> {
       const accounts = await session.authenticated(request => listAccounts(request, accountFilters(routeId, params), signal));
       cachedAccounts = accounts;
       if (routeId === 'a.import' && params.importId) {
-        const imported = imports.get(params.importId);
-        if (!imported) throw new ApiError('CAPABILITY_UNAVAILABLE', 'Bản xem trước import không còn trong phiên. Hãy chọn lại tệp để kiểm tra dữ liệu mới.', 410);
+        const imported = await ownedImport(params.importId);
         return { accounts, importJob: imported.job, invitations: accounts.map(invitationFor).filter((item): item is StaffInvitation => item !== null), revision: accounts.reduce((latest, item) => Math.max(latest, item.revision), 0) };
       }
       const account = params.userId ? accounts.find(item => item.id === params.userId) : undefined;
@@ -266,9 +288,14 @@ export function createLiveAccounts(session: LiveIdentitySession): AccountsPort {
       if (!file.contentBase64) throw new ApiError('VALIDATION_ERROR', 'Hãy chọn lại tệp gốc để Core kiểm tra.', 422);
       const header = (index: number | null) => index === null ? null : file.headers[index];
       if (!header(mapping.username) || (mapping.displayName !== null && !header(mapping.displayName))) throw new ApiError('VALIDATION_ERROR', 'Cột đã chọn không còn trong tệp.', 422);
-      const result = record(await session.authenticated(request => request('adminStudentImportPreview', {
-        body: { format: file.format, content_base64: file.contentBase64, username_header: header(mapping.username), display_name_header: header(mapping.displayName), user_id_header: null },
-      }), true));
+      const owner = await currentImportOwner();
+      const result = record(await session.authenticated(request => {
+        ensureImportOwner(owner);
+        return request('adminStudentImportPreview', {
+          body: { format: file.format, content_base64: file.contentBase64, username_header: header(mapping.username), display_name_header: header(mapping.displayName), user_id_header: null },
+        });
+      }, true));
+      ensureImportOwner(owner);
       if (typeof result.valid !== 'boolean' || !Array.isArray(result.items) || !Array.isArray(result.errors)) return invalid();
       const previewId = result.preview_id === null || result.preview_id === undefined ? null : text(result.preview_id);
       if (result.valid && !previewId) return invalid();
@@ -281,25 +308,33 @@ export function createLiveAccounts(session: LiveIdentitySession): AccountsPort {
         rejectedCount: rows.filter(item => item.status === 'INVALID').length,
         canConfirm: result.valid,
       };
-      imports.set(id, { job, previewId, operationKey: crypto.randomUUID() });
+      imports.set(id, { job, previewId, owner, operationKey: crypto.randomUUID() });
       return job;
     },
     async confirmImport(input) {
-      const pending = imports.get(input.importId);
+      const pending = await ownedImport(input.importId);
       if (!pending || !pending.previewId || pending.job.canConfirm === false) throw new ApiError('CAPABILITY_UNAVAILABLE', 'Bản xem trước không thể xác nhận. Hãy sửa lỗi và kiểm tra lại tệp.', 409);
       pending.reason = input.reason;
-      const response = await session.authenticated(request => request('adminStudentImportConfirm', {
-        body: { preview_id: pending.previewId },
-        headers: { 'X-Admin-Reason': input.reason, 'Idempotency-Key': pending.operationKey },
-      }), true);
+      const response = await session.authenticated(request => {
+        ensureImportOwner(pending.owner);
+        return request('adminStudentImportConfirm', {
+          body: { preview_id: pending.previewId },
+          headers: { 'X-Admin-Reason': input.reason, 'Idempotency-Key': pending.operationKey },
+        });
+      }, true);
+      ensureImportOwner(pending.owner);
       const job = importResultJob(pending.job, response, Boolean(record(response).replayed));
       pending.job = withoutImportCodes(job);
       return job;
     },
     async reconcileImport(importId) {
-      const pending = imports.get(importId);
+      const pending = await ownedImport(importId);
       if (!pending?.previewId) throw new ApiError('CAPABILITY_UNAVAILABLE', 'Không có mã bản xem trước để đối chiếu.', 410);
-      const status = record(await session.authenticated(request => request('adminStudentImportStatus', { pathParams: { previewId: pending.previewId! } })));
+      const status = record(await session.authenticated(request => {
+        ensureImportOwner(pending.owner);
+        return request('adminStudentImportStatus', { pathParams: { previewId: pending.previewId! } });
+      }));
+      ensureImportOwner(pending.owner);
       if (status.status === 'PREVIEW') {
         pending.job = { ...pending.job, canConfirm: true };
         return pending.job;

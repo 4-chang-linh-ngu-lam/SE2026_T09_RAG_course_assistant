@@ -9,6 +9,7 @@ export type LiveIdentitySession = {
   identity: DataAdapter['identity'];
   authenticated<T>(run: (request: ReturnType<typeof createHttpClient>) => Promise<T>, mutation?: boolean): Promise<T>;
   currentUser(): User | null;
+  sessionGeneration(): number;
 };
 
 // Access tokens live only in memory; refresh cookies remain HttpOnly. Credential
@@ -125,7 +126,7 @@ export function createLiveIdentitySession(options: { fetcher?: typeof fetch; now
     createStudent: (username, displayName) => authenticated(async request => decodeMutation(decodeCode, await request('createStudent', { body: { username, ...(displayName ? { display_name: displayName } : {}) } })), true),
     issueCode: (userId, identityVerified) => authenticated(async request => decodeMutation(decodeCode, await request('issueStudentCode', { userId, body: identityVerified ? { identity_verified: true } : {} })), true),
   };
-  return { identity, authenticated, currentUser: () => user };
+  return { identity, authenticated, currentUser: () => user, sessionGeneration: () => generation };
 }
 
 export function createLiveIdentity(options: { fetcher?: typeof fetch; now?: () => number; onLost?: () => void } = {}): DataAdapter['identity'] {
