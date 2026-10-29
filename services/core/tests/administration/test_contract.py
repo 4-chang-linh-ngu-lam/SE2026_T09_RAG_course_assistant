@@ -88,6 +88,12 @@ def test_parser_does_not_use_legacy_user_ids_without_explicit_selection():
     }
 
 
+def test_parser_rejects_missing_explicit_user_id_header():
+    with pytest.raises(AppError) as invalid:
+        parse_students(csv_request("username\nlegacy.student\n", user_id_header="user_id"))
+    assert invalid.value.status_code == 422
+
+
 def test_duplicate_and_invalid_rows_do_not_echo_input():
     rows, errors = parse_students(
         csv_request(

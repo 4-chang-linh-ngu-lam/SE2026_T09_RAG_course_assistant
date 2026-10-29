@@ -133,7 +133,7 @@ Consumer dedup theo SHA-256 của recipient + schema version + type + aggregate/
 | GET | /admin/audit-events | Admin; `limit,cursor,actor_id?,action?,since?,until?` → `{items,next_cursor}`, chỉ audit cùng trường, metadata allowlist |
 | GET/PATCH | /admin/data-requests/{id} | Admin cùng trường với chủ request; GET DataRequestResponse; PATCH body theo quy trình bên dưới |
 | GET | /admin/data-requests | Admin; `limit,cursor` → Page[DataRequestResponse], cùng trường |
-| POST | /admin/students/imports/preview | Admin; `{format:CSV/XLSX,content_base64,homeroom_class_id?,username_header?,display_name_header?,user_id_header?}` → `{valid,preview_id?,expires_at?,items,errors}`. Header mapping selects input columns; unselected cells are ignored and never returned. `user_id_header` is not inferred unless explicitly selected |
+| POST | /admin/students/imports/preview | Admin; `{format:CSV/XLSX,content_base64,homeroom_class_id?,username_header?,display_name_header?,user_id_header?}` → `{valid,preview_id?,expires_at?,items,errors}`. Header mapping selects input columns; unselected cells are ignored and never returned. `user_id_header` is not inferred unless explicitly selected; an explicitly selected header missing from the file returns 422 |
 | POST | /admin/students/imports/confirm | Admin đã tạo preview; `{preview_id}` → `{preview_id,status:COMPLETED,replayed,items}` |
 | GET | /admin/students/imports/{preview_id} | Cùng Admin tạo preview + cùng trường; trả PREVIEW/COMPLETED/EXPIRED và trạng thái dòng để đối chiếu timeout; không trả mã kích hoạt |
 

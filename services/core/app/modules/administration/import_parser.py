@@ -89,7 +89,7 @@ def parse_students(request: ImportPreviewRequest) -> tuple[list[dict], list[Impo
         selected_columns = [(request.username_header, "username")]
         if display_name_header is not None:
             selected_columns.append((display_name_header, "display_name"))
-        if request.user_id_header is not None and request.user_id_header in header:
+        if request.user_id_header is not None:
             selected_columns.append((request.user_id_header, "user_id"))
         selected_headers = [source.casefold() for source, _target in selected_columns]
         if any(source not in header for source, _target in selected_columns) or len(
