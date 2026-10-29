@@ -115,6 +115,34 @@ Các lớp khối khác để trống. Audit/outbox từ các workflow commit c�
 Marker `DEV_SEED_COMPLETED` chỉ ghi khi toàn bộ thành công. Chạy đồng thời được
 serialize; lỗi giữa chừng rollback tất cả. Không dùng bootstrap demo-ui.
 
+## One-time Admin bootstrap cho staging Preview
+
+Lệnh CLI:
+
+```sh
+python -m app.maintenance bootstrap-staging-admin --environment staging --expected-database neondb --expected-host <Neon-host> --confirm-staging-bootstrap
+```
+
+Lệnh chỉ dành cho một Cloud Run Job operator-triggered dùng Secret Manager
+`lumi-neon-staging-database-url` làm `STAGING_DATABASE_URL` (PostgreSQL URI; CLI dùng
+driver `psycopg` nếu scheme chưa khai báo driver); `STAGING_DATABASE_HOST`
+phải là hostname Neon staging đã duyệt và lệnh `--expected-host` phải khớp. Job cũng
+có thể cần `DATABASE_URL` để khởi tạo cấu hình Core, nhưng bootstrap chỉ kết nối qua
+`STAGING_DATABASE_URL`. Đây không phải HTTP route, seed tự động, hay production onboarding.
+Trước khi chạy phải có owner approval TV1/TV2/TV4 cho runbook, SMTP Gmail đã cấu hình và
+đúng Neon staging hostname. Trên job, cung cấp `STAGING_BOOTSTRAP_ADMIN_EMAIL`,
+`STAGING_BOOTSTRAP_SCHOOL_NAME` (synthetic `Lumi Staging`) cùng `SMTP_*`; `SMTP_PASSWORD`
+chỉ tham chiếu Secret Manager, không phải plaintext env/argument. Notification worker Job
+cũng phải dùng cùng `DATABASE_URL`, `SECRET_KEY` và SMTP secrets để gửi invitation đã queue.
+
+Lệnh kiểm tra migration head, environment/confirmation, đúng database name + host và
+khóa Core tables. Nó từ chối database có dữ liệu ứng dụng hoặc marker không khớp. Lần đầu
+tạo một School và một Admin `PENDING_VERIFICATION` cùng audit/credential-delivery record
+trong một transaction; Core chỉ lưu token hash/durable retry state. Lần chạy lại cùng
+profile chỉ trả IDs/status, không tạo token mới. Output không chứa email, password hay
+token; invitation token được worker gửi qua email để người nhận tự đặt mật khẩu. Không
+chạy lệnh này cho Production; PR không tạo hoặc thực thi Cloud Run Job trên Neon.
+
 ## Downgrade và bằng chứng kiểm thử
 
 Online downgrade chặn trước DDL nếu revision sẽ bỏ bảng có dữ liệu, school scope

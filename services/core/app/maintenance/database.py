@@ -11,6 +11,7 @@ from sqlalchemy import func, inspect, select, text
 from sqlalchemy.orm import Session
 
 from app.common.audit import AuditEvent, AuditMetadata, record_audit
+from app.common.config import settings
 from app.common.outbox import OUTBOX_SCHEMA_VERSION, OutboxEvent
 from app.maintenance.migration_safety import MIGRATION_LOCK
 from app.model_registry import load_metadata
@@ -22,8 +23,13 @@ from app.modules.classroom.public import (
 )
 from app.modules.identity.public import (
     bootstrap_dev_identity,
+    get_user_roles,
+    get_user_summary,
     maintenance_assign_school,
     maintenance_identity_report,
+)
+from app.modules.identity.public import (
+    bootstrap_staging_admin as identity_bootstrap_staging_admin,
 )
 
 
@@ -193,3 +199,103 @@ def seed_development(
     )
     session.flush()
     return {"school_id": str(school_id), "created": True}
+
+
+def bootstrap_staging_admin(
+    session: Session,
+    *,
+    environment: str,
+    expected_database: str,
+    expected_host: str,
+    school_name: str,
+    admin_email: str,
+    confirm_staging_bootstrap: bool,
+) -> dict:
+    """One-time staging bootstrap. The Cloud Run job must use the staging DB secret."""
+    if environment != "staging" or not confirm_staging_bootstrap:
+        raise ValueError("Staging bootstrap requires explicit staging confirmation")
+    if not expected_database or not expected_host:
+        raise ValueError("Provide the exact staging database name and host")
+    if session.scalar(text("SELECT current_database()")) != expected_database:
+        raise ValueError("Staging bootstrap database name mismatch")
+    bind = session.get_bind()
+    database_url = getattr(bind, "url", None) or getattr(getattr(bind, "engine", None), "url", None)
+    actual_host = database_url.host if database_url else None
+    if (
+        not actual_host
+        or actual_host.rstrip(".").casefold() != expected_host.rstrip(".").casefold()
+    ):
+        raise ValueError("Staging bootstrap database host mismatch")
+    _lock_core(session)
+    markers = list(
+        session.scalars(
+            select(AuditEvent)
+            .where(AuditEvent.action == "STAGING_BOOTSTRAP_ADMIN")
+            .order_by(AuditEvent.occurred_at, AuditEvent.id)
+        )
+    )
+    if markers:
+        if len(markers) != 1:
+            raise ValueError("Unexpected staging bootstrap audit state")
+        marker = markers[0]
+        admin = get_user_summary(marker.target_id, session=session)
+        school = next(
+            (
+                item
+                for item in maintenance_schools(session=session)
+                if item["school_id"] == str(marker.school_id)
+            ),
+            None,
+        )
+        if (
+            marker.target_type != "USER"
+            or marker.school_id is None
+            or admin is None
+            or admin.email is None
+            or admin.email.casefold() != admin_email.strip().casefold()
+            or admin.school_id != marker.school_id
+            or "ADMIN" not in get_user_roles(admin.id, session=session)
+            or school is None
+            or school["name"] != school_name
+        ):
+            raise ValueError("Staging bootstrap marker does not match the requested profile")
+        return {
+            "created": False,
+            "school_id": str(marker.school_id),
+            "admin_user_id": str(admin.id),
+            "status": str(admin.status),
+            "correlation_id": str(marker.correlation_id),
+        }
+
+    for table in load_metadata().sorted_tables:
+        if session.scalar(select(table.c.id).limit(1)) is not None:
+            raise ValueError("Staging bootstrap requires an empty Core database")
+
+    smtp_password = (
+        settings.smtp_password.get_secret_value().strip() if settings.smtp_password else ""
+    )
+    if (
+        not settings.smtp_host
+        or not settings.smtp_username
+        or not settings.smtp_from
+        or not smtp_password
+    ):
+        raise ValueError("Configure the staging SMTP sender and App Password before bootstrap")
+
+    school_id = uuid4()
+    maintenance_provision_schools({school_id: school_name}, session=session)
+    correlation_id = uuid4()
+    admin = identity_bootstrap_staging_admin(
+        email=admin_email,
+        school_id=school_id,
+        correlation_id=correlation_id,
+        session=session,
+    )
+    return {
+        "created": True,
+        "school_id": str(school_id),
+        "admin_user_id": str(admin.id),
+        "status": str(admin.status),
+        "invitation_delivery": "PENDING",
+        "correlation_id": str(correlation_id),
+    }

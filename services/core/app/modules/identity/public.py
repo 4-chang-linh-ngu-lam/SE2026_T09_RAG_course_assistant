@@ -29,6 +29,7 @@ from app.modules.identity.email_delivery import get_token_sender
 from app.modules.identity.idempotency import Mutation, get_mutation
 from app.modules.identity.maintenance import (
     bootstrap_dev_identity,
+    bootstrap_staging_admin,
     maintenance_assign_school,
     maintenance_identity_report,
 )
@@ -72,6 +73,7 @@ __all__ = [
     "admin_update_user_roles",
     "attempt_token_delivery",
     "bootstrap_dev_identity",
+    "bootstrap_staging_admin",
     "check_user_is_lecturer",
     "get_current_user_snapshot",
     "get_identity_user_lookup",
