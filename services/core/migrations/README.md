@@ -128,9 +128,11 @@ Lệnh chỉ dành cho một Cloud Run Job operator-triggered dùng Secret Manag
 driver `psycopg` nếu scheme chưa khai báo driver); `STAGING_DATABASE_HOST`
 phải là hostname Neon staging đã duyệt và lệnh `--expected-host` phải khớp. Job cũng
 có thể cần `DATABASE_URL` để khởi tạo cấu hình Core, nhưng bootstrap chỉ kết nối qua
-`STAGING_DATABASE_URL`. Đây không phải HTTP route, seed tự động, hay production onboarding.
-Trước khi chạy phải có owner approval TV1/TV2/TV4 cho runbook, SMTP Gmail đã cấu hình và
-đúng Neon staging hostname. Trên job, cung cấp `STAGING_BOOTSTRAP_ADMIN_EMAIL`,
+`STAGING_DATABASE_URL`. URI không được có tham số query `host`, `hostaddr`, `service`
+hoặc `servicefile`, vì chúng có thể chuyển hướng kết nối khỏi hostname staging. Đây
+không phải HTTP route, seed tự động, hay production onboarding.
+Trước khi chạy, operator xác minh URL, hostname Neon staging, database đích và SMTP Gmail
+đã cấu hình. Trên job, cung cấp `STAGING_BOOTSTRAP_ADMIN_EMAIL`,
 `STAGING_BOOTSTRAP_SCHOOL_NAME` (synthetic `Lumi Staging`) cùng `SMTP_*`; `SMTP_PASSWORD`
 chỉ tham chiếu Secret Manager, không phải plaintext env/argument. Notification worker Job
 cũng phải dùng cùng `DATABASE_URL`, `SECRET_KEY` và SMTP secrets để gửi invitation đã queue.

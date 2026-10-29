@@ -126,6 +126,25 @@ def test_staging_session_scope_rejects_host_before_connecting(monkeypatch):
         pytest.fail("no session should be opened on a mismatched host")
 
 
+@pytest.mark.parametrize("parameter", ["host", "hostaddr", "service", "servicefile"])
+def test_staging_session_scope_rejects_connection_target_overrides(monkeypatch, parameter):
+    monkeypatch.setenv(
+        "STAGING_DATABASE_URL",
+        f"postgresql://staging:placeholder@staging.example/staging_db?{parameter}=other.example",
+    )
+    monkeypatch.setenv("STAGING_DATABASE_HOST", "staging.example")
+    monkeypatch.setattr(
+        "app.maintenance.__main__.create_engine",
+        lambda *_args, **_kwargs: pytest.fail("target override must fail before connecting"),
+    )
+    args = SimpleNamespace(command="bootstrap-staging-admin", expected_host="staging.example")
+    with (
+        pytest.raises(ValueError, match="must not override its connection target"),
+        _session_scope(args),
+    ):
+        pytest.fail("no session should be opened for a redirected target")
+
+
 def test_staging_bootstrap_creates_only_pending_admin_and_invitation(current, monkeypatch):
     smtp_ready(monkeypatch)
     profile = staging_profile(current)

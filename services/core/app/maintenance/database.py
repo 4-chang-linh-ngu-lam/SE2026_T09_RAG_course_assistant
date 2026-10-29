@@ -8,6 +8,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from sqlalchemy import func, inspect, select, text
+from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session
 
 from app.common.audit import AuditEvent, AuditMetadata, record_audit
@@ -37,6 +38,19 @@ class MappingManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     schools: dict[UUID, str] = Field(default_factory=dict)
     assignments: dict[UUID, UUID] = Field(default_factory=dict)
+
+
+def validate_staging_database_url(database_url: URL, *, expected_host: str) -> None:
+    """Reject PostgreSQL URI options that can redirect a staging connection."""
+    target_overrides = {"host", "hostaddr", "service", "servicefile"}
+    if any(key.casefold() in target_overrides for key in database_url.query):
+        raise ValueError("Staging database URL must not override its connection target")
+    actual_host = database_url.host
+    if (
+        not actual_host
+        or actual_host.rstrip(".").casefold() != expected_host.rstrip(".").casefold()
+    ):
+        raise ValueError("Staging bootstrap database host mismatch")
 
 
 def outbox_delivery_report(session: Session) -> dict:
@@ -220,12 +234,9 @@ def bootstrap_staging_admin(
         raise ValueError("Staging bootstrap database name mismatch")
     bind = session.get_bind()
     database_url = getattr(bind, "url", None) or getattr(getattr(bind, "engine", None), "url", None)
-    actual_host = database_url.host if database_url else None
-    if (
-        not actual_host
-        or actual_host.rstrip(".").casefold() != expected_host.rstrip(".").casefold()
-    ):
-        raise ValueError("Staging bootstrap database host mismatch")
+    if database_url is None:
+        raise ValueError("Staging bootstrap database host is unavailable")
+    validate_staging_database_url(database_url, expected_host=expected_host)
     _lock_core(session)
     markers = list(
         session.scalars(

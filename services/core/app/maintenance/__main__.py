@@ -24,6 +24,7 @@ from app.maintenance.database import (
     mapping_plan,
     outbox_delivery_report,
     seed_development,
+    validate_staging_database_url,
 )
 
 
@@ -44,13 +45,8 @@ def _session_scope(args):
             raise ValueError("STAGING_DATABASE_URL is invalid") from exc
         if parsed_url.drivername == "postgresql":
             parsed_url = parsed_url.set(drivername="postgresql+psycopg")
-        actual_host = parsed_url.host
-        if (
-            not actual_host
-            or actual_host.rstrip(".").casefold() != configured_host.rstrip(".").casefold()
-            or actual_host.rstrip(".").casefold() != args.expected_host.rstrip(".").casefold()
-        ):
-            raise ValueError("Staging bootstrap database host mismatch")
+        validate_staging_database_url(parsed_url, expected_host=configured_host)
+        validate_staging_database_url(parsed_url, expected_host=args.expected_host)
         engine = create_engine(
             parsed_url,
             pool_pre_ping=True,
