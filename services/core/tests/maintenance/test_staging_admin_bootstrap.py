@@ -209,18 +209,18 @@ def test_staging_bootstrap_retry_is_idempotent_and_profile_bound(current, monkey
     assert counts(current.engine) == before
 
 
-def test_staging_admin_email_correction_preserves_unsent_invitation(current, monkeypatch):
+def test_staging_admin_email_correction_rotates_unsent_invitation(current, monkeypatch):
     smtp_ready(monkeypatch)
     profile = staging_profile(current)
     with current.factory() as session, session.begin():
         created = bootstrap_staging_admin(session, **profile)
-        token = session.scalar(
+        original_token = session.scalar(
             select(OneTimeToken).where(
                 OneTimeToken.user_id == created["admin_user_id"],
                 OneTimeToken.purpose == TokenPurpose.ADMIN_INVITATION,
             )
         )
-        token_hash = token.token_hash
+        original_token_hash = original_token.token_hash
 
     args = {
         "environment": "staging",
@@ -239,14 +239,23 @@ def test_staging_admin_email_correction_preserves_unsent_invitation(current, mon
 
     with current.factory() as session:
         user = session.get(User, created["admin_user_id"])
-        token = session.scalar(
-            select(OneTimeToken).where(
-                OneTimeToken.user_id == created["admin_user_id"],
-                OneTimeToken.purpose == TokenPurpose.ADMIN_INVITATION,
+        tokens = list(
+            session.scalars(
+                select(OneTimeToken)
+                .where(
+                    OneTimeToken.user_id == created["admin_user_id"],
+                    OneTimeToken.purpose == TokenPurpose.ADMIN_INVITATION,
+                )
+                .order_by(OneTimeToken.created_at, OneTimeToken.id)
             )
         )
-        delivery = session.scalar(
-            select(CredentialDelivery).where(CredentialDelivery.token_id == token.id)
+        assert len(tokens) == 2
+        original_token, new_token = tokens
+        old_delivery = session.scalar(
+            select(CredentialDelivery).where(CredentialDelivery.token_id == original_token.id)
+        )
+        new_delivery = session.scalar(
+            select(CredentialDelivery).where(CredentialDelivery.token_id == new_token.id)
         )
         correction_audit = session.scalar(
             select(AuditEvent).where(
@@ -255,8 +264,11 @@ def test_staging_admin_email_correction_preserves_unsent_invitation(current, mon
             )
         )
         assert user.email == CORRECTED_ADMIN_EMAIL
-        assert token.token_hash == token_hash and token.consumed_at is None
-        assert delivery.status == "PENDING" and delivery.attempts == 0
+        assert original_token.token_hash == original_token_hash
+        assert original_token.consumed_at is not None
+        assert new_token.token_hash != original_token_hash and new_token.consumed_at is None
+        assert old_delivery.status == "CANCELLED"
+        assert new_delivery.status == "PENDING" and new_delivery.attempts == 0
         assert correction_audit is not None and correction_audit.actor_id is None
         assert CORRECTED_ADMIN_EMAIL not in json.dumps(correction_audit.metadata_json)
 
@@ -269,6 +281,8 @@ def test_staging_admin_email_correction_preserves_unsent_invitation(current, mon
         )
     assert bootstrap_retry["created"] is False
     assert bootstrap_retry["admin_user_id"] == created["admin_user_id"]
+    assert counts(current.engine)["one_time_tokens"] == 2
+    assert counts(current.engine)["credential_deliveries"] == 2
 
 
 def test_concurrent_staging_bootstrap_creates_only_one_invitation(current, monkeypatch):

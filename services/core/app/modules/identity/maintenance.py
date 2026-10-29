@@ -282,6 +282,13 @@ def maintenance_correct_staging_admin_email(
 
     if changed:
         user.email = requested
+        service = IdentityService(session)
+        repository.invalidate_one_time_tokens(user.id, TokenPurpose.ADMIN_INVITATION, now)
+        service._issue_one_time_token(
+            user,
+            TokenPurpose.ADMIN_INVITATION,
+            timedelta(hours=settings.admin_invitation_expire_hours),
+        )
         record_audit(
             session,
             actor_id=None,

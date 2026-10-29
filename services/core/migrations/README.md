@@ -155,9 +155,10 @@ python -m app.maintenance correct-staging-admin-email --environment staging --ex
 Job cung cấp `STAGING_BOOTSTRAP_EXPECTED_ADMIN_EMAIL` (email hiện tại),
 `STAGING_BOOTSTRAP_ADMIN_EMAIL` (email mới) và `STAGING_BOOTSTRAP_SCHOOL_NAME`.
 Lệnh chỉ đổi email của đúng Admin pending trong đúng School; đòi hỏi đúng marker, một
-invitation còn hạn, delivery `PENDING` và `attempts=0`. Nó giữ nguyên token chưa gửi,
-ghi audit mới và không in email/token. Nếu đã có lần gửi/thử gửi, lệnh từ chối; khi đó
-cần dừng và operator điều tra trạng thái delivery trước khi chọn một luồng sửa/reissue.
+invitation còn hạn, delivery `PENDING` và `attempts=0`. Nó vô hiệu token cũ, tạo
+invitation token mới cho địa chỉ sửa và ghi audit; không in email/token. Token mới cần
+được phát qua worker như thường lệ. Nếu đã có lần gửi/thử gửi, lệnh từ chối; operator
+phải điều tra trạng thái delivery trước khi chọn luồng xử lý tiếp theo.
 
 ## Downgrade và bằng chứng kiểm thử
 
