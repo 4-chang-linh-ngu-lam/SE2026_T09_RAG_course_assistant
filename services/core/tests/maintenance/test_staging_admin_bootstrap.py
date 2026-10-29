@@ -22,7 +22,7 @@ from app.modules.identity.models import (
     User,
 )
 
-ADMIN_EMAIL = "admin@staging.example.invalid"
+ADMIN_EMAIL = "admin@staging.example.com"
 SCHOOL_NAME = "Lumi Staging"
 
 
