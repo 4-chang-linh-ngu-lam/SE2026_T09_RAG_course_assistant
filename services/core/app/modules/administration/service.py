@@ -374,8 +374,11 @@ class AdministrationService:
 
     def import_status(self, actor_id: UUID, preview_id: UUID) -> ImportStatusResponse:
         with transaction(self.session):
-            actor = identity.admin_actor(actor_id, session=self.session, lock=True)
+            actor = identity.admin_actor(actor_id, session=self.session)
             batch = self.repository.batch(preview_id, actor.id, actor.school_id)
+            actor = identity.admin_actor(actor_id, session=self.session, lock=True)
+            if actor.school_id != batch.school_id:
+                raise AppError(404)
             now = self.session.scalar(select(func.clock_timestamp()))
             if batch.status == "COMPLETED":
                 status = "COMPLETED"

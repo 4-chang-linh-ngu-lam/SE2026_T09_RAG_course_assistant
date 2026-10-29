@@ -536,6 +536,41 @@ def test_concurrent_confirm_only_one_response_has_codes(system):
     assert sum(result.items[0].code is not None for result in results) == 1
 
 
+def test_import_status_and_confirm_share_batch_then_actor_lock_order(system):
+    draft = preview()
+    barrier = Barrier(2)
+
+    def read_status(_):
+        with system.factory() as session:
+            barrier.wait(timeout=10)
+            return (
+                AdministrationService(session, uuid4())
+                .import_status(system.users["admin"].id, UUID(draft["preview_id"]))
+                .status
+            )
+
+    def confirm_batch(_):
+        with system.factory() as session:
+            barrier.wait(timeout=10)
+            return AdministrationService(session, uuid4()).confirm_students(
+                system.users["admin"].id, UUID(draft["preview_id"]), "ADMIN_INTERVENTION"
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        status_future = pool.submit(read_status, None)
+        confirm_future = pool.submit(confirm_batch, None)
+        status = status_future.result(timeout=30)
+        result = confirm_future.result(timeout=30)
+    assert status in ("PREVIEW", "COMPLETED")
+    assert result.status == "COMPLETED"
+    assert (
+        AdministrationService(system.session, uuid4())
+        .import_status(system.users["admin"].id, UUID(draft["preview_id"]))
+        .status
+        == "COMPLETED"
+    )
+
+
 def test_xlsx_http_preview_confirm(system):
     workbook = Workbook()
     workbook.active.append(["username", "display_name"])
