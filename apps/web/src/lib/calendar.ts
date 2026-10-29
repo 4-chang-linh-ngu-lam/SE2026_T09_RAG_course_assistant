@@ -31,6 +31,14 @@ export function parseCalendarEventSchedule(date: string, timeRange: string): { s
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
+export function spansMultipleLocalDays(start: string, end: string): boolean {
+  const startsAt = new Date(start), endsAt = new Date(end);
+  if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime())) return false;
+  return startsAt.getFullYear() !== endsAt.getFullYear()
+    || startsAt.getMonth() !== endsAt.getMonth()
+    || startsAt.getDate() !== endsAt.getDate();
+}
+
 /**
  * Returns the number of days in the specified month (1-indexed: 1 = Jan, ..., 12 = Dec).
  * Correctly accounts for leap years in February (29 in leap years, 28 otherwise).
