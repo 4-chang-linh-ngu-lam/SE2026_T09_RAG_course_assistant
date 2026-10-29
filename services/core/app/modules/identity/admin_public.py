@@ -198,7 +198,12 @@ def admin_list_users(
                         user.status == UserStatus.PENDING_VERIFICATION
                         and Role.STUDENT in {Role(value) for value in assigned}
                     ),
-                    last_admin=(Role.ADMIN.value in assigned and active_admin_count == 1),
+                    last_admin=(
+                        Role.ADMIN.value in assigned
+                        and user.status == UserStatus.ACTIVE
+                        and user.email_verified_at is not None
+                        and active_admin_count == 1
+                    ),
                     invitation_expires_at=expires_at,
                     invitation_delivery_status=delivery_status,
                 )

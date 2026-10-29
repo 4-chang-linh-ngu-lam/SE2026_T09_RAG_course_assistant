@@ -304,6 +304,16 @@ def test_cross_school_and_null_scope_are_hidden_and_current_role_is_authoritativ
     assert system.client.get("/api/v1/admin/audit-events", headers=old).status_code == 403
 
 
+def test_user_list_marks_only_the_active_last_admin(system):
+    with system.factory.begin() as db:
+        db.get(User, system.users["admin2"].id).status = UserStatus.LOCKED
+    response = system.client.get("/api/v1/admin/users", headers=system.headers())
+    assert response.status_code == 200, response.text
+    accounts = {item["id"]: item for item in response.json()["items"]}
+    assert accounts[str(system.users["admin"].id)]["last_admin"] is True
+    assert accounts[str(system.users["admin2"].id)]["last_admin"] is False
+
+
 @pytest.mark.parametrize("operation", ["roles", "status"])
 def test_last_admin_survives_concurrent_mutations(system, operation):
     # Keep exactly two active admins globally; other_school does not authorize mutations.
