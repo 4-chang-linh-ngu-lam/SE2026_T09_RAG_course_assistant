@@ -1,8 +1,8 @@
 # Danh mục công việc — Lumi / RAG Course Assistant
 
-**Trạng thái Core trên `main` commit `2f7d70a` (2026-10-19):** Backend TASK-001–016 đã có triển khai. Full suite trên PostgreSQL 16 đạt **342 passed, 0 skipped**; [CI PR #10](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/39157402992) đạt `core-tests`, `compose-smoke`, `web-build` trên head `bb7f88d` trước squash merge. [Bàn giao task 001–015](TV4_BACKEND_HANDOVER.md) ghi bằng chứng và giới hạn. Đây chưa phải nghiệm thu toàn Core G2 hoặc owner approval.
+**Trạng thái nguồn chuẩn (2026-10-29):** `main` hiện ở `8100ebd`; Core TASK-001–016 và Web MVP PR #30 đã được merge. PR #33 đang tích hợp live Core APIs với Web, chưa merge. Trên head `b8c9a6d` của PR #33, GitHub CI PostgreSQL 16 đạt **360 passed, 0 skipped**, public interface coverage **100%**, tổng coverage **88%**; `compose-smoke` và `web-build` xanh, `core-load` skipped. Đây là bằng chứng của PR branch, không được hiểu là PR #33 đã merge, owner review đã hoàn tất hoặc toàn Core G2/Web E2E đã nghiệm thu. [Bàn giao TASK-001–015](TV4_BACKEND_HANDOVER.md) giữ bằng chứng lịch sử; issue #19 theo dõi phần owner checklist còn lại.
 
-**Rà soát đồng bộ: 2026-10-16.** Cả TASK-001–020 có mục **Rà soát đồng bộ** ghi hiện trạng, việc cần sửa, phụ thuộc và nghiệm thu bổ sung. Đây là kế hoạch theo code trong workspace, không phải xác nhận phần còn thiếu đã triển khai.
+**Rà soát đồng bộ:** Các mục review theo task được ghi ngày 2026-10-16; owner checklist cần cập nhật theo bằng chứng hiện hành ở trên và trong issue #19. Kế hoạch theo code không tự xác nhận phần còn thiếu đã triển khai.
 
 ## 1. Nguồn chuẩn và phạm vi
 
@@ -24,7 +24,7 @@ Lumi phục vụ một trường THCS/THPT, khối 6–12. Giữ ba role ADMIN/L
 | TV4 | Notification, Administration, tích hợp/audit, migration/Compose/CI | Các owner domain; không sở hữu thay user/roster |
 | Chưa phân công cụ thể | Document, AI, Learning, Learner Intelligence | Chốt owner trước triển khai từng giai đoạn |
 
-Repo có Common, Identity, Classroom Admin/access API, Social, Notification inbox/worker, Administration backend, health, migration 0001–0012 và Compose/CI. Administration có import Student CSV/XLSX, staff/role/status/audit và data-request review; phần thiếu policy/executor giữ IN_REVIEW theo người dùng. Bốn service sau Core chưa có triển khai; apps/web hiện là skeleton. UI demo riêng bị gitignore không phải Web nghiệp vụ đã nghiệm thu. Full Core backend đã được kiểm thử với PostgreSQL 16 trên commit sau merge PR #10; owner review, dữ liệu School thực, Web E2E và các workflow liên service vẫn cần bằng chứng riêng.
+Repo có Common, Identity, Classroom Admin/access API, Social, Notification inbox/worker, Administration backend, health, migration 0001–0013 và Compose/CI. Administration có import Student CSV/XLSX, staff/role/status/audit và data-request review; phần thiếu policy/executor giữ IN_REVIEW theo quyết định người dùng. Web MVP đã được khôi phục qua PR #30; PR #33 mới nối các luồng đã có contract với Core. UI demo riêng bị gitignore và không phải Web nghiệp vụ. Dữ liệu School legacy, SMTP thật, production first-Admin onboarding, owner reviews, Vercel/Core production configuration và Admin→Lecturer→Student E2E vẫn cần bằng chứng hoặc quyết định riêng.
 
 ## 3. Ma trận 20 task và phần cần đồng bộ
 
@@ -43,9 +43,9 @@ Repo có Common, Identity, Classroom Admin/access API, Social, Notification inbo
 | [011 Calendar](TASK-011-social-calendar.md) · G1 | PRIMARY/ASSISTING, starts_at < ends_at; Core event và Learning projection riêng | 007/008/012; contract 019 khi tích hợp |
 | [012 Notification/outbox](TASK-012-notification-module.md) · G1 | API/worker/snapshot/watermark đã triển khai; worker chỉ giao V2 có recipient snapshot, giữ V1 legacy không phát để tránh sai người nhận | Review event contracts và quyết định xử lý backlog V1 nếu DB thực có; TV4 |
 | [013 Administration/audit](TASK-013-administration-audit.md) · G1 | Đã triển khai staff/status/roles, audit theo trường, CSV/XLSX preview/confirm atomic/retry và review data requests; 38 test Administration đạt PostgreSQL | Review TV1/TV2/shared; fulfillment chưa đủ điều kiện giữ IN_REVIEW theo người dùng |
-| [014 Migrations/seed](TASK-014-core-migrations-db.md) · G2 | Metadata/head 0012, guard downgrade, CLI mapping và seed dev/test đã kiểm thử PostgreSQL 16 và CI | Mapping dữ liệu thực/FK cần TV1/TV2 duyệt; chưa có production onboarding |
-| [015 Security/integration](TASK-015-core-integration-security-tests.md) · G2 | Backend-only: 342 test PG16, 300 thao tác cạnh tranh, CI xanh; tải follow-up 56.229 request, backend p95 18,79 ms/client p95 1,17 giây | Web E2E ngoài scope; user-facing SLO/full TP-01, owner review và service còn pending |
-| [016 Compose/health/CI](TASK-016-core-docker-compose-ci.md) · G2 | Core wheel/Compose/health/CI đã chạy trên PR #10: `core-tests`, `compose-smoke`, `web-build` xanh | Full G2 và Web nghiệp vụ chưa nghiệm thu; mỗi revision mới cần CI riêng |
+| [014 Migrations/seed](TASK-014-core-migrations-db.md) · G2 | Metadata/head 0013, guard downgrade, CLI mapping và seed dev/test đã kiểm thử PostgreSQL 16/CI | Mapping dữ liệu thực/FK cần TV1/TV2 duyệt; chưa có production onboarding |
+| [015 Security/integration](TASK-015-core-integration-security-tests.md) · G2 | 342 test PG16, 300 thao tác cạnh tranh và tải follow-up là evidence lịch sử; PR #33 head b8c9 hiện có 360 test PG16 qua | Web E2E ngoài scope của load suite; user-facing SLO/full TP-01 và owner review còn pending |
+| [016 Compose/health/CI](TASK-016-core-docker-compose-ci.md) · G2 | PR #10 evidence lịch sử; PR #33 head b8c9 chạy `core-tests`, `compose-smoke`, `web-build` xanh | Full G2/Web nghiệp vụ chưa nghiệm thu; mỗi revision mới cần CI riêng |
 | [017 Document](TASK-017-document-service-design-impl.md) · G3 | Thiết kế trước code; grant/version/retry, notes/bookmarks, revoke và O2 | Core G2, 008/012/018 contracts |
 | [018 AI Tutor](TASK-018-ai-service-rag-tutor.md) · G3 | Thiết kế RAG/2 chế độ/chat privacy; hỏi mới–lịch sử, grant hiện hành, đo QAS-06 | Core G2, 008/017; D6 phối hợp 019 |
 | [019 Learning](TASK-019-learning-service.md) · G4 | Thiết kế PRIMARY approval, immutable attempt, transfer cutoff, grade version/deadline events | G3 + 006/008/011/012/018 contracts |

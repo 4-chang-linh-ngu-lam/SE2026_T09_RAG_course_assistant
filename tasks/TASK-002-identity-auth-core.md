@@ -19,7 +19,9 @@
 
 **Phụ thuộc và nghiệm thu bổ sung:**
 - [ ] TASK-013/014 kiểm thử chuyển dữ liệu cũ có mapping thật được duyệt, giữ ID/hash/trạng thái và không cấp quyền chéo trường.
-- [ ] Chạy lại bộ Identity/migration trên PostgreSQL 16 qua TASK-016 cho phiên bản mới; bằng chứng 153 test PostgreSQL 18 đã ghi không thay thế lần chạy này.
+- [x] Chạy lại Identity/Core suite và migration drift checks trên PostgreSQL 16 trong GitHub CI, PR #33 head `b8c9a6d` (360 passed, 0 skipped).
+
+**Kiểm chứng hiện hành (2026-10-29):** Identity scenarios thuộc Core CI PostgreSQL 16 trên PR #33 head `b8c9a6d` đạt trong bộ 360 test; migration drift gate xanh. Đây là evidence của PR branch, không chứng minh Gmail SMTP thật, legacy School mapping hoặc production onboarding. Xem [tasks/README](README.md).
 
 ---
 
@@ -107,6 +109,6 @@ Xây dựng các bảng trong schema `core`:
 - [x] Test `logout_all`: tăng `session_version` và vô hiệu hóa mọi access token cũ.
 - [x] Query lấy quyền hiện hành chỉ select ID/status/version/role, không select hash; DTO response không chứa hash. Query xác thực chỉ dùng model sở hữu bởi Identity.
 
-**Bằng chứng (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; `pytest tests/identity -q -W error` đạt 22/22; toàn Core với `TEST_DATABASE_URL` đạt 60/60; `ruff check app tests migrations` đạt. Đã kiểm tra register/verify/reset/refresh đồng thời, token hết hạn/sai purpose/dùng lại, khóa/mở tài khoản, logout-all qua dependency DB thực, role hiện hành và query không lấy hash. Migration 0003 upgrade/downgrade/upgrade và `alembic check` đạt, không drift.
+**Bằng chứng lịch sử (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; identity tests và migration 0003 checks đạt. Evidence PostgreSQL 16 mới nhất được ghi ở mục kiểm chứng hiện hành.
 
 **Phạm vi tiếp theo:** TASK-003 đã triển khai router, cookie/CSRF/rate limit và SMTP adapter (test bằng bộ gửi giả, chưa gửi email thật). TASK-004 mở rộng public workflows/data requests; TASK-013 kiểm tra quyền/audit thao tác Admin. Chưa kiểm chứng Compose/PostgreSQL 16. Hướng dẫn gọi service, cấu hình expiry và transaction tại [Core README](../services/core/README.md#identity-auth-core-task-002).

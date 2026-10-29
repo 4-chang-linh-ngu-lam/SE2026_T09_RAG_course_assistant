@@ -20,6 +20,8 @@
 - [ ] TASK-008/013 dùng Common với kiểm tra quyền hiện hành, cross-school và thiếu school scope đều fail closed.
 - [ ] Mọi thay đổi shared auth/audit có test hồi quy, TV1 và owner consumer review; giới hạn một process của limiter/cache được TASK-016 giữ đúng.
 
+**Kiểm chứng hiện hành (2026-10-29):** Core CI trên PR #33 head `b8c9a6d` chạy PostgreSQL 16 và đạt 360 passed/0 skipped; migration drift, OpenAPI, public coverage, Compose smoke và Web build đều xanh. Đây là evidence của PR branch, không xác nhận owner review, production onboarding hoặc full Core G2. Tóm tắt chung: [tasks/README](README.md).
+
 ---
 
 ## 1. Mục tiêu
@@ -85,6 +87,6 @@ Xây dựng lớp hạ tầng kỹ thuật dùng chung cho toàn bộ Core servi
 - [x] Exception handler trả về đúng định dạng JSON lỗi chuẩn hóa cho mọi lỗi HTTP (400, 401, 403, 404, 409, 422).
 - [x] `ruff check app/common/` và `pytest tests/test_common.py -W error` đạt, không cảnh báo.
 
-**Bằng chứng kiểm thử (2026-10-11):** Python 3.12.14; unit Common 36/36 đạt; toàn Core `pytest -q -W error` với `TEST_DATABASE_URL` đạt 38/38; `ruff check app tests migrations` đạt. Integration test dùng PostgreSQL 18 tạm, kiểm tra migration 0002, schema drift, audit persistence, UUID/timestamp UTC và rollback. Chưa kiểm chứng Docker Compose/PostgreSQL 16 ở bước này.
+**Bằng chứng lịch sử (2026-10-11):** Python 3.12.14; unit Common 36/36 đạt; toàn Core khi đó đạt 38/38 trên PostgreSQL 18 tạm. Evidence PostgreSQL 16 mới nhất được ghi ở mục kiểm chứng hiện hành.
 
 **Điểm tích hợp:** TASK-002 đã nối lookup Identity DB hiện hành cho `get_current_user`; ứng dụng chưa nối lookup vẫn fail closed. TASK-003 đã áp dụng cookie/CSRF tại endpoint; TASK-004 mở rộng public workflows. Đây là hoàn thành Common foundation, chưa phải hoàn thành toàn bộ Identity. Hướng dẫn cấu hình và interface tại [Core README](../services/core/README.md#common-foundation-task-001).

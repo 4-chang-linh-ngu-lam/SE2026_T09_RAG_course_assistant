@@ -13,13 +13,16 @@
 
 **Cần sửa/bổ sung:**
 - Consumer dùng chữ ký/DTO tại Core README, gồm `admin_create_student`, `admin_issue_student_code`, `admin_assign_student_username`; `admin_create_user` chỉ mời staff. Không import ORM/repository hoặc serialize SecretStr ra ngoài luồng giao mã đã chốt.
-- Thêm public operations tối thiểu cho TASK-013 khi chốt role mutation, đọc/cập nhật resolution và thông tin hiển thị mà consumer cần; chưa có helper thì không query bảng Identity trực tiếp.
+- TASK-013 hiện dùng Identity public operations cho user/role/status, staff invitation, Student import và data-request review; chỉ thêm helper mới khi có consumer/contract cụ thể, không query bảng Identity trực tiếp.
 - Giữ transaction/audit do owner quản lý, không audit trùng; summary/role/verify_active không thay thế school/resource permission.
 - Data request chỉ tiếp nhận/xem yêu cầu; thao tác correction/export/delete thực tế và retention thuộc workflow xác minh, không tự động cascade/xóa liên service.
 
 **Phụ thuộc và nghiệm thu bổ sung:**
-- [ ] TV1/TV4 chốt public contracts cho TASK-013; test caller rollback, authorization hiện hành, redaction và owner-only data requests.
-- [ ] Giữ gate public line/branch coverage 100% khi mở rộng interface; không coi coverage này là nghiệm thu Classroom hoặc Administration.
+- Public contracts và Administration consumers đã được triển khai; owner review TV1/TV4/shared còn chờ ghi nhận.
+- [x] Public interface 100% line/branch coverage gate chạy trong GitHub CI; coverage này không thay thế nghiệm thu Classroom/Administration.
+- [ ] Fulfillment ACCESS/EXPORT/CORRECTION/DELETE và retention tiếp tục fail-safe/chờ policy-executor theo issue #15; School mapping theo issue #13.
+
+**Kiểm chứng hiện hành (2026-10-29):** PR #33 head `b8c9a6d` chạy PostgreSQL 16 Core CI đạt 360 passed/0 skipped và public interface 100% coverage gate xanh. Đây là branch evidence, không chứng minh đã xuất/xóa dữ liệu hoặc chốt policy. Xem [tasks/README](README.md).
 
 ---
 
@@ -70,6 +73,6 @@ Read functions hỗ trợ `session=` tùy chọn; bỏ qua thì tự mở/đóng
 - [x] Sinh viên A không thể xem yêu cầu dữ liệu của Sinh viên B (kiểm tra phân quyền).
 - [x] Unit test cho toàn bộ hàm trong `public.py` đạt 100% line/branch coverage, không loại trừ code; CI kiểm tra ngưỡng này.
 
-**Bằng chứng (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; 12 unit tests public đạt 100% line/branch coverage (58 statements, 0 missing). Toàn Core `pytest -q -W error --cov=app.modules.identity.public --cov-branch --cov-fail-under=100` với `TEST_DATABASE_URL` đạt 119/119, lint đạt. Đã kiểm chứng batch một query không lấy hash, Admin authorization/audit, transaction caller rollback, invitation expiry/single-use/LOCKED, data request paging/idempotency/alias/cross-user. Migration 0004 downgrade/upgrade và `alembic check` đạt; snapshot OpenAPI cập nhật.
+**Bằng chứng lịch sử (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; public helpers khi đó đạt 100% line/branch coverage. Evidence PostgreSQL 16 mới nhất được ghi ở mục kiểm chứng hiện hành.
 
-**Phần còn lại:** Admin HTTP/role management và xử lý/resolve/export/delete thật thuộc TASK-013; retention cụ thể cần người vận hành duyệt. Chưa kiểm chứng SMTP thật, Compose/PostgreSQL 16 hoặc CI chạy trên GitHub. Các public/shared contracts và CI cần reviewer TV1/TV4 khi mở PR. Hướng dẫn chính tại [Core README](../services/core/README.md#identity-public-interface-và-data-requests-task-004).
+**Phần còn lại:** Admin HTTP/role management và Student import được TASK-013 tích hợp qua Identity public helpers. Real data correction/export/delete, retention và SMTP provider chưa nghiệm thu; School mapping legacy cần owner duyệt. Hướng dẫn chính tại [Core README](../services/core/README.md#identity-public-interface-và-data-requests-task-004).
