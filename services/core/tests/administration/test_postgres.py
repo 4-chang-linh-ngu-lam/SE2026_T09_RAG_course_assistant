@@ -312,6 +312,18 @@ def test_user_list_marks_only_the_active_last_admin(system):
     accounts = {item["id"]: item for item in response.json()["items"]}
     assert accounts[str(system.users["admin"].id)]["last_admin"] is True
     assert accounts[str(system.users["admin2"].id)]["last_admin"] is False
+    students = system.client.get(
+        "/api/v1/admin/users?account_type=STUDENT&limit=100", headers=system.headers()
+    )
+    assert students.status_code == 200
+    assert {row["id"] for row in students.json()["items"]} == {
+        str(system.users["student"].id),
+    }
+    detail = system.client.get(
+        f"/api/v1/admin/users?user_id={system.users['admin2'].id}", headers=system.headers()
+    )
+    assert detail.status_code == 200
+    assert [row["id"] for row in detail.json()["items"]] == [str(system.users["admin2"].id)]
 
 
 @pytest.mark.parametrize("operation", ["roles", "status"])

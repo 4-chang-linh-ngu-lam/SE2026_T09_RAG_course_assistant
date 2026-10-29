@@ -79,13 +79,27 @@ class AdministrationService:
         )
         return user, delivery_status
 
-    def list_users(self, actor_id, pagination, *, role=None, status=None, search=None):
+    def list_users(
+        self,
+        actor_id,
+        pagination,
+        *,
+        user_id=None,
+        account_type=None,
+        role=None,
+        status=None,
+        search=None,
+        username_missing=False,
+    ):
         return identity.admin_list_users(
             pagination,
             actor_id=actor_id,
+            user_id=user_id,
+            account_type=account_type,
             role=role,
             status=status,
             search=search,
+            username_missing=username_missing,
             session=self.session,
         )
 

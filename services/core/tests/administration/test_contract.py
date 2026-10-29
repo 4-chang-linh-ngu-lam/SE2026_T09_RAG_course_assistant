@@ -196,6 +196,7 @@ def test_administration_routes_are_authenticated_admin_only():
         ("patch", f"/users/{id}/status", {"status": "LOCKED"}),
         ("put", f"/users/{id}/roles", {"roles": ["LECTURER"]}),
         ("get", "/audit-events", None),
+        ("get", f"/users?user_id={id}", None),
         ("get", "/data-requests", None),
         ("get", f"/data-requests/{id}", None),
         (

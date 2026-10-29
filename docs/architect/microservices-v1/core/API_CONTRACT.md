@@ -124,7 +124,7 @@ Consumer dedup theo SHA-256 của recipient + schema version + type + aggregate/
 ## Administration — IMPLEMENTED (TASK-013)
 | Method | Endpoint | Quyền / Body |
 |---|---|---|
-| GET | /admin/users | Admin cùng trường; `role?,status?,search?,limit,cursor` → Page[AdminUserListItem]; chỉ email/username/display_name/status/roles/revision/timestamp và trạng thái delivery, không có credential/token/hash |
+| GET | /admin/users | Admin cùng trường; `user_id?,account_type?(STUDENT/STAFF),role?,status?,search?,username_missing?,limit,cursor` → Page[AdminUserListItem]; hỗ trợ tra cứu một tài khoản/nhóm để phân trang server-side; chỉ email/username/display_name/status/roles/revision/timestamp và trạng thái delivery, không có credential/token/hash |
 | POST | /admin/users | Admin; `{email,roles:[ADMIN/LECTURER],display_name?}` → 201 UserSummaryDTO; header `X-Token-Delivery-Status: DELIVERED/PENDING/NEEDS_REISSUE`; không trả token |
 | PATCH | /admin/users/{id} | Admin cùng trường; `{expected_revision,roles?,status?}` atomically cập nhật các trường đã gửi, revoke phiên một lần và ghi một audit; stale revision trả 409 |
 | POST | /admin/users/{id}/invitation/reissue | Admin cùng trường; chỉ invitation staff PENDING; vô hiệu invitation token cũ, tạo token mới và thử gửi; header `X-Token-Delivery-Status: DELIVERED/PENDING/NEEDS_REISSUE`; hỗ trợ Idempotency-Key |

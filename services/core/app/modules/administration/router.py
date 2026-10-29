@@ -1,5 +1,5 @@
 import json
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
@@ -109,11 +109,25 @@ def list_users(
     user: Admin,
     pagination: PageParam,
     service: Service,
+    user_id: UUID | None = None,
+    account_type: Annotated[Literal["STUDENT", "STAFF"] | None, Query()] = None,
     role: Annotated[str | None, Query(pattern=r"^(ADMIN|LECTURER|STUDENT)$")] = None,
     status: Annotated[str | None, Query(pattern=r"^(ACTIVE|PENDING_VERIFICATION|LOCKED)$")] = None,
     search: Annotated[str | None, Query(min_length=2, max_length=100)] = None,
+    username_missing: bool = False,
 ):
-    return _json(service.list_users(user.id, pagination, role=role, status=status, search=search))
+    return _json(
+        service.list_users(
+            user.id,
+            pagination,
+            user_id=user_id,
+            account_type=account_type,
+            role=role,
+            status=status,
+            search=search,
+            username_missing=username_missing,
+        )
+    )
 
 
 @router.patch("/users/{id}", response_model=UserSummaryDTO)

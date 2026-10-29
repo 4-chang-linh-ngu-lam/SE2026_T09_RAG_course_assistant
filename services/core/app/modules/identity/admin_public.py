@@ -89,14 +89,36 @@ def admin_list_users(
     pagination: Pagination,
     *,
     actor_id: UUID,
+    user_id: UUID | None = None,
+    account_type: str | None = None,
     role: str | None = None,
     status: str | None = None,
     search: str | None = None,
+    username_missing: bool = False,
     session: Session | None = None,
 ) -> Page[AdminUserListItem]:
     with _scope(session) as db:
         actor = _actor(db, actor_id)
         query = select(User).where(User.school_id == actor.school_id)
+        if user_id is not None:
+            query = query.where(User.id == user_id)
+        if account_type is not None:
+            if account_type == "STUDENT":
+                account_roles = [Role.STUDENT]
+            elif account_type == "STAFF":
+                account_roles = [Role.ADMIN, Role.LECTURER]
+            else:
+                raise AppError(422, "Unknown account type")
+            query = query.where(
+                exists(
+                    select(RoleAssignment.id).where(
+                        RoleAssignment.user_id == User.id,
+                        RoleAssignment.role.in_(account_roles),
+                    )
+                )
+            )
+        if username_missing:
+            query = query.where(User.username.is_(None))
         if role is not None:
             try:
                 selected_role = Role(role)
@@ -142,8 +164,8 @@ def admin_list_users(
             else []
         )
         roles_by_user: dict[UUID, list[str]] = {}
-        for user_id, assigned_role in role_rows:
-            roles_by_user.setdefault(user_id, []).append(str(assigned_role))
+        for role_user_id, assigned_role in role_rows:
+            roles_by_user.setdefault(role_user_id, []).append(str(assigned_role))
         active_admin_count = (
             db.scalar(
                 select(func.count(User.id))
@@ -176,8 +198,8 @@ def admin_list_users(
             else []
         )
         invitations = {}
-        for user_id, expires_at, delivery_status in invitation_rows:
-            invitations.setdefault(user_id, (expires_at, delivery_status))
+        for invitation_user_id, expires_at, delivery_status in invitation_rows:
+            invitations.setdefault(invitation_user_id, (expires_at, delivery_status))
         items = []
         for user in users:
             assigned = roles_by_user.get(user.id, [])
