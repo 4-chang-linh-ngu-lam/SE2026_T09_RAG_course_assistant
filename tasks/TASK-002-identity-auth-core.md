@@ -14,7 +14,7 @@
 **Cần sửa/bổ sung:**
 - Mô tả model/schema theo code hiện tại: email nullable, username unique/lowercase, school_id, activated_at; token purpose Student tách staff. Login nhận đúng một username/email, không dùng điều kiện email_verified chung cho mọi Student.
 - Giữ chuyển đổi legacy có chủ đích: Admin cùng trường gán username, giữ UUID/hash/dữ liệu, thu hồi phiên/token cũ; pending cần activation, LOCKED không tự mở. Không backfill ngẫu nhiên hoặc bật lại email login Student.
-- Để TASK-013 điều phối import/role/data-request workflows qua public interface; Identity sở hữu user/token, Classroom sở hữu School/roster. Bulk retry không được tái dùng cache chứa mã một lần.
+- Để TASK-013 điều phối import/role/data-request workflows qua public interface; Identity sở hữu user/token, Classroom sở hữu School/roster. PR #33 gắn import preview cache với user/school/session và không tái dùng cache chứa mã một lần qua phiên khác.
 - Hoàn thiện mapping School theo TASK-005/014 và quy trình xác minh recovery được người vận hành duyệt; `identity_verified=true` chỉ là xác nhận của Admin.
 
 **Phụ thuộc và nghiệm thu bổ sung:**
