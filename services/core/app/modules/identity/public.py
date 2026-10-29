@@ -35,6 +35,7 @@ from app.modules.identity.maintenance import (
     bootstrap_dev_identity,
     bootstrap_staging_admin,
     maintenance_assign_school,
+    maintenance_correct_staging_admin_email,
     maintenance_identity_report,
 )
 from app.modules.identity.models import RoleAssignment as _RoleAssignment
@@ -91,6 +92,7 @@ __all__ = [
     "get_user_summary",
     "get_users_summaries",
     "maintenance_assign_school",
+    "maintenance_correct_staging_admin_email",
     "maintenance_identity_report",
     "verify_user_active",
 ]

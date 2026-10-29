@@ -145,6 +145,20 @@ profile chỉ trả IDs/status, không tạo token mới. Output không chứa e
 token; invitation token được worker gửi qua email để người nhận tự đặt mật khẩu. Không
 chạy lệnh này cho Production; PR không tạo hoặc thực thi Cloud Run Job trên Neon.
 
+Nếu operator nhập sai email nhưng invitation chưa được gửi, có thể sửa người nhận bằng
+lệnh staging-only:
+
+```sh
+python -m app.maintenance correct-staging-admin-email --environment staging --expected-database neondb --expected-host <Neon-host> --confirm-staging-admin-email-correction
+```
+
+Job cung cấp `STAGING_BOOTSTRAP_EXPECTED_ADMIN_EMAIL` (email hiện tại),
+`STAGING_BOOTSTRAP_ADMIN_EMAIL` (email mới) và `STAGING_BOOTSTRAP_SCHOOL_NAME`.
+Lệnh chỉ đổi email của đúng Admin pending trong đúng School; đòi hỏi đúng marker, một
+invitation còn hạn, delivery `PENDING` và `attempts=0`. Nó giữ nguyên token chưa gửi,
+ghi audit mới và không in email/token. Nếu đã có lần gửi/thử gửi, lệnh từ chối; khi đó
+cần dừng và operator điều tra trạng thái delivery trước khi chọn một luồng sửa/reissue.
+
 ## Downgrade và bằng chứng kiểm thử
 
 Online downgrade chặn trước DDL nếu revision sẽ bỏ bảng có dữ liệu, school scope

@@ -21,6 +21,7 @@ from app.maintenance.database import (
     MappingManifest,
     apply_mapping,
     bootstrap_staging_admin,
+    correct_staging_admin_email,
     mapping_plan,
     outbox_delivery_report,
     seed_development,
@@ -32,7 +33,7 @@ from app.maintenance.database import (
 def _session_scope(args):
     engine = None
     factory = SessionLocal
-    if args.command == "bootstrap-staging-admin":
+    if args.command in {"bootstrap-staging-admin", "correct-staging-admin-email"}:
         staging_url = os.environ.get("STAGING_DATABASE_URL")
         configured_host = os.environ.get("STAGING_DATABASE_HOST")
         if not staging_url or not configured_host:
@@ -91,6 +92,14 @@ def main(argv=None) -> int:
     staging.add_argument("--expected-database", required=True)
     staging.add_argument("--expected-host", required=True)
     staging.add_argument("--confirm-staging-bootstrap", action="store_true")
+    correction = commands.add_parser(
+        "correct-staging-admin-email",
+        help="Correct an unsent staging Admin invitation recipient",
+    )
+    correction.add_argument("--environment", choices=["staging"], required=True)
+    correction.add_argument("--expected-database", required=True)
+    correction.add_argument("--expected-host", required=True)
+    correction.add_argument("--confirm-staging-admin-email-correction", action="store_true")
     args = parser.parse_args(argv)
     try:
         with _session_scope(args) as session:
@@ -127,6 +136,29 @@ def main(argv=None) -> int:
                     school_name=school_name,
                     admin_email=email,
                     confirm_staging_bootstrap=True,
+                )
+            elif args.command == "correct-staging-admin-email":
+                if not args.confirm_staging_admin_email_correction:
+                    raise ValueError(
+                        "Pass --confirm-staging-admin-email-correction to run this operation"
+                    )
+                expected_email = os.environ.get("STAGING_BOOTSTRAP_EXPECTED_ADMIN_EMAIL")
+                email = os.environ.get("STAGING_BOOTSTRAP_ADMIN_EMAIL")
+                school_name = os.environ.get("STAGING_BOOTSTRAP_SCHOOL_NAME")
+                if not expected_email or not email or not school_name:
+                    raise ValueError(
+                        "Set STAGING_BOOTSTRAP_EXPECTED_ADMIN_EMAIL, "
+                        "STAGING_BOOTSTRAP_ADMIN_EMAIL, and STAGING_BOOTSTRAP_SCHOOL_NAME"
+                    )
+                result = correct_staging_admin_email(
+                    session,
+                    environment=args.environment,
+                    expected_database=args.expected_database,
+                    expected_host=args.expected_host,
+                    school_name=school_name,
+                    expected_email=expected_email,
+                    new_email=email,
+                    confirm_staging_admin_email_correction=True,
                 )
             elif args.command == "outbox-report":
                 result = outbox_delivery_report(session)

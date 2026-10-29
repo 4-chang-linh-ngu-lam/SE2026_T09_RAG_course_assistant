@@ -11,7 +11,7 @@ from sqlalchemy import select, text
 from app.common.audit import AuditEvent
 from app.common.config import settings
 from app.maintenance.__main__ import _session_scope, main
-from app.maintenance.database import bootstrap_staging_admin
+from app.maintenance.database import bootstrap_staging_admin, correct_staging_admin_email
 from app.modules.classroom.models import School
 from app.modules.identity.models import (
     CredentialDelivery,
@@ -23,6 +23,7 @@ from app.modules.identity.models import (
 )
 
 ADMIN_EMAIL = "admin@staging.example.com"
+CORRECTED_ADMIN_EMAIL = "kienngtrung2211@gmail.com"
 SCHOOL_NAME = "Lumi Staging"
 
 
@@ -208,6 +209,68 @@ def test_staging_bootstrap_retry_is_idempotent_and_profile_bound(current, monkey
     assert counts(current.engine) == before
 
 
+def test_staging_admin_email_correction_preserves_unsent_invitation(current, monkeypatch):
+    smtp_ready(monkeypatch)
+    profile = staging_profile(current)
+    with current.factory() as session, session.begin():
+        created = bootstrap_staging_admin(session, **profile)
+        token = session.scalar(
+            select(OneTimeToken).where(
+                OneTimeToken.user_id == created["admin_user_id"],
+                OneTimeToken.purpose == TokenPurpose.ADMIN_INVITATION,
+            )
+        )
+        token_hash = token.token_hash
+
+    args = {
+        "environment": "staging",
+        "expected_database": current.name,
+        "expected_host": current.engine.url.host,
+        "school_name": SCHOOL_NAME,
+        "expected_email": ADMIN_EMAIL,
+        "new_email": CORRECTED_ADMIN_EMAIL,
+        "confirm_staging_admin_email_correction": True,
+    }
+    with current.factory() as session, session.begin():
+        corrected = correct_staging_admin_email(session, **args)
+    assert corrected["changed"] is True
+    assert CORRECTED_ADMIN_EMAIL not in json.dumps(corrected)
+    assert ADMIN_EMAIL not in json.dumps(corrected)
+
+    with current.factory() as session:
+        user = session.get(User, created["admin_user_id"])
+        token = session.scalar(
+            select(OneTimeToken).where(
+                OneTimeToken.user_id == created["admin_user_id"],
+                OneTimeToken.purpose == TokenPurpose.ADMIN_INVITATION,
+            )
+        )
+        delivery = session.scalar(
+            select(CredentialDelivery).where(CredentialDelivery.token_id == token.id)
+        )
+        correction_audit = session.scalar(
+            select(AuditEvent).where(
+                AuditEvent.action == "STAGING_BOOTSTRAP_ADMIN_EMAIL_CORRECTED",
+                AuditEvent.target_id == user.id,
+            )
+        )
+        assert user.email == CORRECTED_ADMIN_EMAIL
+        assert token.token_hash == token_hash and token.consumed_at is None
+        assert delivery.status == "PENDING" and delivery.attempts == 0
+        assert correction_audit is not None and correction_audit.actor_id is None
+        assert CORRECTED_ADMIN_EMAIL not in json.dumps(correction_audit.metadata_json)
+
+    with current.factory() as session, session.begin():
+        retried = correct_staging_admin_email(session, **args)
+    assert retried["changed"] is False
+    with current.factory() as session, session.begin():
+        bootstrap_retry = bootstrap_staging_admin(
+            session, **{**profile, "admin_email": CORRECTED_ADMIN_EMAIL}
+        )
+    assert bootstrap_retry["created"] is False
+    assert bootstrap_retry["admin_user_id"] == created["admin_user_id"]
+
+
 def test_concurrent_staging_bootstrap_creates_only_one_invitation(current, monkeypatch):
     smtp_ready(monkeypatch)
     profile = staging_profile(current)
@@ -331,3 +394,70 @@ def test_staging_bootstrap_cli_rejects_target_host_mismatch(current, monkeypatch
     password = current.engine.url.password
     assert not password or password not in captured.out + captured.err
     assert counts(current.engine) == before
+
+
+def test_staging_admin_email_correction_cli_outputs_no_email_or_token(current, monkeypatch, capsys):
+    smtp_ready(monkeypatch)
+    profile = staging_profile(current)
+    with current.factory() as session, session.begin():
+        bootstrap_staging_admin(session, **profile)
+    monkeypatch.setenv("STAGING_BOOTSTRAP_EXPECTED_ADMIN_EMAIL", ADMIN_EMAIL)
+    monkeypatch.setenv("STAGING_BOOTSTRAP_ADMIN_EMAIL", CORRECTED_ADMIN_EMAIL)
+    monkeypatch.setenv("STAGING_BOOTSTRAP_SCHOOL_NAME", SCHOOL_NAME)
+    monkeypatch.setenv(
+        "STAGING_DATABASE_URL", current.engine.url.render_as_string(hide_password=False)
+    )
+    monkeypatch.setenv("STAGING_DATABASE_HOST", current.engine.url.host)
+    result = main(
+        [
+            "correct-staging-admin-email",
+            "--environment",
+            "staging",
+            "--expected-database",
+            current.name,
+            "--expected-host",
+            current.engine.url.host,
+            "--confirm-staging-admin-email-correction",
+        ]
+    )
+    captured = capsys.readouterr()
+    assert result == 0
+    assert ADMIN_EMAIL not in captured.out + captured.err
+    assert CORRECTED_ADMIN_EMAIL not in captured.out + captured.err
+    assert "token" not in (captured.out + captured.err).lower()
+    assert json.loads(captured.out)["changed"] is True
+
+
+def test_staging_admin_email_correction_refuses_after_delivery_attempt(current, monkeypatch):
+    smtp_ready(monkeypatch)
+    profile = staging_profile(current)
+    with current.factory() as session, session.begin():
+        created = bootstrap_staging_admin(session, **profile)
+        token = session.scalar(
+            select(OneTimeToken).where(
+                OneTimeToken.user_id == created["admin_user_id"],
+                OneTimeToken.purpose == TokenPurpose.ADMIN_INVITATION,
+            )
+        )
+        delivery = session.scalar(
+            select(CredentialDelivery).where(CredentialDelivery.token_id == token.id)
+        )
+        delivery.attempts = 1
+    with (
+        pytest.raises(ValueError, match="only change before delivery"),
+        current.factory() as session,
+        session.begin(),
+    ):
+        correct_staging_admin_email(
+            session,
+            environment="staging",
+            expected_database=current.name,
+            expected_host=current.engine.url.host,
+            school_name=SCHOOL_NAME,
+            expected_email=ADMIN_EMAIL,
+            new_email=CORRECTED_ADMIN_EMAIL,
+            confirm_staging_admin_email_correction=True,
+        )
+    with current.factory() as session:
+        user = session.get(User, created["admin_user_id"])
+        assert user.email == ADMIN_EMAIL
