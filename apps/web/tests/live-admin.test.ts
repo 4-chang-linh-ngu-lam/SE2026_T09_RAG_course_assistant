@@ -8,6 +8,7 @@ import { createLiveIntelligencePort } from '../src/lib/data/live-intelligence';
 const ids = {
   admin: '00000000-0000-4000-8000-000000000001',
   teacher: '00000000-0000-4000-8000-000000000002',
+  teacher2: '00000000-0000-4000-8000-000000000015',
   student: '00000000-0000-4000-8000-000000000003',
   student2: '00000000-0000-4000-8000-000000000004',
   course: '00000000-0000-4000-8000-000000000005',
@@ -27,8 +28,8 @@ function user(id: string, roles: string[], username: string | null, displayName:
   };
 }
 
-function harness(options: { loseImportResponse?: boolean } = {}) {
-  const calls: { path: string; method: string; body?: unknown; headers: Headers }[] = [];
+function harness(options: { loseImportResponse?: boolean; emptyAdminPages?: boolean } = {}) {
+  const calls: { path: string; query: string; method: string; body?: unknown; headers: Headers }[] = [];
   let importStatus: 'PREVIEW' | 'COMPLETED' = 'PREVIEW';
   let confirmCalls = 0;
   const actor = { id: ids.admin, email: 'admin@example.com', username: null, school_id: '00000000-0000-4000-8000-000000000010', display_name: 'Admin', roles: ['ADMIN'], status: 'ACTIVE' };
@@ -40,14 +41,20 @@ function harness(options: { loseImportResponse?: boolean } = {}) {
     const headers = new Headers(init?.headers);
     let body: unknown;
     if (init?.body) body = JSON.parse(String(init.body));
-    calls.push({ path, method, body, headers });
+    calls.push({ path, query: url.searchParams.toString(), method, body, headers });
     if (path === '/api/v1/auth/login') return Response.json({ token_type: 'bearer', access_token: 'access-test', expires_in: 900 });
     if (path === '/api/v1/users/me') return Response.json(actor);
-    if (path === '/api/v1/admin/users') return Response.json({ items: [user(ids.admin, ['ADMIN'], null, 'Admin'), user(ids.teacher, ['LECTURER'], null, 'Teacher'), user(ids.student, ['STUDENT'], 'student.one', 'Student One'), user(ids.student2, ['STUDENT'], 'student.two', 'Student Two', 'LOCKED')], next_cursor: null });
+    if (path === '/api/v1/admin/users') {
+      if (options.emptyAdminPages) {
+        const page = Number(url.searchParams.get('cursor') ?? '0');
+        return Response.json({ items: [], next_cursor: page < 20 ? String(page + 1) : null });
+      }
+      return Response.json({ items: [user(ids.admin, ['ADMIN'], null, 'Admin'), user(ids.teacher, ['LECTURER'], null, 'Teacher'), user(ids.teacher2, ['LECTURER'], null, 'Locked Teacher', 'LOCKED'), user(ids.student, ['STUDENT'], 'student.one', 'Student One'), user(ids.student2, ['STUDENT'], 'student.two', 'Student Two', 'LOCKED')], next_cursor: null });
+    }
     if (path === '/api/v1/admin/audit-events') return Response.json({ items: [{ id: '00000000-0000-4000-8000-000000000030', actor_id: ids.admin, action: 'ADMIN_SET_MANUAL_ROSTER', target_type: 'CLASS', target_id: ids.klass, correlation_id: '00000000-0000-4000-8000-000000000031', metadata_json: { reason_code: 'USER_REQUEST' }, occurred_at: '2026-10-29T01:00:00Z' }], next_cursor: 'opaque-cursor' });
     if (path === '/api/v1/admin/catalog') return Response.json({ courses: [{ id: ids.course, code: 'MATH', name: 'Toán', school_id: actor.school_id }], academic_years: [{ id: ids.year, school_id: actor.school_id, label: '2026-2027' }], semesters: [{ id: ids.semester, academic_year_id: ids.year, name: '1' }], homerooms: [{ id: ids.homeroom, school_id: actor.school_id, academic_year_id: ids.year, name: '9A', grade_level: 9, roster_version: 3, student_count: 1 }], grades: [9] });
     if (path === '/api/v1/classes') return Response.json({ items: [klass], next_cursor: null });
-    if (path === `/api/v1/admin/classes/${ids.klass}/management`) return Response.json({ subject_class: klass, teaching_assignments: [{ id: '00000000-0000-4000-8000-000000000011', class_id: ids.klass, lecturer_id: ids.teacher, role: 'PRIMARY', assigned_at: '2026-10-01T00:00:00Z', ended_at: null }], members: [{ id: '00000000-0000-4000-8000-000000000012', class_id: ids.klass, student_id: ids.student, source: 'MANUAL', status: 'ACTIVE', joined_at: '2026-10-01T00:00:00Z', ended_at: null }] });
+    if (path === `/api/v1/admin/classes/${ids.klass}/management`) return Response.json({ subject_class: klass, teaching_assignments: [{ id: '00000000-0000-4000-8000-000000000011', class_id: ids.klass, lecturer_id: ids.teacher, role: 'PRIMARY', assigned_at: '2026-10-01T00:00:00Z', ended_at: null }, { id: '00000000-0000-4000-8000-000000000016', class_id: ids.klass, lecturer_id: ids.teacher2, role: 'ASSISTING', assigned_at: '2026-10-01T00:00:00Z', ended_at: null }], members: [{ id: '00000000-0000-4000-8000-000000000012', class_id: ids.klass, student_id: ids.student, source: 'MANUAL', status: 'ACTIVE', joined_at: '2026-10-01T00:00:00Z', ended_at: null }] });
     if (path === `/api/v1/admin/homeroom-classes/${ids.homeroom}/roster`) return Response.json({ homeroom_class_id: ids.homeroom, student_ids: [ids.student, ids.student2], roster_version: 3 });
     if (path === `/api/v1/admin/classes/${ids.klass}/members` && method === 'PUT') return Response.json({ subject_class: klass, teaching_assignments: [], members: [] });
     if (path === `/api/v1/admin/homeroom-classes/${ids.homeroom}/roster` && method === 'PUT') return Response.json({ homeroom_class_id: ids.homeroom, student_ids: (body as { student_ids: string[] }).student_ids, roster_version: 4 });
@@ -74,6 +81,8 @@ test('live Classroom Admin loads Core DTOs and atomically replaces a MANUAL rost
   assert.equal(loaded.subjectClass?.summary.studentCount, 1);
   assert.deepEqual(loaded.subjectClass?.members.map(item => item.userId), [ids.student]);
   assert.equal(loaded.students.find(item => item.id === ids.student2)?.status, 'LOCKED');
+  assert.equal(loaded.subjectClass?.assistingTeacherIds.includes(ids.teacher2), true);
+  assert.equal(loaded.teachers.find(item => item.id === ids.teacher2)?.status, 'LOCKED');
   assert.equal(loaded.historyAvailable, false);
   const preview = await classroom.previewEnrollment({ classId: ids.klass, revision: 5, mode: 'MANUAL', studentIds: [ids.student, ids.student2] });
   assert.deepEqual(preview.addedIds, [ids.student2]);
@@ -128,6 +137,28 @@ test('live import consumes only explicit columns and activation code is never re
   assert.equal(result.createdCount, 1);
   const reloaded = await accounts.load('a.import', { importId: job.id });
   assert.equal(reloaded.importJob?.rows[0].activationCode, undefined);
+});
+
+test('live account detail uses server-side ID filtering instead of loading the whole school', async () => {
+  const h = harness();
+  await h.session.identity.login({ email: 'admin@example.com', password: 'test-password' });
+  const accounts = createLiveAccounts(h.session);
+  const workspace = await accounts.load('a.account', { userId: ids.student });
+  assert.equal(workspace.account?.id, ids.student);
+  const request = h.calls.find(call => call.path === '/api/v1/admin/users');
+  assert.equal(new URLSearchParams(request?.query).get('user_id'), ids.student);
+});
+
+test('live account and Classroom Admin workspaces do not reject schools after 2,000 user rows', async () => {
+  const h = harness({ emptyAdminPages: true });
+  await h.session.identity.login({ email: 'admin@example.com', password: 'test-password' });
+  const accounts = createLiveAccounts(h.session);
+  const accountWorkspace = await accounts.load('a.accounts', {});
+  assert.equal(accountWorkspace.accounts.length, 0);
+  const classroom = createLiveClassroomAdminPort(h.session);
+  const classWorkspace = await classroom.load('a.classes', {});
+  assert.equal(classWorkspace.classes.length, 1);
+  assert.equal(h.calls.filter(call => call.path === '/api/v1/admin/users').length, 42);
 });
 
 test('unknown import outcome is reconciled with a read-only status endpoint, never re-confirmed', async () => {

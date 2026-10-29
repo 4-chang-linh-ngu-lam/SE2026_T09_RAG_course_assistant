@@ -63,16 +63,18 @@ function decodePage(value: unknown): Page<AdminUser> {
   return { items: row.items.map(decodeUser), next_cursor: row.next_cursor === null || row.next_cursor === undefined ? null : text(row.next_cursor) };
 }
 
-async function listAccounts(request: HttpRequest, signal?: AbortSignal): Promise<AdminUser[]> {
+async function listAccounts(request: HttpRequest, signal?: AbortSignal, userId?: string): Promise<AdminUser[]> {
   const result: AdminUser[] = [];
   let cursor: string | undefined;
-  for (let pageNumber = 0; pageNumber < 20; pageNumber++) {
-    const response = decodePage(await request('adminUsers', { query: { limit: 100, cursor }, signal }));
+  const seen = new Set<string>();
+  while (true) {
+    const response = decodePage(await request('adminUsers', { query: { limit: 100, cursor, user_id: userId }, signal }));
     result.push(...response.items);
     if (!response.next_cursor) return result;
+    if (seen.has(response.next_cursor)) throw new ApiError('CONTRACT_MISMATCH', 'Core trả cursor lặp khi tải danh sách tài khoản.', 502);
+    seen.add(response.next_cursor);
     cursor = response.next_cursor;
   }
-  throw new ApiError('PAGE_LIMIT', 'Danh sách tài khoản quá lớn để tải trong một lượt. Hãy lọc danh sách rồi thử lại.', 413);
 }
 
 function invitationFor(account: AdminUser): StaffInvitation | null {
@@ -177,7 +179,7 @@ export function createLiveAccounts(session: LiveIdentitySession): AccountsPort {
   const imports = new Map<string, PendingImport>();
   return {
     async load(routeId, params, signal): Promise<AccountsWorkspace> {
-      const accounts = await session.authenticated(request => listAccounts(request, signal));
+      const accounts = await session.authenticated(request => listAccounts(request, signal, routeId === 'a.account' ? params.userId : undefined));
       cachedAccounts = accounts;
       if (routeId === 'a.import' && params.importId) {
         const imported = imports.get(params.importId);

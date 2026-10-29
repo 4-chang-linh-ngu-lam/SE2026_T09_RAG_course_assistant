@@ -55,7 +55,7 @@ export const operationQueryParameters: Partial<Record<OperationId, readonly stri
   posts: ['cursor', 'limit'], comments: ['cursor', 'limit'],
   calendarEvents: ['cursor', 'limit', 'from', 'to'], notifications: ['cursor', 'limit'],
   adminAuditEvents: ['cursor', 'limit', 'actor_id', 'action', 'since', 'until'],
-  adminDataRequests: ['cursor', 'limit'], adminUsers: ['cursor', 'limit', 'role', 'status', 'search'],
+  adminDataRequests: ['cursor', 'limit'], adminUsers: ['cursor', 'limit', 'user_id', 'account_type', 'role', 'status', 'search', 'username_missing'],
 };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

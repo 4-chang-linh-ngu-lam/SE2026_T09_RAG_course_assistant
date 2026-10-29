@@ -99,13 +99,15 @@ function decodePage<T>(value: unknown, decode: (item: unknown) => T): Page<T> {
 async function allPages<T>(request: Request, operation: 'classes' | 'adminUsers', decode: (value: unknown) => T, signal?: AbortSignal): Promise<T[]> {
   const items: T[] = [];
   let cursor: string | undefined;
-  for (let count = 0; count < 20; count++) {
+  const seen = new Set<string>();
+  while (true) {
     const page = decodePage(await request(operation, { query: { limit: 100, cursor }, signal }), decode);
     items.push(...page.items);
     if (!page.next_cursor) return items;
+    if (seen.has(page.next_cursor)) throw new ApiError('CONTRACT_MISMATCH', 'Core trả cursor lặp khi tải dữ liệu quản trị.', 502);
+    seen.add(page.next_cursor);
     cursor = page.next_cursor;
   }
-  throw new ApiError('PAGE_LIMIT', 'Dữ liệu trường học có quá nhiều trang để tải an toàn. Hãy thu hẹp danh sách.', 413);
 }
 
 async function mapLimited<T, R>(items: T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
@@ -265,7 +267,7 @@ export function createLiveClassroomAdminPort(session: LiveIdentitySession): Clas
         } satisfies Homeroom;
       });
       const students = users.filter(user => user.roles.includes('STUDENT'));
-      const teachers = users.filter(user => user.status === 'ACTIVE' && user.roles.includes('LECTURER'));
+      const teachers = users.filter(user => user.roles.includes('LECTURER'));
       const selectedClassId = params.classId;
       const selectedHomeroomId = params.homeroomId;
       return {
