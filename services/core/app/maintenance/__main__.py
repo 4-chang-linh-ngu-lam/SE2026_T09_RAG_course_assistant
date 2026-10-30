@@ -105,9 +105,13 @@ def main(argv=None) -> int:
     report = commands.add_parser("report", help="Xem báo cáo tài khoản cũ, không thay đổi dữ liệu")
     report.set_defaults(manifest=None)
     commands.add_parser("outbox-report", help="Xem thống kê tổng hợp hàng đợi thông báo")
-    plan = commands.add_parser("plan-school-mapping", help="Xem trước việc đối chiếu tài khoản với trường")
+    plan = commands.add_parser(
+        "plan-school-mapping", help="Xem trước việc đối chiếu tài khoản với trường"
+    )
     plan.add_argument("--manifest", required=True)
-    apply = commands.add_parser("apply-school-mapping", help="Áp dụng kế hoạch đối chiếu đã được duyệt")
+    apply = commands.add_parser(
+        "apply-school-mapping", help="Áp dụng kế hoạch đối chiếu đã được duyệt"
+    )
     apply.add_argument("--manifest", required=True)
     apply.add_argument("--approved-sha256", required=True)
     seed = commands.add_parser("seed-dev", help="Khởi tạo dữ liệu cho cơ sở dữ liệu dev/test trống")
@@ -243,7 +247,9 @@ def main(argv=None) -> int:
     except (ValueError, RuntimeError) as exc:
         detail = str(exc).lower()
         if "manifest" in detail or "mapping" in detail or "school" in detail:
-            message = "Chưa thể đối chiếu tài khoản với trường. Hãy kiểm tra tệp và kế hoạch đã duyệt."
+            message = (
+                "Chưa thể đối chiếu tài khoản với trường. Hãy kiểm tra tệp và kế hoạch đã duyệt."
+            )
         elif "database" in detail or "migration" in detail or "host" in detail:
             message = "Cơ sở dữ liệu chưa đúng trạng thái hoặc không khớp máy chủ đã xác nhận. Hãy kiểm tra runbook."
         elif "email" in detail or "invitation" in detail or "admin" in detail:

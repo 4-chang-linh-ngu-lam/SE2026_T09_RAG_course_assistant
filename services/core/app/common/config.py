@@ -56,7 +56,7 @@ class Settings(BaseSettings):
         if value is None or (isinstance(value, str) and not value.strip()):
             return None
         if not isinstance(value, str):
-            raise ValueError("PUBLIC_WEB_URL must be a web origin")
+            raise ValueError("PUBLIC_WEB_URL must be a web origin")  # noqa: TRY004 -- Pydantic validators must raise ValueError for ValidationError
         parsed = urlsplit(value.strip())
         if (
             parsed.scheme not in {"http", "https"}

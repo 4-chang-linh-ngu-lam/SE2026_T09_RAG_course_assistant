@@ -60,9 +60,7 @@ def test_production_mock_bootstrap_creates_one_pending_admin_and_replays(current
             )
         )
         assert session.scalar(
-            select(CredentialDelivery.id).where(
-                CredentialDelivery.status == "PENDING"
-            )
+            select(CredentialDelivery.id).where(CredentialDelivery.status == "PENDING")
         )
         marker = session.scalar(
             select(AuditEvent).where(
@@ -79,10 +77,13 @@ def test_production_mock_bootstrap_creates_one_pending_admin_and_replays(current
     assert replay["admin_user_id"] == created["admin_user_id"]
     assert session_scalar(current, "SELECT count(*) FROM core.schools") == 1
     assert session_scalar(current, "SELECT count(*) FROM core.users") == 1
-    assert session_scalar(
-        current,
-        "SELECT count(*) FROM core.audit_events WHERE action='PRODUCTION_BOOTSTRAP_ADMIN'",
-    ) == 1
+    assert (
+        session_scalar(
+            current,
+            "SELECT count(*) FROM core.audit_events WHERE action='PRODUCTION_BOOTSTRAP_ADMIN'",
+        )
+        == 1
+    )
 
 
 @pytest.mark.parametrize(

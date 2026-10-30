@@ -326,7 +326,9 @@ def test_mapping_detects_drift_and_missing_school_entities(current):
             == "LOCKED"
         )
         assert connection.scalar(
-            text("SELECT convalidated FROM pg_constraint WHERE conname='fk_users_school_id_schools'")
+            text(
+                "SELECT convalidated FROM pg_constraint WHERE conname='fk_users_school_id_schools'"
+            )
         )
     with pytest.raises(IntegrityError), current.engine.begin() as connection:
         connection.execute(
@@ -343,7 +345,9 @@ def test_metadata_scope_single_head_and_empty_roundtrip(current):
     assert len(script.get_heads()) == 1
     with current.engine.connect() as connection:
         assert connection.scalar(
-            text("SELECT convalidated FROM pg_constraint WHERE conname='fk_users_school_id_schools'")
+            text(
+                "SELECT convalidated FROM pg_constraint WHERE conname='fk_users_school_id_schools'"
+            )
         )
     metadata = load_metadata()
     assert {name for tables in TABLES_INTRODUCED.values() for name in tables} == {

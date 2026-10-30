@@ -137,6 +137,8 @@ def test_public_web_url_is_a_secure_origin():
     ):
         with pytest.raises(ValidationError):
             Settings(_env_file=None, public_web_url=value)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, public_web_url=123)
 
 
 @pytest.fixture

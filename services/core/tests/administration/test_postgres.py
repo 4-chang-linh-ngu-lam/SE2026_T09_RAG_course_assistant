@@ -717,9 +717,7 @@ def test_audit_tenant_filter_pagination_and_redaction_do_not_leak(system):
         "/api/v1/admin/audit-events?limit=2&action=SYNTHETIC_ACTION", headers=system.headers()
     ).json()
     assert len(first["items"]) == 2 and first["next_cursor"]
-    assert all(
-        item["actor_name"] == system.users["admin"].display_name for item in first["items"]
-    )
+    assert all(item["actor_name"] == system.users["admin"].display_name for item in first["items"])
     second = system.client.get(
         f"/api/v1/admin/audit-events?limit=2&action=SYNTHETIC_ACTION&cursor={first['next_cursor']}",
         headers=system.headers(),

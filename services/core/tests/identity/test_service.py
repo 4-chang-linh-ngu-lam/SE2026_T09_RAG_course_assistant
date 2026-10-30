@@ -817,9 +817,10 @@ def test_student_activation_expiry_purpose_reissue_and_config(student, monkeypat
     token = IdentityRepository(session).get_one_time_token(
         hash_refresh_token(result.code.get_secret_value()), TokenPurpose.STUDENT_ACTIVATION
     )
-    assert session.scalar(
-        select(CredentialDelivery).where(CredentialDelivery.token_id == token.id)
-    ) is None
+    assert (
+        session.scalar(select(CredentialDelivery).where(CredentialDelivery.token_id == token.id))
+        is None
+    )
     assert result.code.get_secret_value() != token.token_hash
     assert 23 * 3600 < (result.expires_at - datetime.now(UTC)).total_seconds() <= 24 * 3600
     expect_error(
@@ -981,9 +982,10 @@ def test_student_recovery_expiry_and_concurrency(student, engine):
     token = IdentityRepository(session).get_one_time_token(
         hash_refresh_token(first.code.get_secret_value()), TokenPurpose.STUDENT_PASSWORD_RESET
     )
-    assert session.scalar(
-        select(CredentialDelivery).where(CredentialDelivery.token_id == token.id)
-    ) is None
+    assert (
+        session.scalar(select(CredentialDelivery).where(CredentialDelivery.token_id == token.id))
+        is None
+    )
     token.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     session.commit()
     expect_error(

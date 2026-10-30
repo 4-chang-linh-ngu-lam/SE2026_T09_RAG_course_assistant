@@ -170,7 +170,9 @@ class AdministrationService:
                     )
                 except ValidationError:
                     safe = {}  # Never reflect legacy/unreviewed metadata fields.
-                actor_summary = actor_summaries.get(row.actor_id) if row.actor_id is not None else None
+                actor_summary = (
+                    actor_summaries.get(row.actor_id) if row.actor_id is not None else None
+                )
                 actor_name = (
                     "Hệ thống"
                     if row.actor_id is None
