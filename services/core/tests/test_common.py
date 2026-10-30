@@ -21,7 +21,7 @@ from app.common.auth_dependencies import (
 )
 from app.common.config import Settings, settings
 from app.common.db import transaction
-from app.common.errors import AppError, register_error_handlers
+from app.common.errors import STATUS_MESSAGES, AppError, register_error_handlers
 from app.common.pagination import Page, Pagination, decode_cursor, encode_cursor, get_pagination
 from app.common.security import (
     create_access_token,
@@ -121,6 +121,24 @@ def test_config_validation():
             Settings(_env_file=None, **options)
 
 
+def test_public_web_url_is_a_secure_origin():
+    assert Settings(_env_file=None, public_web_url="https://lumi.example.vn/").public_web_url == (
+        "https://lumi.example.vn"
+    )
+    assert Settings(_env_file=None, public_web_url="http://localhost:3000").public_web_url == (
+        "http://localhost:3000"
+    )
+    for value in (
+        "http://lumi.example.vn",
+        "https://lumi.example.vn/path",
+        "https://lumi.example.vn?next=/login",
+        "https://lumi.example.vn#token",
+        "https://user:secret@lumi.example.vn",
+    ):
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None, public_web_url=value)
+
+
 @pytest.fixture
 def test_app():
     app = FastAPI()
@@ -133,6 +151,26 @@ def test_app():
     @app.get("/hidden")
     def hidden():
         raise AppError(404, "private resource name")
+
+    @app.get("/stale-roster")
+    def stale_roster():
+        raise AppError(409, "Roster changed; preview the change again")
+
+    @app.get("/localized-error")
+    def localized_error():
+        raise AppError(409, "Lớp đã lưu trữ")
+
+    @app.get("/technical-error/{case}")
+    def technical_error(case: str):
+        details = {
+            "idempotency": (409, "Idempotency key payload mismatch"),
+            "homeroom": (400, "A homeroom is required"),
+            "roster-import": (409, "Roster changed; preview the import again"),
+            "roster-transfer": (409, "Roster changed; preview the transfer again"),
+            "class-action": (400, "Unknown class action"),
+        }
+        status, detail = details[case]
+        raise AppError(status, detail)
 
     @app.get("/unexpected")
     def unexpected():
@@ -173,10 +211,55 @@ def test_http_errors(test_app, status, code):
     )
     assert response.status_code == status
     assert response.json() == {
-        "error": {"code": code, "message": code, "correlation_id": correlation_id}
+        "error": {
+            "code": code,
+            "message": STATUS_MESSAGES[status],
+            "correlation_id": correlation_id,
+        }
     }
     assert response.headers["X-Correlation-ID"] == correlation_id
     assert "private" not in response.text
+
+
+def test_internal_english_details_become_plain_vietnamese(test_app):
+    response = TestClient(test_app).get("/stale-roster")
+    assert response.status_code == 409
+    assert response.json()["error"]["message"] == (
+        "Danh sách học sinh đã thay đổi. Hãy xem trước lại trước khi xác nhận."
+    )
+
+
+def test_existing_vietnamese_error_copy_is_preserved(test_app):
+    response = TestClient(test_app).get("/localized-error")
+    assert response.status_code == 409
+    assert response.json()["error"]["message"] == "Lớp đã được lưu trữ nên hiện chỉ có thể xem."
+
+
+@pytest.mark.parametrize(
+    "case,expected",
+    [
+        (
+            "idempotency",
+            "Mã xác nhận này đã được dùng cho nội dung khác. Hãy kiểm tra trạng thái trước khi gửi yêu cầu mới.",
+        ),
+        ("homeroom", "Vui lòng chọn lớp hành chính trước khi tiếp tục."),
+        (
+            "roster-import",
+            "Danh sách học sinh đã thay đổi. Hãy xem trước tệp nhập lại trước khi xác nhận.",
+        ),
+        (
+            "roster-transfer",
+            "Danh sách học sinh đã thay đổi. Hãy xem trước lại việc chuyển lớp trước khi xác nhận.",
+        ),
+        (
+            "class-action",
+            "Thao tác với lớp chưa hợp lệ. Vui lòng tải lại trang rồi thử lại.",
+        ),
+    ],
+)
+def test_known_core_errors_are_written_for_people(test_app, case, expected):
+    response = TestClient(test_app).get(f"/technical-error/{case}")
+    assert response.json()["error"]["message"] == expected
 
 
 @pytest.mark.parametrize("header", [None, "invalid", str(uuid4())])

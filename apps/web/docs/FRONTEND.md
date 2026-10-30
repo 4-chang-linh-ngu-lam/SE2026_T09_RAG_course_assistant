@@ -14,6 +14,8 @@ Identity transport/profile/self-request/Student-provisioning clients use the doc
 
 Access tokens stay in memory. Refresh cookies remain HttpOnly under `/api/v1/auth`, with one refresh in flight and no blanket mutation replay. Auth return links preserve only allowed source/page/conversation/filter context, discard secrets and unknown queries, and retain role checks. Server permission decisions remain authoritative.
 
+Staff invitation and password-reset emails link to `/staff/invitation` or `/reset-password` with a one-time token in the URL fragment. The client reads the fragment and removes it from browser history before submission. The existing one-time-code field remains available as a fallback. Student activation and recovery stay Admin-issued codes and are not emailed.
+
 ## One data source, no fallback
 
 `src/lib/data/port.ts` is the frontend port. Only `src/lib/data/index.ts` imports `@data-adapter`. `next.config.mjs` binds that alias to `src/lib/data/live.ts` for live builds, or `dev/mocks/adapter.ts` for explicit development preview. TypeScript checks both against the same port through an ambient declaration; tsconfig must not map this alias to a concrete adapter, because that overrides runtime selection. Preview compiles into `.next-preview`; live uses `.next` to keep artifacts separate. Product pages never import fixtures and never call fetch directly.

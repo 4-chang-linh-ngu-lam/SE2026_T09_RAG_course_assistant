@@ -1,7 +1,6 @@
 """Core one-shot/polling runner for independent background module workers."""
 
 import argparse
-import json
 import logging
 import signal
 from threading import Event
@@ -22,20 +21,29 @@ def run_batch(batch_size: int) -> dict[str, int]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run independent Core background workers")
-    parser.add_argument("--once", action="store_true", help="Run one batch and exit")
-    parser.add_argument("--batch-size", type=int, default=100)
-    parser.add_argument("--poll-seconds", type=float, default=2)
+    parser = argparse.ArgumentParser(description="Xử lý thông báo và email tài khoản trong nền")
+    parser.add_argument("--once", action="store_true", help="Xử lý một lượt rồi dừng")
+    parser.add_argument("--batch-size", type=int, default=100, help="Số mục xử lý mỗi lượt")
+    parser.add_argument("--poll-seconds", type=float, default=2, help="Số giây chờ giữa các lượt")
     args = parser.parse_args(argv)
     if not 1 <= args.batch_size <= 1000 or args.poll_seconds <= 0:
-        parser.error("batch-size must be 1..1000 and poll-seconds must be positive")
+        parser.error("Số mục mỗi lượt cần từ 1 đến 1000 và thời gian chờ phải lớn hơn 0.")
     stop = Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.set())
     while not stop.is_set():
         result = run_batch(args.batch_size)
         if result["notification_events"] or result["credential_attempted"]:
-            logger.info("Core background batch completed: %s", json.dumps(result, sort_keys=True))
+            logger.info(
+                "Đã xử lý một lượt thông báo và email: %s thông báo; thử gửi %s email, "
+                "gửi thành công %s, đang chờ %s, đã hủy %s, cần cấp lại %s.",
+                result["notification_events"],
+                result["credential_attempted"],
+                result["credential_delivered"],
+                result["credential_pending"],
+                result["credential_cancelled"],
+                result["credential_needs_reissue"],
+            )
         if args.once:
             break
         stop.wait(args.poll_seconds)

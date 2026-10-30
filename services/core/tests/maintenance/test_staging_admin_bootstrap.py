@@ -404,7 +404,7 @@ def test_staging_bootstrap_cli_rejects_target_host_mismatch(current, monkeypatch
     )
     captured = capsys.readouterr()
     assert result == 1
-    assert "database host mismatch" in captured.err
+    assert "Cơ sở dữ liệu chưa đúng trạng thái" in captured.err
     password = current.engine.url.password
     assert not password or password not in captured.out + captured.err
     assert counts(current.engine) == before

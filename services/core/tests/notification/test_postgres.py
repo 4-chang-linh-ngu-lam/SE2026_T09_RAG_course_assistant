@@ -29,7 +29,7 @@ from app.common.errors import AppError, register_error_handlers
 from app.common.outbox import OutboxEvent, record_outbox_event
 from app.common.pagination import Pagination
 from app.common.security import create_access_token
-from app.modules.classroom.models import ClassMembership, EnrollmentMode
+from app.modules.classroom.models import ClassMembership, EnrollmentMode, School
 from app.modules.classroom.schemas import (
     ClassCreateRequest,
     CourseCreateRequest,
@@ -87,7 +87,14 @@ def database(monkeypatch):
 def system(database):
     factory = database.factory
     with factory() as session:
-        school_id = uuid4()
+        school_id, other_school_id = uuid4(), uuid4()
+        session.add_all(
+            [
+                School(id=school_id, name="Synthetic notification school"),
+                School(id=other_school_id, name="Synthetic other school"),
+            ]
+        )
+        session.flush()
         users = {}
         for name, role in (
             ("admin", Role.ADMIN),
@@ -104,7 +111,7 @@ def system(database):
                     id=user_id,
                     email=f"{user_id}@example.com" if role != Role.STUDENT else None,
                     username=f"student.{user_id.hex}" if role == Role.STUDENT else None,
-                    school_id=uuid4() if name == "outsider" else school_id,
+                    school_id=other_school_id if name == "outsider" else school_id,
                     display_name=name,
                     password_hash="test-only-not-a-credential",
                     status=UserStatus.ACTIVE,
@@ -317,6 +324,8 @@ def test_retry_backoff_does_not_rollback_business_and_continues_after_poison(
         assert event.last_error_code == "DELIVERY_FAILED"
         assert db.get(ClassPost, post.id) is not None
     assert "test-only-secret" not in caplog.text
+    assert "Hệ thống chưa thể lưu thông báo cho người nhận." in caplog.text
+    assert "DELIVERY_FAILED" not in caplog.text
     monkeypatch.setattr(NotificationRepository, "create", original)
     assert drain_outbox(session_factory=system.factory) == 0
     with system.factory.begin() as db:
@@ -478,6 +487,8 @@ def test_malformed_event_retries_without_leaking_and_unknown_event_is_left_for_i
         assert db.get(OutboxEvent, unknown_id).published_at is None
         assert db.get(OutboxEvent, unknown_id).attempts == 0
     assert "test-only-do-not-log" not in caplog.text
+    assert "Nội dung thông báo chưa đúng định dạng." in caplog.text
+    assert "INVALID_EVENT" not in caplog.text
 
 
 def test_http_recipient_only_pagination_mark_read_all_and_current_account_status(

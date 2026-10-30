@@ -1,0 +1,56 @@
+{
+  "recorded_at_utc": "2026-10-30T16:02:50.506013+00:00",
+  "scope": "Core class-list HTTP API only; TP-01 Core subset, not full mixed-service TP-01",
+  "pending_services": [
+    "Document fixtures (20 x 10 MB/class)",
+    "Learning (30 questions/assessment)",
+    "AI",
+    "Learner Intelligence"
+  ],
+  "source_sha256": "676bddb9dfddc2454413dbc2cbc652b5158f94a20152c4f6842042637390fe66",
+  "tested_commit": "ec10fa99089ecd78f6065a7d9c453e2c8c3a86bb",
+  "harness_adjustments": "Temporary VPS copy added a synthetic School row required by the current Classroom schema and corrected environment metadata; the repository working tree was not changed.",
+  "application_sha256": "8217f3a0b50ceaafc3d87d92bb134e45045728ebb2ef700a1ecb29243e4f097f",
+  "environment": {
+    "os": "Linux",
+    "cpu": "x86_64",
+    "logical_cpus": 12,
+    "ram_bytes": 16109793280,
+    "python": "3.12.16",
+    "postgresql": "16.15 (Ubuntu 16.15-1.pgdg22.04+2)",
+    "migration": "0013",
+    "http": "Uvicorn one worker, loopback HTTP",
+    "database": "PostgreSQL 16.15 local disposable cluster via Unix socket",
+    "pool_size": 5,
+    "max_overflow": 10,
+    "queue_broker": "none; Core transactional outbox",
+    "ai_model": "not involved",
+    "region": "CKEY VM (KR)",
+    "background_activity": "No other benchmark jobs started by this session; provider-shared host activity was not isolated",
+    "provider": "CKEY",
+    "vCPU_config": "6/12 vCPU",
+    "GPU": "GTX 1050 4 GB (unused)"
+  },
+  "load": {
+    "users": 100,
+    "classes": 10,
+    "students_per_class": 50,
+    "warmup_seconds": 30,
+    "configured_seconds": 600,
+    "elapsed_seconds": 600.9803291090066,
+    "think_seconds": 1,
+    "schedule": "closed-loop users, evenly staggered within one think interval; same HTTP connection pool through warmup/measurement"
+  },
+  "requests": 58521,
+  "status_counts": {
+    "200": 58521
+  },
+  "success_ratio": 1.0,
+  "backend_samples": 58521,
+  "backend_p95_ms": 21.839593071490526,
+  "client_p95_ms": 672.0367850502953,
+  "client_max_ms": 4646.4884569868445,
+  "wrong_scope_responses": 0,
+  "passed_core_thresholds": true,
+  "full_tp01_verified": false
+}

@@ -21,7 +21,7 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 TASK-014 có [runbook migration/seed](services/core/migrations/README.md), guard downgrade
 và CLI report/plan/apply School theo manifest; seed atomic/idempotent chỉ cho database
 dev/test riêng. Local đạt **313 test Core trên PostgreSQL 16**, không skip. Mapping
-School dữ liệu thực và FK users.school_id vẫn cần TV1/TV2 review, không tự backfill.
+Mapping School cho tài khoản thật vẫn cần TV1/TV2 xác minh; working tree có migration 0014 thêm FK nullable `users.school_id`, chưa chạy regression hay áp dụng vào staging/production. UUID tổng hợp chỉ dùng trong database test/dev.
 
 TASK-015 đã có [bộ kiểm chứng backend](services/core/tests/README.md): **342 test
 đạt PostgreSQL 16**, coverage tổng **91%**, 300 thao tác cạnh tranh, Rule/evidence

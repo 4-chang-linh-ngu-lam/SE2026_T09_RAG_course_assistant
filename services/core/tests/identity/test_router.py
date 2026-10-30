@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -17,13 +18,15 @@ from app.common.audit import AuditEvent
 from app.common.config import settings
 from app.common.db import get_db
 from app.common.errors import AppError, register_error_handlers
+from app.modules.classroom.models import School
 from app.modules.identity.email_delivery import get_token_sender
 from app.modules.identity.http_security import REFRESH_COOKIE
 from app.modules.identity.idempotency import IdempotencyStore, get_idempotency_store
 from app.modules.identity.models import DataRequest, Role, RoleAssignment, User, UserStatus
 from app.modules.identity.rate_limit import RateLimiter, get_rate_limiter
-from app.modules.identity.schemas import RegisterRequest
-from app.modules.identity.service import IdentityService
+from app.modules.identity.router import _tokens
+from app.modules.identity.schemas import RegisterRequest, TokenResponse
+from app.modules.identity.service import AuthTokens, IdentityService
 
 PASSWORD = "test-only password long enough"
 ORIGIN = {"Origin": "https://app.example.com"}
@@ -79,6 +82,7 @@ def http(engine, monkeypatch):
     cache = IdempotencyStore()
     emails = []
     app.state.student_ids = []
+    app.state.school_ids = []
 
     def test_db():
         with Session(engine, autoflush=False, expire_on_commit=False) as session:
@@ -123,6 +127,7 @@ def http(engine, monkeypatch):
             )
         )
         connection.execute(delete(User).where(User.id.in_(owned_ids)))
+        connection.execute(delete(School).where(School.id.in_(app.state.school_ids)))
 
 
 def login(client, email, password=PASSWORD, headers=None):
@@ -133,6 +138,29 @@ def login(client, email, password=PASSWORD, headers=None):
 
 def bearer(response):
     return {"Authorization": "Bearer " + response.json()["access_token"]}
+
+
+def test_refresh_cookie_normalizes_expiry_to_utc():
+    expires_at = datetime(2030, 1, 1, tzinfo=timezone(timedelta(hours=2)))
+    tokens = AuthTokens(
+        TokenResponse(access_token="test-access", expires_in=60),
+        SecretStr("test-refresh"),
+        expires_at,
+    )
+
+    response = _tokens(tokens)
+
+    cookie = response.headers["set-cookie"].casefold()
+    assert "expires=" in cookie
+    assert "22:00:00 gmt" in cookie
+    with pytest.raises(ValueError, match="timezone-aware"):
+        _tokens(
+            AuthTokens(
+                TokenResponse(access_token="test-access", expires_in=60),
+                SecretStr("test-refresh"),
+                datetime(2030, 1, 1),
+            )
+        )
 
 
 def test_legacy_verify_login_and_cookie_rotation(http):
@@ -554,10 +582,13 @@ def student_http(http, engine):
     client, _, register, app = http
     email, account = register()
     actor_id = UUID(account.json()["user_id"])
+    school_id = uuid4()
     with Session(engine) as session:
-        session.get(User, actor_id).school_id = uuid4()
+        session.add(School(id=school_id, name="Synthetic router school"))
+        session.get(User, actor_id).school_id = school_id
         session.add(RoleAssignment(user_id=actor_id, role=Role.ADMIN))
         session.commit()
+    app.state.school_ids.append(school_id)
     headers = bearer(login(client, email))
     username = "student." + uuid4().hex
     created = client.post("/api/v1/admin/students", headers=headers, json={"username": username})
@@ -687,9 +718,12 @@ def test_student_code_mutations_do_not_cache_secrets_and_scope_is_checked(studen
         ).status_code
         == 400
     )
+    other_school_id = uuid4()
     with Session(engine) as session:
-        session.get(User, UUID(data["student"]["id"])).school_id = uuid4()
+        session.add(School(id=other_school_id, name="Synthetic other router school"))
+        session.get(User, UUID(data["student"]["id"])).school_id = other_school_id
         session.commit()
+    app.state.school_ids.append(other_school_id)
     assert client.post(path, headers=admin, json={}).status_code == 404
     with Session(engine) as session:
         audits = session.scalars(

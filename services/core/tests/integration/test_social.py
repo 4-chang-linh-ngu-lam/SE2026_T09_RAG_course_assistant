@@ -15,7 +15,7 @@ from app.common.config import settings
 from app.common.errors import AppError
 from app.common.outbox import OutboxEvent
 from app.common.pagination import Pagination
-from app.modules.classroom.models import ClassMembership, EnrollmentMode, MembershipStatus
+from app.modules.classroom.models import ClassMembership, EnrollmentMode, MembershipStatus, School
 from app.modules.classroom.schemas import ClassCreateRequest, CourseCreateRequest
 from app.modules.classroom.service import ClassroomService
 from app.modules.identity.models import Role, RoleAssignment, User, UserStatus
@@ -62,7 +62,14 @@ def social(engine):
         expire_on_commit=False,
     )
     try:
-        school_id = uuid4()
+        school_id, other_school_id = uuid4(), uuid4()
+        session.add_all(
+            [
+                School(id=school_id, name="Synthetic social school"),
+                School(id=other_school_id, name="Synthetic other school"),
+            ]
+        )
+        session.flush()
 
         def account(role: Role, *, account_school=school_id):
             user_id = uuid4()
@@ -91,7 +98,7 @@ def social(engine):
 
         users = {
             "admin": account(Role.ADMIN),
-            "other_admin": account(Role.ADMIN, account_school=uuid4()),
+            "other_admin": account(Role.ADMIN, account_school=other_school_id),
             "teacher": account(Role.LECTURER),
             "student": account(Role.STUDENT),
             "student2": account(Role.STUDENT),

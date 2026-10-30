@@ -14,6 +14,7 @@ ResolutionNote = Literal[
     "INSUFFICIENT_VERIFICATION",
     "REQUEST_REJECTED",
     "DUPLICATE_REQUEST",
+    "MANUAL_FULFILLMENT_CONFIRMED",
 ]
 
 
@@ -46,6 +47,16 @@ class DataResolutionCommand(BaseModel):
     status: Literal["IN_REVIEW", "COMPLETED", "REJECTED"]
     resolution_note: ResolutionNote
     identity_verified: bool = Field(default=False, strict=True)
+    manual_fulfillment_confirmed: bool = Field(default=False, strict=True)
+
+    @model_validator(mode="after")
+    def manual_fulfillment_matches_resolution(self):
+        manual_note = self.resolution_note == "MANUAL_FULFILLMENT_CONFIRMED"
+        if self.manual_fulfillment_confirmed != manual_note:
+            raise ValueError("Manual fulfillment flag and resolution note must match")
+        if manual_note and self.status != "COMPLETED":
+            raise ValueError("Manual fulfillment confirmation requires COMPLETED status")
+        return self
 
 
 class AdminUserListItem(BaseModel):

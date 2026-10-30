@@ -159,18 +159,32 @@ class AdministrationService:
                 since=since,
                 until=until,
             )
+            page_rows = rows[: pagination.limit]
+            actor_ids = sorted({row.actor_id for row in page_rows if row.actor_id is not None})
+            actor_summaries = identity.get_users_summaries(actor_ids, session=self.session)
             items = []
-            for row in rows[: pagination.limit]:
+            for row in page_rows:
                 try:
                     safe = AuditMetadata.model_validate(row.metadata_json).model_dump(
                         exclude_none=True
                     )
                 except ValidationError:
                     safe = {}  # Never reflect legacy/unreviewed metadata fields.
+                actor_summary = actor_summaries.get(row.actor_id) if row.actor_id is not None else None
+                actor_name = (
+                    "Hệ thống"
+                    if row.actor_id is None
+                    else actor_summary.display_name
+                    if actor_summary is not None
+                    and actor_summary.school_id == actor.school_id
+                    and actor_summary.display_name
+                    else "Người dùng trong trường"
+                )
                 items.append(
                     AuditEventResponse(
                         id=row.id,
                         actor_id=row.actor_id,
+                        actor_name=actor_name,
                         action=row.action,
                         target_type=row.target_type,
                         target_id=row.target_id,

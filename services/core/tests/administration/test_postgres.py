@@ -717,6 +717,9 @@ def test_audit_tenant_filter_pagination_and_redaction_do_not_leak(system):
         "/api/v1/admin/audit-events?limit=2&action=SYNTHETIC_ACTION", headers=system.headers()
     ).json()
     assert len(first["items"]) == 2 and first["next_cursor"]
+    assert all(
+        item["actor_name"] == system.users["admin"].display_name for item in first["items"]
+    )
     second = system.client.get(
         f"/api/v1/admin/audit-events?limit=2&action=SYNTHETIC_ACTION&cursor={first['next_cursor']}",
         headers=system.headers(),
@@ -737,9 +740,7 @@ def test_audit_tenant_filter_pagination_and_redaction_do_not_leak(system):
 
 
 @pytest.mark.parametrize("request_type", ["ACCESS", "EXPORT", "CORRECTION", "DELETE"])
-def test_data_requests_verify_defer_without_false_completion_and_reject_with_audit(
-    system, request_type
-):
+def test_data_request_manual_resolution_requires_verification_and_audit(system, request_type):
     created = system.client.post(
         "/api/v1/users/me/data-requests",
         json={"type": request_type, "reason": "Synthetic request context"},
@@ -757,7 +758,11 @@ def test_data_requests_verify_defer_without_false_completion_and_reject_with_aud
         system.client.get(f"/api/v1/admin/data-requests/{id}", headers=system.headers()).status_code
         == 200
     )
-    command = {"status": "COMPLETED", "resolution_note": "POLICY_PENDING"}
+    command = {
+        "status": "COMPLETED",
+        "resolution_note": "MANUAL_FULFILLMENT_CONFIRMED",
+        "manual_fulfillment_confirmed": True,
+    }
     assert (
         system.client.patch(
             f"/api/v1/admin/data-requests/{id}", json=command, headers=system.headers()
@@ -765,31 +770,79 @@ def test_data_requests_verify_defer_without_false_completion_and_reject_with_aud
         == 409
     )
     command["identity_verified"] = True
+    if request_type != "DELETE":
+        without_attestation = {
+            **command,
+            "resolution_note": "POLICY_PENDING",
+            "manual_fulfillment_confirmed": False,
+        }
+        assert (
+            system.client.patch(
+                f"/api/v1/admin/data-requests/{id}",
+                json=without_attestation,
+                headers=system.headers(),
+            ).status_code
+            == 409
+        )
     result = system.client.patch(
         f"/api/v1/admin/data-requests/{id}", json=command, headers=system.headers()
     )
-    assert result.status_code == 200 and result.json()["status"] == "IN_REVIEW"
-    assert result.json()["resolution_note"] == "POLICY_PENDING"
-    rejected = system.client.patch(
-        f"/api/v1/admin/data-requests/{id}",
-        json={
-            "status": "REJECTED",
-            "resolution_note": "REQUEST_REJECTED",
-            "identity_verified": True,
-        },
-        headers=system.headers(),
-    )
-    assert rejected.json()["status"] == "REJECTED"
-    assert (
-        system.client.patch(
+    assert result.status_code == 200
+    if request_type == "DELETE":
+        assert (result.json()["status"], result.json()["resolution_note"]) == (
+            "IN_REVIEW",
+            "POLICY_PENDING",
+        )
+    else:
+        assert (result.json()["status"], result.json()["resolution_note"]) == (
+            "COMPLETED",
+            "MANUAL_FULFILLMENT_CONFIRMED",
+        )
+        replay = system.client.patch(
             f"/api/v1/admin/data-requests/{id}", json=command, headers=system.headers()
-        ).status_code
-        == 409
+        )
+        assert replay.status_code == 200 and replay.json() == result.json()
+    rejection = {
+        "status": "REJECTED",
+        "resolution_note": "REQUEST_REJECTED",
+        "identity_verified": True,
+    }
+    rejected = system.client.patch(
+        f"/api/v1/admin/data-requests/{id}", json=rejection, headers=system.headers()
     )
+    if request_type == "DELETE":
+        assert rejected.status_code == 200 and rejected.json()["status"] == "REJECTED"
+        assert (
+            system.client.patch(
+                f"/api/v1/admin/data-requests/{id}", json=command, headers=system.headers()
+            ).status_code
+            == 409
+        )
+    else:
+        assert rejected.status_code == 409
+        command["identity_verified"] = False
+        assert (
+            system.client.patch(
+                f"/api/v1/admin/data-requests/{id}", json=command, headers=system.headers()
+            ).status_code
+            == 409
+        )
     with system.factory() as db:
         assert db.get(User, system.users["student"].id) is not None
         events = list(db.scalars(select(AuditEvent).where(AuditEvent.target_id == id)))
-        assert sum(row.action == "DATA_REQUEST_DEFERRED" for row in events) == 1
+        if request_type == "DELETE":
+            assert sum(row.action == "DATA_REQUEST_DEFERRED" for row in events) == 1
+        else:
+            fulfillment_events = [
+                row for row in events if row.action == "DATA_REQUEST_FULFILLED_MANUALLY"
+            ]
+            assert len(fulfillment_events) == 1
+            assert fulfillment_events[0].metadata_json == {
+                "changed_fields": ["data_request_status"],
+                "reason_code": "ADMIN_INTERVENTION",
+                "identity_verified": True,
+                "manual_fulfillment_confirmed": True,
+            }
         assert all("Synthetic request context" not in str(row.metadata_json) for row in events)
 
 

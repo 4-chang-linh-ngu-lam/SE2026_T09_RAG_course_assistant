@@ -29,8 +29,8 @@ phần đã làm, giới hạn và việc tiếp theo; không thay thế Busines
 | 001 Common | Config, DB, auth lookup hiện hành, error envelope, audit; thêm outbox và admission gate | Limiter/cache một process; shared changes cần review TV1 và consumers |
 | 002 Identity core | Student provision/activate/recovery không email; staff email; login/refresh/revocation; legacy conversion giữ định danh | Mapping dữ liệu legacy thực; SMTP thật và delivery reliability |
 | 003 Identity HTTP | Auth/profile/Student API, cookie/CSRF, register bị chặn, secret response no-store, OpenAPI tests | Limiter/idempotency RAM không bền vững khi restart/multi-worker |
-| 004 Identity public | DTO, permission helpers, public operations cho Admin/import/data requests; coverage gate 100% | Fulfillment dữ liệu thật cần policy/executor; owner review contract |
-| 005 Classroom schema | School, homeroom/roster, subject class, AUTO/MANUAL, TeachingAssignment | `users.school_id` nullable, chưa có FK; mapping legacy chưa duyệt |
+| 004 Identity public | DTO, permission helpers, public operations cho Admin/import/data requests; coverage gate 100% | API ghi manual attestation cho ACCESS/EXPORT/CORRECTION; DELETE/retention và Web Admin integration vẫn mở |
+| 005 Classroom schema | School, homeroom/roster, subject class, AUTO/MANUAL, TeachingAssignment | Working tree có nullable FK 0014; manifest mapping legacy thật chưa duyệt |
 | 006 Enrollment/transfer | Admin roster/sync, preview/version confirm, AUTO/MANUAL và transfer giữ lịch sử | Learning transfer cutoff/timed-attempt policy và consumer thực tế |
 | 007 Lifecycle/assignment | PRIMARY/ASSISTING, thay giáo viên chính, archive/restore, quyền hiện hành | Learning approval/grading và lifecycle liên service |
 | 008 Classroom public/internal | Action access, scope, limited personal history, service credential, fail closed | Source grant của Document, điểm/bài nộp/chat của service chủ quản |
@@ -38,8 +38,8 @@ phần đã làm, giới hạn và việc tiếp theo; không thay thế Busines
 | 010 Comments | Body/parent checks, soft-delete/moderation, audit/outbox | Ghi outbox lỗi rollback transaction; worker delivery lỗi retry sau commit, không đồng nhất hai trường hợp |
 | 011 Calendar | Core events, time validation, class access, Learning read-only projection/version handling | Projection tests chưa phải Learning E2E |
 | 012 Notification | Inbox/read/read-all, recipient-only, transactional outbox, worker retry/dedup | Review event contracts; không dùng để giao credential SMTP |
-| 013 Administration | Staff/status/roles, school audit, CSV/XLSX preview/confirm, data-request review | Thiếu policy/executor giữ IN_REVIEW; SMTP/legacy audit giới hạn bên dưới |
-| 014 Migrations/seed | Metadata registry, head 0012, downgrade guard, report/plan/apply manifest, seed dev/test | Dữ liệu thực/mapping/FK và quy trình production onboarding chưa được nghiệm thu |
+| 013 Administration | Staff/status/roles, school audit, CSV/XLSX preview/confirm, data-request review/manual attestation | DELETE giữ IN_REVIEW đến khi có retention/dọn dữ liệu liên service; Web Admin integration và SMTP/legacy audit có giới hạn riêng |
+| 014 Migrations/seed | Main head 0013; working tree thêm nullable FK 0014, downgrade guard, report/plan/apply manifest, seed dev/test | Migration/test chưa chạy; mapping thật và production onboarding chưa được nghiệm thu |
 | 015 Security/integration | HTTP journey, permissions, concurrency, boundaries, evidence, backend runtime/load checks | Client latency cao; full TP-01 và owner approval còn pending. CI PR #10 đã xanh; xem cập nhật đầu tài liệu |
 
 Các checklist/đoạn “hiện trạng” cũ trong task 001–011 là lịch sử và có chỗ chưa
@@ -153,10 +153,10 @@ không phải trạng thái Git hiện tại. Command tái lập tại [tests RE
 | Mã | Vấn đề / ảnh hưởng | Bước tiếp theo / owner phối hợp |
 |---|---|---|
 | OPEN-01 | Follow-up không chạy suite/build đồng thời ghi backend p95 18,79 ms, client p95 1,17 giây (max 9,99 giây), trong khi lượt trước là 15,58 giây; chênh lệch chưa rõ nguyên nhân và chưa đủ bằng chứng user-facing SLO | TV4 đo lại trên môi trường cô lập, giữ cả backend/client metrics và phân tích bottleneck trước khi nghiệm thu TP-01 |
-| OPEN-02 | Legacy School mapping chưa duyệt, users.school_id nullable/chưa FK | TV1/TV2 duyệt manifest dữ liệu thực; provision School trước Identity, plan/apply theo runbook rồi migration constraint mới khi đủ điều kiện |
+| OPEN-02 | Mapping School cho user thật chưa duyệt; FK nullable 0014 mới ở working tree và chưa test | Fixture dùng UUID tổng hợp trong DB dev/test; TV1/TV2 cung cấp manifest có thẩm quyền trước khi áp dụng mapping thật |
 | OPEN-03 | Limiter/non-import idempotency cache process-local | TV1/TV2/TV4 chốt yêu cầu multi-worker/restart, thiết kế cơ chế dùng chung/bền vững; không suy ra durable semantics từ import |
 | OPEN-04 | SMTP trước DB commit có thể gửi invite không dùng được nếu commit lỗi; chưa test provider thật | TV1/TV4 chốt delivery/reissue/retry có bảo vệ credential; thử SMTP thật khi có cấu hình, không đưa mã vào inbox/outbox chung |
-| OPEN-05 | Data requests chưa có fulfillment/retention và quy trình xác minh thực tế | Operator/owner duyệt policy và executor theo từng service; tiếp tục IN_REVIEW khi thiếu điều kiện, không tự xóa/export liên service |
+| OPEN-05 | ACCESS/EXPORT/CORRECTION dùng quy trình Admin thủ công đã duyệt; Web Admin chưa tích hợp và DELETE chưa có retention/executor | Xác minh danh tính; giao ACCESS/EXPORT qua kênh an toàn do trường duyệt; CORRECTION do service sở hữu và ghi audit trước khi Admin xác nhận; DELETE tiếp tục IN_REVIEW |
 | OPEN-06 | Learning/Document/AI/Intelligence chưa có triển khai để E2E | Chốt owner/contracts trước task 017–020; test transfer attempt, grants/revoke, grading/approval và private history tại service chủ quản |
 | OPEN-07 | Audit legacy school null không hiện trong scoped Admin API | Giữ nguyên dữ liệu; nếu cần phân loại, dùng phương án mapping riêng có bằng chứng/approval, không đoán school hoặc nới quyền |
 | OPEN-08 | Seed chỉ dev/test, không phải production first-Admin bootstrap/onboarding | Operator/TV1/TV2/TV4 cần chốt runbook production riêng trước rollout; không bỏ guard seed |

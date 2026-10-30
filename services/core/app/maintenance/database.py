@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+from collections.abc import Callable
+from typing import Literal
 from uuid import UUID, uuid4
 
 from alembic.config import Config
@@ -30,6 +32,9 @@ from app.modules.identity.public import (
     maintenance_identity_report,
 )
 from app.modules.identity.public import (
+    bootstrap_production_admin as identity_bootstrap_production_admin,
+)
+from app.modules.identity.public import (
     bootstrap_staging_admin as identity_bootstrap_staging_admin,
 )
 from app.modules.identity.public import (
@@ -54,6 +59,19 @@ def validate_staging_database_url(database_url: URL, *, expected_host: str) -> N
         or actual_host.rstrip(".").casefold() != expected_host.rstrip(".").casefold()
     ):
         raise ValueError("Staging bootstrap database host mismatch")
+
+
+def validate_production_database_url(database_url: URL, *, expected_host: str) -> None:
+    """Reject PostgreSQL URI options that can redirect a Production connection."""
+    target_overrides = {"host", "hostaddr", "service", "servicefile"}
+    if any(key.casefold() in target_overrides for key in database_url.query):
+        raise ValueError("Production database URL must not override its connection target")
+    actual_host = database_url.host
+    if (
+        not actual_host
+        or actual_host.rstrip(".").casefold() != expected_host.rstrip(".").casefold()
+    ):
+        raise ValueError("Production bootstrap database host mismatch")
 
 
 def outbox_delivery_report(session: Session) -> dict:
@@ -167,7 +185,11 @@ def apply_mapping(session: Session, manifest: MappingManifest, *, approved_sha25
             metadata_json=AuditMetadata(reason_code="ADMIN_INTERVENTION"),
         )
     session.flush()
-    return mapping_plan(session, MappingManifest())
+    result = mapping_plan(session, MappingManifest())
+    if any("SCHOOL_ENTITY_MISSING" in user["issues"] for user in result["users"]):
+        raise ValueError("Resolve every existing School reference before validating the users FK")
+    session.execute(text("ALTER TABLE core.users VALIDATE CONSTRAINT fk_users_school_id_schools"))
+    return result
 
 
 def seed_development(
@@ -218,6 +240,94 @@ def seed_development(
     return {"school_id": str(school_id), "created": True}
 
 
+def _bootstrap_first_admin(
+    session: Session,
+    *,
+    school_name: str,
+    admin_email: str,
+    environment_label: Literal["Staging", "Production"],
+    marker_action: Literal["STAGING_BOOTSTRAP_ADMIN", "PRODUCTION_BOOTSTRAP_ADMIN"],
+    identity_bootstrap: Callable[..., object],
+) -> dict:
+    _lock_core(session)
+    markers = list(
+        session.scalars(
+            select(AuditEvent)
+            .where(AuditEvent.action == marker_action)
+            .order_by(AuditEvent.occurred_at, AuditEvent.id)
+        )
+    )
+    if markers:
+        if len(markers) != 1:
+            raise ValueError(f"Unexpected {environment_label.lower()} bootstrap audit state")
+        marker = markers[0]
+        admin = get_user_summary(marker.target_id, session=session)
+        school = next(
+            (
+                item
+                for item in maintenance_schools(session=session)
+                if item["school_id"] == str(marker.school_id)
+            ),
+            None,
+        )
+        if (
+            marker.target_type != "USER"
+            or marker.school_id is None
+            or admin is None
+            or admin.email is None
+            or admin.email.casefold() != admin_email.strip().casefold()
+            or admin.school_id != marker.school_id
+            or "ADMIN" not in get_user_roles(admin.id, session=session)
+            or school is None
+            or school["name"] != school_name
+        ):
+            raise ValueError(
+                f"{environment_label} bootstrap marker does not match the requested profile"
+            )
+        return {
+            "created": False,
+            "school_id": str(marker.school_id),
+            "admin_user_id": str(admin.id),
+            "status": str(admin.status),
+            "correlation_id": str(marker.correlation_id),
+        }
+
+    for table in load_metadata().sorted_tables:
+        if session.scalar(select(table.c.id).limit(1)) is not None:
+            raise ValueError(f"{environment_label} bootstrap requires an empty Core database")
+
+    smtp_password = (
+        settings.smtp_password.get_secret_value().strip() if settings.smtp_password else ""
+    )
+    if (
+        not settings.smtp_host
+        or not settings.smtp_username
+        or not settings.smtp_from
+        or not smtp_password
+    ):
+        raise ValueError(
+            f"Configure the {environment_label.lower()} SMTP sender and App Password before bootstrap"
+        )
+
+    school_id = uuid4()
+    maintenance_provision_schools({school_id: school_name}, session=session)
+    correlation_id = uuid4()
+    admin = identity_bootstrap(
+        email=admin_email,
+        school_id=school_id,
+        correlation_id=correlation_id,
+        session=session,
+    )
+    return {
+        "created": True,
+        "school_id": str(school_id),
+        "admin_user_id": str(admin.id),
+        "status": str(admin.status),
+        "invitation_delivery": "PENDING",
+        "correlation_id": str(correlation_id),
+    }
+
+
 def bootstrap_staging_admin(
     session: Session,
     *,
@@ -240,79 +350,48 @@ def bootstrap_staging_admin(
     if database_url is None:
         raise ValueError("Staging bootstrap database host is unavailable")
     validate_staging_database_url(database_url, expected_host=expected_host)
-    _lock_core(session)
-    markers = list(
-        session.scalars(
-            select(AuditEvent)
-            .where(AuditEvent.action == "STAGING_BOOTSTRAP_ADMIN")
-            .order_by(AuditEvent.occurred_at, AuditEvent.id)
-        )
+    return _bootstrap_first_admin(
+        session,
+        school_name=school_name,
+        admin_email=admin_email,
+        environment_label="Staging",
+        marker_action="STAGING_BOOTSTRAP_ADMIN",
+        identity_bootstrap=identity_bootstrap_staging_admin,
     )
-    if markers:
-        if len(markers) != 1:
-            raise ValueError("Unexpected staging bootstrap audit state")
-        marker = markers[0]
-        admin = get_user_summary(marker.target_id, session=session)
-        school = next(
-            (
-                item
-                for item in maintenance_schools(session=session)
-                if item["school_id"] == str(marker.school_id)
-            ),
-            None,
-        )
-        if (
-            marker.target_type != "USER"
-            or marker.school_id is None
-            or admin is None
-            or admin.email is None
-            or admin.email.casefold() != admin_email.strip().casefold()
-            or admin.school_id != marker.school_id
-            or "ADMIN" not in get_user_roles(admin.id, session=session)
-            or school is None
-            or school["name"] != school_name
-        ):
-            raise ValueError("Staging bootstrap marker does not match the requested profile")
-        return {
-            "created": False,
-            "school_id": str(marker.school_id),
-            "admin_user_id": str(admin.id),
-            "status": str(admin.status),
-            "correlation_id": str(marker.correlation_id),
-        }
 
-    for table in load_metadata().sorted_tables:
-        if session.scalar(select(table.c.id).limit(1)) is not None:
-            raise ValueError("Staging bootstrap requires an empty Core database")
 
-    smtp_password = (
-        settings.smtp_password.get_secret_value().strip() if settings.smtp_password else ""
+def bootstrap_production_admin(
+    session: Session,
+    *,
+    environment: str,
+    expected_database: str,
+    expected_host: str,
+    school_name: str,
+    admin_email: str,
+    confirm_production_bootstrap: bool,
+) -> dict:
+    """One-time bootstrap for the approved synthetic Production school only."""
+    if environment != "production" or not confirm_production_bootstrap:
+        raise ValueError("Production bootstrap requires explicit Production confirmation")
+    if school_name.strip() != "Lumi Mock School":
+        raise ValueError("Production mock bootstrap only permits Lumi Mock School")
+    if not expected_database or not expected_host:
+        raise ValueError("Provide the exact Production database name and host")
+    if session.scalar(text("SELECT current_database()")) != expected_database:
+        raise ValueError("Production bootstrap database name mismatch")
+    bind = session.get_bind()
+    database_url = getattr(bind, "url", None) or getattr(getattr(bind, "engine", None), "url", None)
+    if database_url is None:
+        raise ValueError("Production bootstrap database host is unavailable")
+    validate_production_database_url(database_url, expected_host=expected_host)
+    return _bootstrap_first_admin(
+        session,
+        school_name=school_name,
+        admin_email=admin_email,
+        environment_label="Production",
+        marker_action="PRODUCTION_BOOTSTRAP_ADMIN",
+        identity_bootstrap=identity_bootstrap_production_admin,
     )
-    if (
-        not settings.smtp_host
-        or not settings.smtp_username
-        or not settings.smtp_from
-        or not smtp_password
-    ):
-        raise ValueError("Configure the staging SMTP sender and App Password before bootstrap")
-
-    school_id = uuid4()
-    maintenance_provision_schools({school_id: school_name}, session=session)
-    correlation_id = uuid4()
-    admin = identity_bootstrap_staging_admin(
-        email=admin_email,
-        school_id=school_id,
-        correlation_id=correlation_id,
-        session=session,
-    )
-    return {
-        "created": True,
-        "school_id": str(school_id),
-        "admin_user_id": str(admin.id),
-        "status": str(admin.status),
-        "invitation_delivery": "PENDING",
-        "correlation_id": str(correlation_id),
-    }
 
 
 def correct_staging_admin_email(

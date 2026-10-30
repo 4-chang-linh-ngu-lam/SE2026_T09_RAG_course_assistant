@@ -19,9 +19,9 @@
 
 **Phụ thuộc và nghiệm thu bổ sung:**
 - [x] Contract/HTTP tests bao phủ identifier, register 403, no-store, role/school checks, activation/reset replay, cookie/CSRF và OpenAPI; chạy trong Core CI PostgreSQL 16.
-- [x] TASK-013/016 đã tích hợp routes/worker/CI; SMTP staff provider thật vẫn chờ cấu hình riêng.
+- [x] TASK-013/016 đã tích hợp routes/worker/CI; staff SMTP provider delivery/retry được xác nhận trên staging qua issue #16.
 
-**Kiểm chứng hiện hành (2026-10-29):** Core CI trên PR #33 head `b8c9a6d` đạt 360 passed/0 skipped PostgreSQL 16, OpenAPI, Compose smoke và Web build. Đây là evidence của PR branch; SMTP Gmail thật chưa được kiểm chứng vì Cloud Run staging chưa có secrets.
+**Kiểm chứng hiện hành (2026-10-30):** Core CI trên PR #35 đạt 380 passed/0 skipped PostgreSQL 16; OpenAPI, Compose smoke và Web build xanh. SMTP Gmail staging delivery/recovery/retry được xác nhận trong issue #16; không áp dụng kết quả đó cho Production.
 
 ---
 
@@ -75,6 +75,6 @@ Xây dựng các route thuộc prefix `/api/v1/auth`:
 
 **Bằng chứng lịch sử (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; HTTP/security/OpenAPI tests và Core suite thời điểm đó đạt. Evidence PostgreSQL 16 mới nhất ở mục kiểm chứng hiện hành.
 
-**Cập nhật follow-up issue #16 (2026-10-29):** Durable staff invitation/password-reset delivery đã merge vào `main` tại `8100ebd`; worker retry cùng token, Admin reissue invitation có audit. Chi tiết hiện hành tại [Core README](../services/core/README.md#identity-http-api-task-003) và [API Contract](../docs/architect/microservices-v1/core/API_CONTRACT.md). Chưa có SMTP secret trong Cloud Run nên chưa xác minh Gmail thật.
+**Cập nhật follow-up issue #16 (2026-10-29):** Durable staff invitation/password-reset delivery đã merge vào `main` tại `8100ebd`; worker retry cùng token, Admin reissue invitation có audit. Gmail staging đã nhận invitation và recovery; CI mô phỏng SMTP failure/retry. Issue #16 đóng; Production SMTP vẫn tách biệt. Chi tiết tại [Core README](../services/core/README.md#identity-http-api-task-003) và [API Contract](../docs/architect/microservices-v1/core/API_CONTRACT.md).
 
-**Giới hạn còn lại:** Rate limiter và idempotency TTL 24 giờ dùng RAM một process, không bền vững qua restart/multi-worker. SMTP thật chưa được kiểm chứng; test không gửi email ra ngoài. Full Core PostgreSQL 16 và Compose CI đã chạy sau TASK-015/PR #10, nhưng không kiểm chứng SMTP provider. Các biến cấu hình, phạm vi key và cách chạy tại [Core README](../services/core/README.md#identity-http-api-task-003). Shared files/Compose và API contract vẫn cần owner review.
+**Giới hạn còn lại:** Rate limiter và idempotency TTL 24 giờ dùng RAM một process, không bền vững qua restart/multi-worker; MVP vẫn giữ một worker theo quyết định operator. SMTP provider được kiểm chứng trên staging, chưa có Production Core/SMTP. Các biến cấu hình, phạm vi key và cách chạy tại [Core README](../services/core/README.md#identity-http-api-task-003). Shared/API changes theo dõi bằng self-review và CI theo chỉ đạo TV1.

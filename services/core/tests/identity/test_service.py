@@ -23,6 +23,7 @@ from app.common.config import settings
 from app.common.db import get_db
 from app.common.errors import AppError, register_error_handlers
 from app.common.security import decode_access_token, hash_refresh_token, verify_password
+from app.modules.classroom.models import School
 from app.modules.identity import public
 from app.modules.identity.models import (
     AuthSession,
@@ -82,6 +83,9 @@ def identity(engine, monkeypatch):
     service = IdentityService(session)
     created_ids = []
     school_id = uuid4()
+    session.info["test_school_ids"] = [school_id]
+    session.add(School(id=school_id, name="Synthetic identity school"))
+    session.commit()
 
     def register(*, active=True):
         request = RegisterRequest(email=f"student-{uuid4().hex}@example.com", password=PASSWORD)
@@ -99,9 +103,11 @@ def identity(engine, monkeypatch):
         return request, result
 
     yield session, service, register
+    school_ids = session.info.pop("test_school_ids")
     session.close()
     with engine.begin() as connection:
         connection.execute(delete(User).where(User.id.in_(created_ids)))
+        connection.execute(delete(School).where(School.id.in_(school_ids)))
 
 
 def login(service, request):
@@ -736,7 +742,11 @@ def test_admin_school_boundary_and_creation_context(identity):
     _, actor = register()
     _, target = register()
     actor_id, target_id = actor.response.user_id, target.response.user_id
-    school_id = uuid4()
+    school_id = session.scalar(select(User.school_id).where(User.id == actor_id))
+    other_school_id = uuid4()
+    session.info["test_school_ids"].append(other_school_id)
+    session.add(School(id=other_school_id, name="Synthetic other school"))
+    session.flush()
     session.get(User, actor_id).school_id = school_id
     session.get(User, target_id).school_id = None
     session.add(RoleAssignment(user_id=actor_id, role=Role.ADMIN))
@@ -748,7 +758,7 @@ def test_admin_school_boundary_and_creation_context(identity):
             target_id, "LOCKED", actor_id=actor_id, correlation_id=uuid4(), session=session
         ),
     )
-    session.get(User, target_id).school_id = uuid4()
+    session.get(User, target_id).school_id = other_school_id
     session.commit()
     expect_error(
         404,
@@ -807,6 +817,9 @@ def test_student_activation_expiry_purpose_reissue_and_config(student, monkeypat
     token = IdentityRepository(session).get_one_time_token(
         hash_refresh_token(result.code.get_secret_value()), TokenPurpose.STUDENT_ACTIVATION
     )
+    assert session.scalar(
+        select(CredentialDelivery).where(CredentialDelivery.token_id == token.id)
+    ) is None
     assert result.code.get_secret_value() != token.token_hash
     assert 23 * 3600 < (result.expires_at - datetime.now(UTC)).total_seconds() <= 24 * 3600
     expect_error(
@@ -898,6 +911,7 @@ def test_student_public_creation_rolls_back_and_requires_admin_scope(identity):
     session, _, register = identity
     _, actor = register()
     actor_id = actor.response.user_id
+    school_id = session.scalar(select(User.school_id).where(User.id == actor_id))
     expect_error(
         403,
         lambda: public.admin_create_student(
@@ -913,7 +927,7 @@ def test_student_public_creation_rolls_back_and_requires_admin_scope(identity):
             "student." + uuid4().hex, actor_id=actor_id, correlation_id=uuid4(), session=session
         ),
     )
-    session.get(User, actor_id).school_id = uuid4()
+    session.get(User, actor_id).school_id = school_id
     session.flush()
     result = public.admin_create_student(
         "student." + uuid4().hex, actor_id=actor_id, correlation_id=uuid4(), session=session
@@ -967,6 +981,9 @@ def test_student_recovery_expiry_and_concurrency(student, engine):
     token = IdentityRepository(session).get_one_time_token(
         hash_refresh_token(first.code.get_secret_value()), TokenPurpose.STUDENT_PASSWORD_RESET
     )
+    assert session.scalar(
+        select(CredentialDelivery).where(CredentialDelivery.token_id == token.id)
+    ) is None
     token.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     session.commit()
     expect_error(

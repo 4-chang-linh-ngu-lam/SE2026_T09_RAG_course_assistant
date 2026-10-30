@@ -18,6 +18,7 @@ from app.modules.classroom.models import (
     ClassMembership,
     EnrollmentMode,
     MembershipStatus,
+    School,
     TeachingRole,
 )
 from app.modules.classroom.public import check_class_action
@@ -89,10 +90,17 @@ def classroom(engine):
                 school_id=school_id,
             )
 
-        school_id = uuid4()
+        school_id, other_school_id = uuid4(), uuid4()
+        session.add_all(
+            [
+                School(id=school_id, name="Synthetic classroom school"),
+                School(id=other_school_id, name="Synthetic other school"),
+            ]
+        )
+        session.flush()
         users = {
             "admin": account(Role.ADMIN, school_id),
-            "other_admin": account(Role.ADMIN, uuid4()),
+            "other_admin": account(Role.ADMIN, other_school_id),
             "teacher": account(Role.LECTURER, school_id),
             "teacher2": account(Role.LECTURER, school_id),
             "student": account(Role.STUDENT, school_id),

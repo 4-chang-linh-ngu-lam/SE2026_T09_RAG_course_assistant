@@ -2,6 +2,7 @@
 
 from collections import Counter
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import SecretStr, TypeAdapter, ValidationError
@@ -163,14 +164,19 @@ def bootstrap_dev_identity(*, school_id: UUID, admin_password: SecretStr, sessio
     return {"admin_id": admin.id, "lecturer_ids": lecturers, "student_ids": students}
 
 
-def bootstrap_staging_admin(
-    *, email: str, school_id: UUID, correlation_id: UUID, session: Session
+def _bootstrap_first_admin(
+    *,
+    email: str,
+    school_id: UUID,
+    correlation_id: UUID,
+    session: Session,
+    environment_label: str,
+    audit_action: Literal["STAGING_BOOTSTRAP_ADMIN", "PRODUCTION_BOOTSTRAP_ADMIN"],
 ) -> UserSummaryDTO:
-    """Create one pending staging Admin and queue an invitation without exposing its token."""
     request = AdminCreateUserRequest(email=email, roles=[Role.ADMIN])
     repository = IdentityRepository(session)
     if repository.get_by_email(request.email) is not None:
-        raise ValueError("Staging Admin email is already registered")
+        raise ValueError(f"{environment_label} Admin email is already registered")
     if (
         session.scalar(
             select(User.id)
@@ -180,7 +186,7 @@ def bootstrap_staging_admin(
         )
         is not None
     ):
-        raise ValueError("Staging School already has an Admin")
+        raise ValueError(f"{environment_label} School already has an Admin")
 
     user = repository.create_user(
         User(
@@ -201,7 +207,7 @@ def bootstrap_staging_admin(
         session,
         actor_id=None,
         school_id=school_id,
-        action="STAGING_BOOTSTRAP_ADMIN",
+        action=audit_action,
         target_type="USER",
         target_id=user.id,
         correlation_id=correlation_id,
@@ -212,6 +218,34 @@ def bootstrap_staging_admin(
     )
     session.flush()
     return IdentityService._summary(user)
+
+
+def bootstrap_staging_admin(
+    *, email: str, school_id: UUID, correlation_id: UUID, session: Session
+) -> UserSummaryDTO:
+    """Create one pending staging Admin and queue an invitation without exposing its token."""
+    return _bootstrap_first_admin(
+        email=email,
+        school_id=school_id,
+        correlation_id=correlation_id,
+        session=session,
+        environment_label="Staging",
+        audit_action="STAGING_BOOTSTRAP_ADMIN",
+    )
+
+
+def bootstrap_production_admin(
+    *, email: str, school_id: UUID, correlation_id: UUID, session: Session
+) -> UserSummaryDTO:
+    """Create one pending production Admin without exposing the invitation token."""
+    return _bootstrap_first_admin(
+        email=email,
+        school_id=school_id,
+        correlation_id=correlation_id,
+        session=session,
+        environment_label="Production",
+        audit_action="PRODUCTION_BOOTSTRAP_ADMIN",
+    )
 
 
 def maintenance_correct_staging_admin_email(

@@ -87,6 +87,7 @@ def test_admission_overload_is_safe_503_and_liveness_bypasses_queue():
         assert messages[0]["status"] == 503
         body = json.loads(messages[1]["body"])
         assert body["error"]["code"] == "SERVICE_UNAVAILABLE"
+        assert body["error"]["message"] == "Hệ thống đang bận. Vui lòng chờ một chút rồi thử lại."
         assert body["error"]["correlation_id"] == "synthetic-id"
         assert dict(messages[0]["headers"])[b"cache-control"] == b"no-store"
         release.set()

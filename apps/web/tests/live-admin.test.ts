@@ -124,9 +124,9 @@ test('live Admin audit reads Core pages without enabling deferred data-request f
   assert.equal(audit.kind, 'audit');
   if (audit.kind !== 'audit') return;
   assert.equal(audit.items[0].action, 'ADMIN_SET_MANUAL_ROSTER');
-  assert.equal(audit.items[0].actorName, ids.admin);
+  assert.equal(audit.items[0].actorName, 'Người dùng trong trường');
   assert.equal(audit.items[0].reason, 'USER_REQUEST');
-  assert.equal(audit.items[1].actorName, ids.teacher);
+  assert.equal(audit.items[1].actorName, 'Người dùng trong trường');
   assert.equal(audit.items[1].action, 'SOCIAL_MODERATE_COMMENT');
   assert.equal(audit.nextCursor, 'opaque-cursor');
   await assert.rejects(() => intelligence.load('a.dataRequests', {}, {}));
