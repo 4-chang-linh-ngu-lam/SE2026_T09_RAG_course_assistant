@@ -32,7 +32,9 @@ function decodeAudit(value: unknown): IntelligenceAuditRecord {
   return {
     id: text(source.id),
     actorId: actorId ?? '',
-    actorName: actorId ?? 'Hệ thống',
+    actorName: typeof source.actor_name === 'string' && source.actor_name.trim()
+      ? source.actor_name
+      : actorId === null ? 'Hệ thống' : 'Người dùng trong trường',
     action: text(source.action),
     resourceType: text(source.target_type),
     resourceId: targetId,

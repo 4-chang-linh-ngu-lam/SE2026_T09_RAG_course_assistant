@@ -28,6 +28,11 @@ HTTP headers, activation codes, request bodies or tokens into the rule report.
 results are computed from JUnit. A pending service never becomes passed because
 other tests are green. `complete_core_g2` remains false.
 
+**Latest full-suite evidence (2026-10-30):** dedicated CKEY VPS, PostgreSQL 16.15,
+Python 3.12.16; `pytest -q -W error --tb=short` reported **381 passed, 0 failed**.
+Ruff check/format, migration upgrade to head, and `alembic check` also passed. This
+was a working-tree test run, not GitHub CI or a staging/production migration.
+
 ## Traceability and limits
 
 | Requirement | Backend evidence | Scope still pending |
@@ -35,7 +40,7 @@ other tests are green. `complete_core_g2` remains false.
 | Core-01 / QAS-04 / A1–A8, F1–F5, H1, K2, L2, M2/M5 | `security/test_permissions.py`: current scope/status vs issued JWT, Admin-only mutations, obsolete self-join/leave absent, relation class/post/comment, identity lookup outage, replay cache scope; Classroom action tests for ended/archive/history | Document grants/raw sources, private AI chat; Learning own results/grading/appeals under M1/O4 |
 | Core-02 / A1/A4/A7, F1/F2, H1/H2 | `security/test_concurrency.py`: 100 operations for each sync/transfer/import (300 total), 16 workers, real committed transactions; partial unique/history checks, MANUAL unaffected, durable import restart/replay; maintenance teacher assignment concurrency | Durable HTTP idempotency for non-import Classroom operations remains outside the approved current design |
 | Core-03 / F1, K2/K4/K5 | Identity HTTP/service tests: Student no email, activation/purpose/expiry/reissue/recovery/legacy, cookie/CSRF, refresh replay/rotation, logout/password/status/role revocation, limiter and stale cache | Operator identity-verification/retention policy for real minors; these tests do not establish legal compliance |
-| Core-04 / F4/F7, G1–G4, K4/K5, L1/L3 | `security/test_http_journey.py`: real HTTP login/provision/activate/enrollment/feed/comment/calendar/recipient notification/moderation/audit/transfer/archive/revoke; existing worker crash/retry/dedup/rollback; all four data-request types defer unfulfilled completion | Learning projection tests are Core contract/projection evidence only, not Learning E2E; fulfillment stays IN_REVIEW without policy/executor |
+| Core-04 / F4/F7, G1–G4, K4/K5, L1/L3 | `security/test_http_journey.py`: real HTTP login/provision/activate/enrollment/feed/comment/calendar/recipient notification/moderation/audit/transfer/archive/revoke; existing worker crash/retry/dedup/rollback; data-request types require explicit manual fulfillment attestation; DELETE remains deferred | Learning projection tests are Core contract/projection evidence only, not Learning E2E; ACCESS/EXPORT still rely on school-approved out-of-band fulfillment and CORRECTION on the owning service's audit |
 | Core-04 boundaries | AST guard scans static absolute imports in production module files and literal cross-service SQL; own module imports and other modules' public interfaces are allowed | Static guard cannot prove absence of arbitrary dynamic imports or constructed SQL; real HTTP permission tests complement it |
 | Core-05 | Migration/drift/legacy/roundtrip/seed, health and bounded request admission; backend-only clean Compose smoke, wheel/non-root, DB outage/recovery; CI JUnit/coverage/rule artifacts | Remote CI/reviewer approval requires an actual push/run; local green is not remote evidence |
 | Core-06 / QAS-05 | Standalone `performance/class_list_load.py`, timed ASGI server plus separate client latency, scoped response validation and success ratio | Full mixed-service TP-01/RAG KPIs and end-user network performance are not certified |

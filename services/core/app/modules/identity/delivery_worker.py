@@ -1,11 +1,10 @@
-"""Retry pending staff verification and password-reset email deliveries.
+"""Thử gửi lại email mời nhân sự và đặt lại mật khẩu đang chờ.
 
-Run once per invocation; Cloud Scheduler owns cadence. The worker never logs
-token material, recipient addresses, or SMTP/provider error text.
+Mỗi lần chạy xử lý một lượt; Cloud Scheduler quyết định chu kỳ. Worker không ghi
+mã xác thực, địa chỉ email hoặc chi tiết lỗi từ nhà cung cấp SMTP vào log.
 """
 
 import argparse
-import json
 import logging
 import signal
 from collections import Counter
@@ -52,13 +51,13 @@ def drain_pending_deliveries(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Retry due credential email deliveries once")
-    parser.add_argument("--once", action="store_true", help="Run one batch and exit")
-    parser.add_argument("--batch-size", type=int, default=100)
-    parser.add_argument("--poll-seconds", type=float, default=900)
+    parser = argparse.ArgumentParser(description="Gửi lại email tài khoản đang chờ")
+    parser.add_argument("--once", action="store_true", help="Xử lý một lượt rồi dừng")
+    parser.add_argument("--batch-size", type=int, default=100, help="Số email xử lý mỗi lượt")
+    parser.add_argument("--poll-seconds", type=float, default=900, help="Số giây chờ giữa các lượt")
     args = parser.parse_args(argv)
     if args.poll_seconds <= 0:
-        parser.error("poll-seconds must be positive")
+        parser.error("Thời gian chờ cần lớn hơn 0.")
     stop = Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.set())
@@ -66,7 +65,14 @@ def main(argv: list[str] | None = None) -> int:
         result = drain_pending_deliveries(batch_size=args.batch_size)
         if result["attempted"]:
             logger.info(
-                "Credential delivery batch completed: %s", json.dumps(result, sort_keys=True)
+                "Đã xử lý email tài khoản: thử gửi %s, gửi thành công %s, đang chờ %s, "
+                "đã hủy %s, cần cấp lại %s, tài khoản không còn tồn tại %s.",
+                result["attempted"],
+                result["delivered"],
+                result["pending"],
+                result["cancelled"],
+                result["needs_reissue"],
+                result["untracked"],
             )
         if args.once:
             break

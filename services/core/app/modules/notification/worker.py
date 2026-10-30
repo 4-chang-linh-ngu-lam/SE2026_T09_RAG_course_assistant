@@ -59,12 +59,18 @@ def drain_outbox(*, session_factory=SessionLocal, batch_size: int = 100) -> int:
             delivered += 1
         except Exception as exc:  # noqa: BLE001 -- isolate poison events; never log raw exception data
             # Never log exception text/SQL parameters or an event's raw payload.
-            code = (
-                "INVALID_EVENT"
-                if isinstance(exc, (InvalidEvent, ValidationError))
-                else "DELIVERY_FAILED"
+            invalid_event = isinstance(exc, (InvalidEvent, ValidationError))
+            code = "INVALID_EVENT" if invalid_event else "DELIVERY_FAILED"
+            reason = (
+                "Nội dung thông báo chưa đúng định dạng."
+                if invalid_event
+                else "Hệ thống chưa thể lưu thông báo cho người nhận."
             )
-            logger.warning("Notification delivery deferred: event_id=%s code=%s", event_id, code)
+            logger.warning(
+                "Chưa thể gửi một thông báo; hệ thống sẽ tự thử lại. %s Mã theo dõi %s.",
+                reason,
+                event_id,
+            )
             if event_id is None:
                 break  # DB unavailable; polling loop retries after its interval.
             try:
@@ -81,19 +87,19 @@ def drain_outbox(*, session_factory=SessionLocal, batch_size: int = 100) -> int:
                         )
                         event.last_error_code = code
             except SQLAlchemyError:
-                logger.warning("Notification retry scheduling unavailable: event_id=%s", event_id)
+                logger.warning("Chưa thể lên lịch gửi lại thông báo. Mã theo dõi %s.", event_id)
                 break
     return delivered
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Core in-app notification outbox worker")
-    parser.add_argument("--once", action="store_true")
-    parser.add_argument("--batch-size", type=int, default=100)
-    parser.add_argument("--poll-seconds", type=float, default=2)
+    parser = argparse.ArgumentParser(description="Xử lý thông báo trong ứng dụng")
+    parser.add_argument("--once", action="store_true", help="Xử lý một lượt rồi dừng")
+    parser.add_argument("--batch-size", type=int, default=100, help="Số thông báo xử lý mỗi lượt")
+    parser.add_argument("--poll-seconds", type=float, default=2, help="Số giây chờ giữa các lượt")
     args = parser.parse_args()
     if not 1 <= args.batch_size <= 1000 or args.poll_seconds <= 0:
-        parser.error("batch-size must be 1..1000 and poll-seconds must be positive")
+        parser.error("Số thông báo mỗi lượt cần từ 1 đến 1000 và thời gian chờ phải lớn hơn 0.")
     stop = Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.set())

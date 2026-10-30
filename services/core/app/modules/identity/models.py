@@ -65,7 +65,9 @@ class User(Base):
 
     email: Mapped[str | None] = mapped_column(String(320))
     username: Mapped[str | None] = mapped_column(String(200))
-    school_id: Mapped[UUID | None] = mapped_column(index=True)
+    school_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("core.schools.id", name="fk_users_school_id_schools"), index=True
+    )
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     display_name: Mapped[str | None] = mapped_column(String(200))
     password_hash: Mapped[str] = mapped_column(String(255))

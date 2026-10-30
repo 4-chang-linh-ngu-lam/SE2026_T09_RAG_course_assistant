@@ -151,7 +151,7 @@ def test_provision_to_social_transfer_archive_and_revocation(backend, caplog):
 
 
 @pytest.mark.parametrize("request_type", ["ACCESS", "EXPORT", "CORRECTION", "DELETE"])
-def test_unfulfilled_data_requests_stay_in_review_and_audit_is_redacted(backend, request_type):
+def test_data_request_manual_resolution_is_explicit_and_audit_is_redacted(backend, request_type):
     b = backend
     student = b.headers("seed.student.1")
     private = "Synthetic private request " + uuid4().hex
@@ -172,18 +172,38 @@ def test_unfulfilled_data_requests_stay_in_review_and_audit_is_redacted(backend,
         ).status_code
         == 409
     )
-    deferred = ok(
+    command = {
+        "status": "COMPLETED",
+        "resolution_note": "MANUAL_FULFILLMENT_CONFIRMED",
+        "identity_verified": True,
+        "manual_fulfillment_confirmed": True,
+    }
+    if request_type != "DELETE":
+        assert (
+            b.client.patch(
+                route,
+                headers=b.headers(),
+                json={
+                    **command,
+                    "resolution_note": "POLICY_PENDING",
+                    "manual_fulfillment_confirmed": False,
+                },
+            ).status_code
+            == 409
+        )
+    resolved = ok(
         b.client.patch(
             route,
             headers=b.headers(),
-            json={
-                "status": "COMPLETED",
-                "resolution_note": "POLICY_PENDING",
-                "identity_verified": True,
-            },
+            json=command,
         )
     )
-    assert (deferred["status"], deferred["resolution_note"]) == ("IN_REVIEW", "POLICY_PENDING")
+    expected = (
+        ("IN_REVIEW", "POLICY_PENDING")
+        if request_type == "DELETE"
+        else ("COMPLETED", "MANUAL_FULFILLMENT_CONFIRMED")
+    )
+    assert (resolved["status"], resolved["resolution_note"]) == expected
     audit = ok(b.client.get("/api/v1/admin/audit-events", headers=b.headers()))
     assert private not in str(audit)
     assert b.client.get(route, headers=student).status_code == 403

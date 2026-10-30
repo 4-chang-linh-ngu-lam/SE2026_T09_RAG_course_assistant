@@ -7,6 +7,7 @@ import { homeFor } from '@/config/routes';
 import { safeReturnTo } from '@/lib/navigation';
 import { adapter } from '@/lib/data';
 import { ApiError, errorMessage } from '@/lib/api/errors';
+import { consumeOneTimeTokenLink } from '@/lib/one-time-token-link';
 import { Brand, ErrorNotice, Icon } from '@/components/ui';
 import { useSession } from '@/components/session-provider';
 
@@ -34,12 +35,10 @@ export function AuthView({ route }: { route: RouteDefinition }) {
   useEffect(() => {
     if (!isReset && !isInvitation) return;
     try {
-      const url = new URL(window.location.href);
-      const token = url.searchParams.get('token');
-      if (token) {
-        setCode(token);
-        url.searchParams.delete('token');
-        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      const link = consumeOneTimeTokenLink(new URL(window.location.href));
+      if (link.token) {
+        setCode(link.token);
+        window.history.replaceState(null, '', link.cleanUrl);
       }
     } catch {
       // Safe fallback

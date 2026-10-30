@@ -24,7 +24,10 @@ class DatabaseAdmissionMiddleware:
             await asyncio.wait_for(self.slots.acquire(), timeout=self.timeout)
         except TimeoutError:
             response = error_response(
-                Request(scope), 503, "Service busy; retry later", {"Retry-After": "1"}
+                Request(scope),
+                503,
+                "Hệ thống đang bận. Vui lòng chờ một chút rồi thử lại.",
+                {"Retry-After": "1"},
             )
             await response(scope, receive, send)
             return

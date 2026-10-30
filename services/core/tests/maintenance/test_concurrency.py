@@ -132,10 +132,15 @@ def test_concurrent_membership_assignment_and_history_persistence(current):
         with pytest.raises(IntegrityError), current.engine.begin() as connection:
             connection.execute(text(command), params)
     # A School mismatch fails in the live workflow; the schema does not infer scope.
+    other_school = uuid4()
     with current.engine.begin() as connection:
         connection.execute(
+            text("INSERT INTO core.schools(id,name) VALUES (:id,'Other synthetic school')"),
+            {"id": other_school},
+        )
+        connection.execute(
             text("UPDATE core.users SET school_id=:school WHERE id=:id"),
-            {"school": uuid4(), "id": student},
+            {"school": other_school, "id": student},
         )
     with pytest.raises(AppError) as denied, current.factory() as session:
         ClassroomService(session).add_member(klass, admin_actor(admin, session=session), student)

@@ -56,6 +56,7 @@ AdminDataRequestResolve = DataResolutionCommand
 class AuditEventResponse(BaseModel):
     id: UUID
     actor_id: UUID | None
+    actor_name: str = "Người dùng trong trường"
     action: str
     target_type: str
     target_id: UUID

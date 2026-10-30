@@ -20,6 +20,7 @@ from app.common.db import get_db
 from app.common.errors import AppError, register_error_handlers
 from app.common.security import create_access_token
 from app.modules.administration.service import AdministrationService
+from app.modules.classroom.models import School
 from app.modules.identity.models import Role, RoleAssignment, User, UserStatus
 from app.modules.identity.public import get_current_user_snapshot, get_token_sender
 
@@ -64,6 +65,13 @@ def system(database, monkeypatch):
     )
     with database.factory() as session:
         school_id, other_school = uuid4(), uuid4()
+        session.add_all(
+            [
+                School(id=school_id, name="Synthetic administration school"),
+                School(id=other_school, name="Synthetic other school"),
+            ]
+        )
+        session.flush()
         users = {}
         for name, role, scope in (
             ("admin", Role.ADMIN, school_id),

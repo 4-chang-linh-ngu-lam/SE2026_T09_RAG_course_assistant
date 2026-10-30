@@ -20,7 +20,8 @@
 **Phụ thuộc và nghiệm thu bổ sung:**
 - Public contracts và Administration consumers đã được triển khai; owner review TV1/TV4/shared còn chờ ghi nhận.
 - [x] Public interface 100% line/branch coverage gate chạy trong GitHub CI; coverage này không thay thế nghiệm thu Classroom/Administration.
-- [ ] Fulfillment ACCESS/EXPORT/CORRECTION/DELETE và retention tiếp tục fail-safe/chờ policy-executor theo issue #15; School mapping theo issue #13.
+- [x] Core API chỉ nhận attestation COMPLETED cho ACCESS/EXPORT/CORRECTION sau xác minh danh tính; PostgreSQL tests kiểm tra audit/redaction và replay. Core không truyền payload hay sửa dữ liệu thay service; DELETE giữ `IN_REVIEW/POLICY_PENDING` đến khi chốt retention/dọn dữ liệu liên service.
+- [ ] Web Admin integration và xác nhận vận hành quy trình thủ công. Issue #13 đã đóng theo xác nhận TV1; manifest chi tiết không lưu trong repo. Production mock hiện không có legacy user rows; backfill trong tương lai vẫn cần manifest có thẩm quyền.
 
 **Kiểm chứng hiện hành (2026-10-29):** PR #33 head `b8c9a6d` chạy PostgreSQL 16 Core CI đạt 360 passed/0 skipped và public interface 100% coverage gate xanh. Đây là branch evidence, không chứng minh đã xuất/xóa dữ liệu hoặc chốt policy. Xem [tasks/README](README.md).
 
@@ -75,4 +76,4 @@ Read functions hỗ trợ `session=` tùy chọn; bỏ qua thì tự mở/đóng
 
 **Bằng chứng lịch sử (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; public helpers khi đó đạt 100% line/branch coverage. Evidence PostgreSQL 16 mới nhất được ghi ở mục kiểm chứng hiện hành.
 
-**Phần còn lại:** Admin HTTP/role management và Student import được TASK-013 tích hợp qua Identity public helpers. Real data correction/export/delete, retention và SMTP provider chưa nghiệm thu; School mapping legacy cần owner duyệt. Hướng dẫn chính tại [Core README](../services/core/README.md#identity-public-interface-và-data-requests-task-004).
+**Phần còn lại:** Admin HTTP/role management và Student import được TASK-013 tích hợp qua Identity public helpers. ACCESS/EXPORT fulfillment là thủ công ngoài Core; CORRECTION do service sở hữu xử lý và audit trước khi Admin xác nhận. DELETE/retention chưa được tự động hóa và vẫn hoãn; Web Admin integration và School mapping legacy còn pending. SMTP provider đã nghiệm thu ở issue #16. Hướng dẫn chính tại [Core README](../services/core/README.md#identity-public-interface-và-data-requests-task-004).

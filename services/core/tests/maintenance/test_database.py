@@ -12,6 +12,7 @@ from alembic import command
 from alembic.script import ScriptDirectory
 from pydantic import SecretStr
 from sqlalchemy import inspect, select, text
+from sqlalchemy.exc import IntegrityError
 
 from app.common.audit import AuditEvent
 from app.common.security import verify_password
@@ -280,19 +281,35 @@ def test_upgrade_and_reviewed_mapping_preserve_legacy_history(database, checkpoi
 
 def test_mapping_detects_drift_and_missing_school_entities(current):
     user, school = uuid4(), uuid4()
+    command.downgrade(current.config, "0013")
     with current.engine.begin() as connection:
         connection.execute(
             text(
-                "INSERT INTO core.users(id,email,password_hash,school_id) VALUES (:id,'scope@example.com','test-hash',:school)"
+                "INSERT INTO core.users(id,email,password_hash,status,school_id) "
+                "VALUES (:id,'scope@example.com','test-hash','LOCKED',:school)"
             ),
             {"id": user, "school": school},
+        )
+    command.upgrade(current.config, "head")
+    with current.engine.connect() as connection:
+        assert connection.scalar(
+            text(
+                "SELECT NOT convalidated FROM pg_constraint "
+                "WHERE conname='fk_users_school_id_schools'"
+            )
         )
     manifest = MappingManifest(schools={school: "Explicit School"})
     with current.factory() as session:
         plan = mapping_plan(session, manifest)
         assert plan["users"][0]["issues"] == ["SCHOOL_ENTITY_MISSING"]
     with current.engine.begin() as connection:
-        connection.execute(text("UPDATE core.users SET status='LOCKED'"))
+        connection.execute(
+            text(
+                "INSERT INTO core.users(id,email,password_hash) "
+                "VALUES (:id,'unscoped@example.com','test-hash')"
+            ),
+            {"id": uuid4()},
+        )
     with (
         pytest.raises(ValueError, match="data changed"),
         current.factory() as session,
@@ -304,12 +321,34 @@ def test_mapping_detects_drift_and_missing_school_entities(current):
         new_plan = mapping_plan(session, manifest)
         apply_mapping(session, manifest, approved_sha256=new_plan["plan_sha256"])
     with current.engine.connect() as connection:
-        assert connection.scalar(text("SELECT status FROM core.users")) == "LOCKED"
+        assert (
+            connection.scalar(text("SELECT status FROM core.users WHERE id=:id"), {"id": user})
+            == "LOCKED"
+        )
+        assert connection.scalar(
+            text(
+                "SELECT convalidated FROM pg_constraint WHERE conname='fk_users_school_id_schools'"
+            )
+        )
+    with pytest.raises(IntegrityError), current.engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO core.users(id,email,password_hash,school_id) "
+                "VALUES (:id,'orphan@example.com','test-hash',:school)"
+            ),
+            {"id": uuid4(), "school": uuid4()},
+        )
 
 
 def test_metadata_scope_single_head_and_empty_roundtrip(current):
     script = ScriptDirectory.from_config(current.config)
     assert len(script.get_heads()) == 1
+    with current.engine.connect() as connection:
+        assert connection.scalar(
+            text(
+                "SELECT convalidated FROM pg_constraint WHERE conname='fk_users_school_id_schools'"
+            )
+        )
     metadata = load_metadata()
     assert {name for tables in TABLES_INTRODUCED.values() for name in tables} == {
         table.name for table in metadata.tables.values()

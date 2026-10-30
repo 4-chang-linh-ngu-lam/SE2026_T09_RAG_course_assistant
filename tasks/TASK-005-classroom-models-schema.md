@@ -12,6 +12,8 @@
 
 **Hiện trạng cập nhật:** ORM và migration 0008 đã dùng School/AcademicYear/Semester, homeroom roster, SubjectClass, TeachingAssignment và membership theo đợt; API Admin có triển khai. JoinRequest/CoLecturerInvitation/owner_user_id không được tạo trong migration mới. Mapping school_id cho user legacy và nghiệm thu PostgreSQL/CI còn cần kiểm chứng.
 
+**Cập nhật 2026-10-30:** Migration 0014 FK nullable `users.school_id → schools.id` và regression mapping dùng UUID tổng hợp đã đạt PostgreSQL 16.15 trên VPS test. Mapping thật vẫn chờ nguồn có thẩm quyền; fixture không áp dụng lên staging/production.
+
 **Cần sửa:** thiết kế School, năm học/học kỳ, lớp hành chính/roster, lớp môn học, phân công PRIMARY/ASSISTING và enrollment AUTO/MANUAL theo [Core Design](../docs/architect/microservices-v1/core/DESIGN.md). Đây là entity logic; tên bảng, enum kỹ thuật, FK và payload phải được TV2/TV1/TV4 review trước triển khai.
 
 **Phụ thuộc:** TASK-004 cung cấp Identity DTO; task này chốt schema cho TASK-006–008 và TASK-014. Mapping trường cho user legacy và thời điểm hiệu lực chuyển lớp còn PENDING DESIGN; không tự backfill.

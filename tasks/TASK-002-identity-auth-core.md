@@ -21,7 +21,7 @@
 - [ ] TASK-013/014 kiểm thử chuyển dữ liệu cũ có mapping thật được duyệt, giữ ID/hash/trạng thái và không cấp quyền chéo trường.
 - [x] Chạy lại Identity/Core suite và migration drift checks trên PostgreSQL 16 trong GitHub CI, PR #33 head `b8c9a6d` (360 passed, 0 skipped).
 
-**Kiểm chứng hiện hành (2026-10-29):** Identity scenarios thuộc Core CI PostgreSQL 16 trên PR #33 head `b8c9a6d` đạt trong bộ 360 test; migration drift gate xanh. Đây là evidence của PR branch, không chứng minh Gmail SMTP thật, legacy School mapping hoặc production onboarding. Xem [tasks/README](README.md).
+**Kiểm chứng hiện hành (2026-10-30):** Identity scenarios thuộc Core CI PostgreSQL 16 đã đạt 380 passed/0 skipped tại PR #35. Issue #16 sau đó xác nhận Gmail staging invitation/recovery delivery, same-token retry, reissue và simulated failure tests; Production vẫn tách biệt. Legacy School mapping/FK (#13) và Production onboarding (#18) còn mở. Xem [tasks/README](README.md).
 
 ---
 
@@ -111,4 +111,4 @@ Xây dựng các bảng trong schema `core`:
 
 **Bằng chứng lịch sử (2026-10-11):** Python 3.12.14, PostgreSQL 18 tạm; identity tests và migration 0003 checks đạt. Evidence PostgreSQL 16 mới nhất được ghi ở mục kiểm chứng hiện hành.
 
-**Phạm vi tiếp theo:** TASK-003 đã triển khai router, cookie/CSRF/rate limit và SMTP adapter (test bằng bộ gửi giả, chưa gửi email thật). TASK-004 mở rộng public workflows/data requests; TASK-013 kiểm tra quyền/audit thao tác Admin. Chưa kiểm chứng Compose/PostgreSQL 16. Hướng dẫn gọi service, cấu hình expiry và transaction tại [Core README](../services/core/README.md#identity-auth-core-task-002).
+**Phạm vi tiếp theo:** TASK-003 triển khai router, cookie/CSRF/rate limit; SMTP adapter ban đầu dùng bộ gửi giả, sau đó issue #16 bổ sung durable queue/retry và xác nhận provider thật trên staging. TASK-004 mở rộng public workflows/data requests; policy Admin thủ công cho ACCESS/EXPORT/CORRECTION đã được duyệt, còn DELETE/retention và Web Admin integration ở #15. Hướng dẫn gọi service, cấu hình expiry và transaction tại [Core README](../services/core/README.md#identity-auth-core-task-002).

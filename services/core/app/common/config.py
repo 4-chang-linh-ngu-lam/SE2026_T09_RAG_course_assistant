@@ -1,4 +1,5 @@
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import EmailStr, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,6 +34,7 @@ class Settings(BaseSettings):
     smtp_from: EmailStr | None = None
     smtp_security: Literal["starttls", "tls"] = "starttls"
     smtp_timeout_seconds: float = Field(default=10, gt=0)
+    public_web_url: str | None = None
     auth_login_max_failures: int = Field(default=5, gt=0)
     auth_login_window_seconds: int = Field(default=60, gt=0)
     auth_register_limit: int = Field(default=3, gt=0)
@@ -47,6 +49,28 @@ class Settings(BaseSettings):
     @classmethod
     def blank_smtp_from_is_unconfigured(cls, value):
         return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("public_web_url", mode="before")
+    @classmethod
+    def public_web_url_is_an_origin(cls, value):
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if not isinstance(value, str):
+            raise ValueError("PUBLIC_WEB_URL must be a web origin")  # noqa: TRY004 -- Pydantic validators must raise ValueError for ValidationError
+        parsed = urlsplit(value.strip())
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("PUBLIC_WEB_URL must be an origin without path, query, or fragment")
+        if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("PUBLIC_WEB_URL must use HTTPS outside local development")
+        return f"{parsed.scheme}://{parsed.netloc}"
 
 
 settings = Settings()

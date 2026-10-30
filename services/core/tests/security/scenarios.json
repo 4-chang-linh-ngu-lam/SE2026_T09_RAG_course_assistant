@@ -160,7 +160,7 @@
         "K5"
       ],
       "tests": [
-        "security/test_http_journey.py::test_unfulfilled_data_requests_stay_in_review_and_audit_is_redacted",
+        "security/test_http_journey.py::test_data_request_manual_resolution_is_explicit_and_audit_is_redacted",
         "administration/test_postgres.py::test_audit_tenant_filter_pagination_and_redaction_do_not_leak",
         "administration/test_postgres.py::test_last_admin_survives_concurrent_mutations"
       ]

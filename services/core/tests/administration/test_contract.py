@@ -193,6 +193,39 @@ def test_staff_onboarding_and_resolution_do_not_accept_student_email_or_arbitrar
         AdminDataRequestResolve(
             status="REJECTED", resolution_note="REQUEST_REJECTED", identity_verified="true"
         )
+    with pytest.raises(ValidationError):
+        AdminDataRequestResolve(
+            status="COMPLETED",
+            resolution_note="MANUAL_FULFILLMENT_CONFIRMED",
+            identity_verified=True,
+            manual_fulfillment_confirmed="true",
+        )
+    with pytest.raises(ValidationError):
+        AdminDataRequestResolve(
+            status="COMPLETED",
+            resolution_note="MANUAL_FULFILLMENT_CONFIRMED",
+            identity_verified=True,
+            unexpected="value",
+        )
+    with pytest.raises(ValidationError):
+        AdminDataRequestResolve(
+            status="IN_REVIEW",
+            resolution_note="MANUAL_FULFILLMENT_CONFIRMED",
+            manual_fulfillment_confirmed=True,
+        )
+    with pytest.raises(ValidationError):
+        AdminDataRequestResolve(
+            status="COMPLETED",
+            resolution_note="MANUAL_FULFILLMENT_CONFIRMED",
+            manual_fulfillment_confirmed=False,
+        )
+    command = AdminDataRequestResolve(
+        status="COMPLETED",
+        resolution_note="MANUAL_FULFILLMENT_CONFIRMED",
+        identity_verified=True,
+        manual_fulfillment_confirmed=True,
+    )
+    assert command.manual_fulfillment_confirmed is True
 
 
 def test_administration_routes_are_authenticated_admin_only():

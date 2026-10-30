@@ -73,9 +73,15 @@ def test_current_database_state_overrides_issued_jwt(backend, state):
                 {"state": state, "id": student.id},
             )
         elif state in ("NO_SCOPE", "OTHER_SCHOOL"):
+            scope = uuid4() if state == "OTHER_SCHOOL" else None
+            if scope is not None:
+                connection.execute(
+                    text("INSERT INTO core.schools(id,name) VALUES (:id,'Other synthetic school')"),
+                    {"id": scope},
+                )
             connection.execute(
                 text("UPDATE core.users SET school_id=:scope WHERE id=:id"),
-                {"scope": None if state == "NO_SCOPE" else uuid4(), "id": student.id},
+                {"scope": scope, "id": student.id},
             )
         else:
             connection.execute(
@@ -162,10 +168,15 @@ def test_cached_classroom_mutation_cannot_cross_changed_school_scope(backend, op
     headers = b.headers(**{"Idempotency-Key": str(uuid4())})
     first = b.client.request(method, path, headers=headers, json=body)
     assert first.status_code in (200, 201, 204)
+    other_school = uuid4()
     with b.engine.begin() as connection:
         connection.execute(
+            text("INSERT INTO core.schools(id,name) VALUES (:id,'Other synthetic school')"),
+            {"id": other_school},
+        )
+        connection.execute(
             text("UPDATE core.users SET school_id=:school WHERE id=:id"),
-            {"school": uuid4(), "id": b.users["admin@seed.example.com"].id},
+            {"school": other_school, "id": b.users["admin@seed.example.com"].id},
         )
     # JWT stays valid, but current resource scope is no longer authorized.
     replay = b.client.request(method, path, headers=headers, json=body)

@@ -128,6 +128,7 @@ def test_idempotency_replay_conflict_expiry_and_capacity(monkeypatch):
 def test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors(monkeypatch, security):
     monkeypatch.setattr(settings, "smtp_host", "smtp.example.com")
     monkeypatch.setattr(settings, "smtp_from", "sender@example.com")
+    monkeypatch.setattr(settings, "public_web_url", "https://lumi.example.com")
     monkeypatch.setattr(settings, "smtp_username", "test-user")
     monkeypatch.setattr(settings, "smtp_password", SecretStr("test-only-smtp-password"))
     monkeypatch.setattr(settings, "smtp_security", security)
@@ -139,14 +140,25 @@ def test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors(monkeypatch, secur
     monkeypatch.setattr(smtplib, "SMTP" if security == "starttls" else "SMTP_SSL", constructor)
     token = SecretStr("test-only-verification-token")
     delivery = TokenDelivery(
-        "student@example.com",
-        TokenPurpose.EMAIL_VERIFICATION,
+        "lecturer@example.com",
+        TokenPurpose.ADMIN_INVITATION,
         token,
-        datetime.now(UTC) + timedelta(hours=1),
+        datetime.now(UTC) + timedelta(hours=24),
     )
     sender = SMTPTokenSender()
     sender.send(delivery)
-    assert token.get_secret_value() in client.send_message.call_args.args[0].get_content()
+    email = client.send_message.call_args.args[0]
+    plain = email.get_body(preferencelist=("plain",)).get_content()
+    html = email.get_body(preferencelist=("html",)).get_content()
+    assert email["To"] == "lecturer@example.com"
+    assert email["Subject"] == "Lumi | Mời bạn thiết lập tài khoản"
+    assert token.get_secret_value() in plain
+    assert "https://lumi.example.com/staff/invitation#token=" in plain
+    assert "Quản trị viên nhà trường đã tạo tài khoản nhân sự" in plain
+    assert "Nếu không mở được liên kết" in plain
+    assert "Mã xác thực dùng một lần" in plain
+    assert 'href="https://lumi.example.com/staff/invitation#token=' in html
+    assert "Trân trọng" in plain and "Đội ngũ Lumi" in plain
     if security == "starttls":
         context = client.starttls.call_args.kwargs["context"]
     else:
@@ -158,6 +170,65 @@ def test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors(monkeypatch, secur
         sender.send(delivery)
     assert raised.value.status_code == 503
     assert "private" not in str(raised.value)
+
+
+def test_staff_password_reset_email_links_to_existing_reset_page(monkeypatch):
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.com")
+    monkeypatch.setattr(settings, "smtp_from", "sender@example.com")
+    monkeypatch.setattr(settings, "smtp_username", None)
+    monkeypatch.setattr(settings, "smtp_password", None)
+    monkeypatch.setattr(settings, "public_web_url", "https://lumi.example.com")
+    client = Mock()
+    client.__enter__ = Mock(return_value=client)
+    client.__exit__ = Mock(return_value=False)
+    client.send_message.return_value = {}
+    monkeypatch.setattr(smtplib, "SMTP", Mock(return_value=client))
+    delivery = TokenDelivery(
+        "admin@example.com",
+        TokenPurpose.PASSWORD_RESET,
+        SecretStr("test-only-reset-token"),
+        datetime.now(UTC) + timedelta(minutes=60),
+    )
+
+    SMTPTokenSender().send(delivery)
+
+    email = client.send_message.call_args.args[0]
+    plain = email.get_body(preferencelist=("plain",)).get_content()
+    assert email["Subject"] == "Lumi | Đặt lại mật khẩu"
+    assert "https://lumi.example.com/reset-password#token=" in plain
+    assert "Mã xác thực dùng một lần" in plain
+    assert "Trân trọng" in plain and "Đội ngũ Lumi" in plain
+    assert "mật khẩu hiện tại sẽ không thay đổi" in plain
+
+
+@pytest.mark.parametrize(
+    "purpose",
+    [
+        TokenPurpose.EMAIL_VERIFICATION,
+        TokenPurpose.STUDENT_ACTIVATION,
+        TokenPurpose.STUDENT_PASSWORD_RESET,
+    ],
+)
+def test_student_and_legacy_tokens_are_never_sent_by_smtp(monkeypatch, purpose):
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.com")
+    monkeypatch.setattr(settings, "smtp_from", "sender@example.com")
+    monkeypatch.setattr(settings, "smtp_username", None)
+    monkeypatch.setattr(settings, "smtp_password", None)
+    monkeypatch.setattr(settings, "public_web_url", "https://lumi.example.com")
+    smtp = Mock()
+    monkeypatch.setattr(smtplib, "SMTP", smtp)
+    delivery = TokenDelivery(
+        "student@example.com",
+        purpose,
+        SecretStr("test-only-student-token"),
+        datetime.now(UTC) + timedelta(hours=1),
+    )
+
+    with pytest.raises(AppError) as raised:
+        SMTPTokenSender().send(delivery)
+
+    assert raised.value.status_code == 400
+    smtp.assert_not_called()
 
 
 def test_unconfigured_email_fails_closed(monkeypatch):

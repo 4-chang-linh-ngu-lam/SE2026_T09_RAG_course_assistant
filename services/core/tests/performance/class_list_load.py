@@ -69,6 +69,7 @@ def fixture(session):
     through its workflow. This process/database is disposable and never deployed.
     """
     from app.common.auth_dependencies import CurrentUser
+    from app.modules.classroom.models import School
     from app.modules.classroom.schemas import ClassCreateRequest, CourseCreateRequest
     from app.modules.classroom.service import ClassroomService
     from app.modules.identity.models import Role, RoleAssignment, User, UserStatus
@@ -76,6 +77,8 @@ def fixture(session):
     school, admin_id, teacher_id = uuid4(), uuid4(), uuid4()
     now = datetime.now(UTC)
     students = []
+    session.add(School(id=school, name="Synthetic load school"))
+    session.flush()
     for user_id, role in [
         (admin_id, Role.ADMIN),
         (teacher_id, Role.LECTURER),

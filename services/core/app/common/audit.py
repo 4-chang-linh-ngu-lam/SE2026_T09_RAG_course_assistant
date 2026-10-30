@@ -31,6 +31,7 @@ class AuditMetadata(BaseModel):
     new_status: Literal["ACTIVE", "LOCKED", "ARCHIVED", "PENDING_VERIFICATION"] | None = None
     reason_code: Literal["ADMIN_INTERVENTION", "USER_REQUEST", "POLICY_VIOLATION"] | None = None
     identity_verified: bool | None = None
+    manual_fulfillment_confirmed: bool | None = None
 
 
 class AuditEvent(Base):

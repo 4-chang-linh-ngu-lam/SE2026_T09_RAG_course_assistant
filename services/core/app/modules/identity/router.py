@@ -83,11 +83,15 @@ def _empty() -> Response:
 
 def _tokens(tokens: AuthTokens) -> Response:
     response = _json(tokens.response)
+    refresh_expires_at = tokens.refresh_expires_at
+    if refresh_expires_at.tzinfo is None or refresh_expires_at.utcoffset() is None:
+        raise ValueError("Refresh token expiry must be timezone-aware")
+    refresh_expires_at = refresh_expires_at.astimezone(UTC)
     response.set_cookie(
         REFRESH_COOKIE,
         tokens.refresh_token.get_secret_value(),
-        max_age=max(0, int((tokens.refresh_expires_at - datetime.now(UTC)).total_seconds())),
-        expires=tokens.refresh_expires_at,
+        max_age=max(0, int((refresh_expires_at - datetime.now(UTC)).total_seconds())),
+        expires=refresh_expires_at,
         path=COOKIE_PATH,
         secure=settings.cookie_secure,
         httponly=settings.cookie_httponly,
@@ -295,7 +299,11 @@ def forgot_password(
             status = service.attempt_token_delivery(delivery.token_id, sender.send)
             if status != "DELIVERED":
                 # Keep the response generic; do not reveal account existence or provider details.
-                logger.error("Password reset email delivery remains pending")
+                logger.warning(
+                    "Chưa thể hoàn tất email khôi phục; hệ thống sẽ xử lý tiếp theo lịch. "
+                    "Mã theo dõi %s.",
+                    request.state.correlation_id,
+                )
         return _json(ForgotPasswordResponse())
 
     return mutation.run("email:" + body.email, body.model_dump(), perform)

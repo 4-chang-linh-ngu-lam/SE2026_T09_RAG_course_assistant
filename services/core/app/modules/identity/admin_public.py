@@ -482,14 +482,39 @@ def admin_resolve_data_request(
         require_school_scope(actor.school_id, user.school_id)
         if row.status in (DataRequestStatus.COMPLETED, DataRequestStatus.REJECTED):
             if str(row.status) == command.status and row.resolution_note == command.resolution_note:
+                if command.status in ("COMPLETED", "REJECTED") and not command.identity_verified:
+                    raise AppError(409, "Administrator identity verification required")
+                if (
+                    command.status == "COMPLETED"
+                    and str(row.request_type) != "DELETE"
+                    and not command.manual_fulfillment_confirmed
+                ):
+                    raise AppError(409, "Manual fulfillment confirmation required")
                 return DataRequestResponse.model_validate(row)
             raise AppError(409, "Data request is already final")
         if command.status in ("COMPLETED", "REJECTED") and not command.identity_verified:
             raise AppError(409, "Administrator identity verification required")
-        # No approved retention/deletion or cross-service fulfillment policy yet.
-        # A browser flag cannot assert that these actions actually succeeded.
-        status = "IN_REVIEW" if command.status == "COMPLETED" else command.status
-        note = "POLICY_PENDING" if command.status == "COMPLETED" else command.resolution_note
+        action = "DATA_REQUEST_REVIEWED"
+        manual_fulfillment_confirmed = None
+        if command.status == "COMPLETED" and str(row.request_type) == "DELETE":
+            # The approved MVP workflow deliberately keeps delete requests pending until
+            # retention rules and acknowledgements from every owning service exist.
+            status, note, action = "IN_REVIEW", "POLICY_PENDING", "DATA_REQUEST_DEFERRED"
+        elif command.status == "COMPLETED":
+            if not command.manual_fulfillment_confirmed or (
+                command.resolution_note != "MANUAL_FULFILLMENT_CONFIRMED"
+            ):
+                raise AppError(409, "Manual fulfillment confirmation required")
+            # Admin attests that ACCESS/EXPORT used the approved secure handoff, or that
+            # the owning service completed CORRECTION. Core never stores or sends payloads.
+            status, note, action = (
+                "COMPLETED",
+                "MANUAL_FULFILLMENT_CONFIRMED",
+                "DATA_REQUEST_FULFILLED_MANUALLY",
+            )
+            manual_fulfillment_confirmed = True
+        else:
+            status, note = command.status, command.resolution_note
         if str(row.status) != status or row.resolution_note != note:
             row.status = DataRequestStatus(status)
             row.resolution_note = note
@@ -497,9 +522,7 @@ def admin_resolve_data_request(
                 db,
                 school_id=actor.school_id,
                 actor_id=actor_id,
-                action="DATA_REQUEST_DEFERRED"
-                if command.status == "COMPLETED"
-                else "DATA_REQUEST_REVIEWED",
+                action=action,
                 target_type="DATA_REQUEST",
                 target_id=row.id,
                 correlation_id=correlation_id,
@@ -507,6 +530,7 @@ def admin_resolve_data_request(
                     changed_fields=["data_request_status"],
                     reason_code=reason_code,
                     identity_verified=command.identity_verified,
+                    manual_fulfillment_confirmed=manual_fulfillment_confirmed,
                 ),
             )
             db.flush()
