@@ -338,7 +338,7 @@ def test_email_failure_rolls_back_legacy_fixture_and_reset(http, engine, caplog)
     sender.fail = True
     response = client.post("/api/v1/auth/password/forgot", json={"email": email})
     assert response.status_code == 200
-    assert "Password reset email delivery remains pending" in caplog.text
+    assert "Chưa thể hoàn tất email khôi phục" in caplog.text
     assert email not in caplog.text
     attempts = len(sender.attempts)
     retry = client.post("/api/v1/auth/password/forgot", json={"email": email})
