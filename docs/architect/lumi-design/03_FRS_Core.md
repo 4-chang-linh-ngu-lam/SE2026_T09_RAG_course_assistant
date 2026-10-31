@@ -117,7 +117,16 @@ Mỗi chức năng có: actor, tiền điều kiện, đầu vào, UI/action, x�
 
 ## 12. FRS-C11 — Feed và Comments
 
-- **API:** `GET/POST /classes/{id}/posts`, `PATCH/DELETE /posts/{post_id}`, `GET/POST /comments`, `PATCH/DELETE /comments/{id}` theo contract.
+- **Giao diện lập trình (API):** Các đường dẫn dưới đây đều có tiền tố `/api/v1` và bắt buộc xác định đúng lớp, bài đăng liên quan:
+  - `GET /classes/{class_id}/posts`: lấy danh sách bài đăng trong lớp.
+  - `POST /classes/{class_id}/posts`: tạo bài đăng mới.
+  - `PATCH /classes/{class_id}/posts/{post_id}`: chỉnh sửa bài đăng.
+  - `DELETE /classes/{class_id}/posts/{post_id}`: xóa mềm bài đăng theo quyền hiện hành.
+  - `GET /classes/{class_id}/posts/{post_id}/comments`: lấy danh sách bình luận của bài đăng.
+  - `POST /classes/{class_id}/posts/{post_id}/comments`: tạo bình luận.
+  - `PATCH /classes/{class_id}/posts/{post_id}/comments/{comment_id}`: chỉnh sửa bình luận.
+  - `DELETE /classes/{class_id}/posts/{post_id}/comments/{comment_id}`: xóa mềm bình luận theo quyền hiện hành.
+  - Quyền truy cập, dữ liệu yêu cầu/phản hồi và mã lỗi tuân theo [Hợp đồng API Core](../microservices-v1/core/API_CONTRACT.md), không có đường dẫn rút gọn ngoài phạm vi lớp.
 - **Vai trò:** thành viên hiện hành đọc/bình luận; tác giả còn quyền sửa; moderator có quyền ẩn/xóa theo rule; Student không thể quản trị nội dung người khác.
 - **Validation:** body bắt buộc, length theo backend schema; không tự đặt max length trong FRS nếu chưa xác nhận Pydantic; sanitize nội dung hiển thị để chống XSS.
 - **Trạng thái:** optimistic update chỉ khi rollback được; soft-delete không trả body mới; archived/read-only chặn POST/PATCH/DELETE theo action.
