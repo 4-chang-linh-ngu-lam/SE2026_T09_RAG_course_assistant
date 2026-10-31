@@ -137,13 +137,14 @@ Mỗi chức năng có: actor, tiền điều kiện, đầu vào, UI/action, x�
 - **API:** `GET /classes/{id}/calendar?from=&to=&limit=&cursor=`, `POST /classes/{id}/calendar`, `PATCH/DELETE /classes/{id}/calendar/{event_id}`.
 - **Form:** title, description?, starts_at, ends_at; server bắt buộc starts_at trước ends_at.
 - **Quyền:** PRIMARY/ASSISTING hiện hành chỉ thay CORE-origin event; Student đọc; LEARNING-origin deadline chỉ là bản chiếu và không sửa qua Core calendar API.
+- **Phát thông báo:** Tạo, chỉnh sửa hoặc xóa sự kiện lịch nguồn `CORE` hiện chỉ thay đổi dữ liệu lịch, **không tự phát thông báo đến hộp thư**. Đồng bộ hạn nộp nguồn `LEARNING` có cơ chế ghi sự kiện thông báo nội bộ nhưng còn chờ hợp đồng và tích hợp dịch vụ Learning; không coi đây là luồng đã triển khai hoàn chỉnh.
 - **AC:** TC-022.
 
 ## 14. FRS-C13 — Notifications
 
 - **API:** `GET /notifications`, `PATCH /notifications/{id}/read`, `POST /notifications/read-all`.
 - **UI:** chỉ hiện thông báo mình; unread_count; click notification luôn kiểm tra lại quyền tài nguyên đích; mark read có thể gọi lặp an toàn.
-- **Backend:** sự kiện có snapshot recipient tại thời điểm mutation; outbox V2, worker dedup/retry, V1 legacy không fallback sang audience hiện tại.
+- **Xử lý nền:** Chỉ các nghiệp vụ được thiết kế để phát thông báo (chẳng hạn tạo bài đăng hoặc bình luận) mới ghi danh sách người nhận tại thời điểm xảy ra thay đổi và sự kiện vào hàng đợi V2; tiến trình nền chống gửi trùng và thử lại an toàn. Sự kiện cũ V1 không phát lại bằng danh sách người nhận hiện tại. Không suy diễn rằng mọi thay đổi lịch nguồn `CORE` đều phát thông báo.
 - **AC:** TC-023, TC-024.
 
 ## 15. FRS-C14 — Audit & Data Requests
