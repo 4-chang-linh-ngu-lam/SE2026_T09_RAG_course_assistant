@@ -197,8 +197,8 @@ dùng dữ liệu tổng hợp `Lumi Mock School`, không phải trường đố
 `lumi-production-mock`, database `neondb`. Không nhập dữ liệu người học thật.
 
 Cloud Run Production API `lumi-core-api-production` đang chạy revision
-`lumi-core-api-production-00001-qcm` tại
-`https://lumi-core-api-production-ekiajqg6oa-as.a.run.app`. Service scale-to-zero,
+`lumi-core-api-production-00002-7jm` tại
+`https://lumi-core-api-production-968863294243.asia-southeast1.run.app`. Service scale-to-zero,
 chỉ một Uvicorn worker, giới hạn tối đa ba instance và public invoker; Core vẫn áp dụng
 xác thực/ủy quyền trên các route nghiệp vụ. `CORS_ORIGINS` chỉ cho phép Production
 domain của Web. `/health/live`, `/health/ready`, `/docs` và CORS preflight đã trả 200.
@@ -232,7 +232,8 @@ pooled URL secret `lumi-neon-production-database-url`. URI không được có q
 helper chỉ chấp nhận đúng tên School mock, DB trống ở migration head và confirmation.
 SMTP sender/password chỉ tham chiếu Secret Manager. Core API và worker cần
 `PUBLIC_WEB_URL` đặt thành origin Vercel Production để liên kết mời/khôi phục mở đúng trang;
-biến này không phải secret.
+biến này không phải secret. Sau khi cập nhật thư mời/đặt lại mật khẩu, biến đã được cấu hình
+trên API và worker thành `https://se-2026-t09-rag-course-assistant.vercel.app`.
 
 Lần đầu tạo School UUID và Admin `PENDING_VERIFICATION` cùng audit/durable invitation
 trong một transaction. Lần chạy lại cùng profile là idempotent; profile/marker khác
@@ -241,12 +242,12 @@ Job `lumi-production-admin-bootstrap` là lệnh offline operator-triggered, kh�
 HTTP bootstrap route. Worker và scheduler Production phải dùng Production DB/secrets
 riêng, không trỏ sang staging. Không chạy lại bootstrap để gửi lại lời mời.
 
-Production image hiện được build với tag
-`asia-southeast1-docker.pkg.dev/pelagic-cat-492008-i2/cloud-run-source-deploy/lumi-core:production-mock-20261030`
-trước khi PR #38 được hợp nhất vào `main`. Source hiện đã ở `main`, nhưng Cloud Run
-vẫn cần được build/deploy lại từ source đã hợp nhất để runtime và GitHub đồng bộ.
-Đặt `PUBLIC_WEB_URL` trên Core API và notification worker thành origin Vercel Production
-trước khi gửi invitation/reset link. Kiểm tra image digest và revision sau deploy.
+Sau khi PR #38 được hợp nhất, Core đã được build/deploy từ commit `a01985e` với image
+`asia-southeast1-docker.pkg.dev/pelagic-cat-492008-i2/cloud-run-source-deploy/lumi-core:production-mock-a01985e`.
+Revision `lumi-core-api-production-00002-7jm` phục vụ 100% traffic; readiness xác nhận
+DB connected. Notification Job cũng được cập nhật sang image mới. Thay đổi này chỉ cập nhật
+nội dung/template email, không chạy migration. Chưa gửi email thật để kiểm tra sau deploy;
+muốn xác nhận giao diện thư, operator hoặc người nhận cần chủ động yêu cầu invitation/reset mới.
 Vercel Production `CORE_API_URL`/`WEB_ORIGIN` đã được trỏ tới Core Production và redeploy
 hoàn tất. Trang Production trả 200; gọi `/api/v1/auth/refresh` không có session trả
 `401 UNAUTHENTICATED` từ Core qua Next proxy, xác nhận upstream không còn 503. Luồng

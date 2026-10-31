@@ -275,7 +275,7 @@ Student không cần email. Mã mặc định có hạn 24 giờ theo cấu hìn
 
 Core lưu token hash và delivery record; worker gửi email invitation/password-reset với link tới `PUBLIC_WEB_URL/staff/invitation` hoặc `/reset-password`. Token nằm trong URL fragment để tránh gửi token trong HTTP request URL; Web tự điền token và loại khỏi thanh địa chỉ trước khi submit. Email có mã xác thực dự phòng. Việc gửi mail là riêng với commit nghiệp vụ; retry dùng cùng token, Admin chủ động reissue mới vô hiệu token cũ.
 
-`PUBLIC_WEB_URL` cần là origin HTTPS trong môi trường thật, dùng chung cho API và worker. Cấu hình Production hiện cần đồng bộ với image mới sau khi merge.
+`PUBLIC_WEB_URL` cần là origin HTTPS trong môi trường thật, dùng chung cho API và worker. Production hiện đã cấu hình biến này thành origin Vercel Production; nội dung thư mới chưa được xác nhận bằng email thật sau deploy.
 
 ### 7.3 Quản lý lớp và thông báo
 
@@ -370,7 +370,7 @@ Compose tạo `db`, `migrate`, `core`, `notification-worker` và `web`. Migratio
 - Migration/schema check là operator-triggered Cloud Run Jobs dùng direct database URL; API/worker dùng runtime pooled URL theo runbook.
 - Cloud Scheduler gọi một batch worker mỗi 15 phút theo `Asia/Ho_Chi_Minh`; đây không phải chu kỳ một email cố định mà là chu kỳ quét/xử lý các item đang đến hạn.
 - Production bootstrap Admin là job thủ công có environment confirmation và kiểm tra DB/schema/marker; không có route HTTP bootstrap.
-- Production image hiện tại được build trước khi PR #38 merge. Cần build/deploy image từ `main` và cấu hình `PUBLIC_WEB_URL` cho API/worker trước khi dựa vào luồng email link mới.
+- Production Core được deploy từ `main` commit `a01985e`, image tag `production-mock-a01985e`, revision `lumi-core-api-production-00002-7jm`; readiness đã xác nhận PostgreSQL kết nối. API và notification job đã nhận `PUBLIC_WEB_URL` là origin Vercel Production. Chưa gửi email thật sau deploy; khi kiểm tra nội dung thư cần chủ động yêu cầu invitation/reset mới.
 
 ### 10.4 Cấu hình quan trọng
 
@@ -446,7 +446,7 @@ Core backend và Web MVP đã được tích hợp vào `main` qua PR #38. API, 
 - Production hiện là Mock School, không dùng dữ liệu học sinh thật.
 - Mapping school cho tài khoản thực cần nguồn roster/manifest có thẩm quyền; UUID synthetic chỉ dùng trong DB dev/test.
 - DELETE/retention cross-service tiếp tục deferred đến khi có policy và executor được duyệt.
-- Email links cần image Core sau merge và `PUBLIC_WEB_URL` trên API/worker Cloud Run.
+- Email link template đã được deploy lên Core API và notification worker; cần yêu cầu invitation/reset mới để kiểm tra email thật, không dùng lại thư cũ.
 
 ### 13.3 Dịch vụ chưa triển khai
 
