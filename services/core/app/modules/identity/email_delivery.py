@@ -110,19 +110,19 @@ class SMTPTokenSender:
             '<p style="margin:0 0 24px;color:#315eea;font-size:13px;font-weight:700;'
             'letter-spacing:1.4px">LUMI · TRỢ GIẢNG HỌC TẬP</p>'
             f"<p>{escape(salutation)}</p>"
-            f"<p style=\"line-height:1.6\">{escape(introduction)}</p>"
+            f'<p style="line-height:1.6">{escape(introduction)}</p>'
             '<p style="margin:28px 0"><a '
             f'href="{escape(link, quote=True)}" '
             'style="display:inline-block;padding:13px 22px;background:#315eea;color:#ffffff;'
             'text-decoration:none;border-radius:8px;font-weight:700">'
             f"{escape(action)}</a></p>"
-            f"<p style=\"line-height:1.6\">{escape(fallback)}</p>"
+            f'<p style="line-height:1.6">{escape(fallback)}</p>'
             '<div style="margin:20px 0;padding:16px;background:#f4f6fa;border-radius:8px">'
-            f"<p style=\"margin:0 0 8px\">Mã xác thực dùng một lần:</p>"
-            f"<p style=\"margin:0;font-size:18px;font-weight:700;letter-spacing:1px\">"
+            f'<p style="margin:0 0 8px">Mã xác thực dùng một lần:</p>'
+            f'<p style="margin:0;font-size:18px;font-weight:700;letter-spacing:1px">'
             f"{escape(token)}</p></div>"
-            f"<p style=\"line-height:1.6;color:#4b5563\">{escape(security_note)}</p>"
-            f"<p style=\"line-height:1.6\">{escape(closing)}</p>"
+            f'<p style="line-height:1.6;color:#4b5563">{escape(security_note)}</p>'
+            f'<p style="line-height:1.6">{escape(closing)}</p>'
             '<p style="margin-top:28px">Trân trọng,<br>'
             f"{escape(signature)}</p></div></body></html>",
             subtype="html",
