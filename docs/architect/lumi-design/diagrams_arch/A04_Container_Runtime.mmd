@@ -1,0 +1,8 @@
+flowchart LR
+  B["Trình duyệt"] -->|HTTPS / HTTP trong môi trường phát triển| W["Máy chủ Next.js"]
+  W -->|/api/v1| C["Core FastAPI — một tiến trình xử lý"]
+  C -->|Giao dịch SQL| DB[("PostgreSQL 16")]
+  M["Tác vụ migration Alembic"] -->|Cập nhật cấu trúc| DB
+  K["Tiến trình thông báo và thư xác thực"] --> DB
+  K -->|SMTP/TLS| E["Dịch vụ gửi thư"]
+  M -. "phải hoàn tất trước khi khởi động" .-> C

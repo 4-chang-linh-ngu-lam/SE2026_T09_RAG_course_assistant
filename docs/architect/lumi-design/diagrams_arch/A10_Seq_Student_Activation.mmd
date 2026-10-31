@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant Admin as Quản trị viên
+  participant Web as Giao diện web
+  participant Core as Dịch vụ lõi
+  participant DB as PostgreSQL
+  participant Student as Học sinh
+  Admin->>Web: Cấp tài khoản với tên đăng nhập
+  Web->>Core: Yêu cầu tạo tài khoản học sinh
+  Core->>DB: Kiểm tra quyền, lưu mã băm và ghi kiểm toán
+  Core-->>Admin: Trả mã sử dụng một lần (không lưu bộ nhớ đệm)
+  Admin->>Student: Bàn giao mã qua kênh an toàn
+  Student->>Web: Nhập tên, mã và mật khẩu mới
+  Web->>Core: Yêu cầu kích hoạt
+  Core->>DB: Kiểm tra hạn, loại mã và tình trạng tài khoản
+  Core-->>Student: Hoàn thành hoặc trả lỗi tương ứng
