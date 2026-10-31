@@ -80,13 +80,18 @@ Mỗi UC gồm mục tiêu, actor, điều kiện trước, luồng chính, ngo�
 
 **Ngoại lệ:** lớp archived, membership ended, post deleted, khác lớp, moderator trái quyền; 401/403/404 được thể hiện rõ.
 
-## UC-08 — Tạo lịch và nhận thông báo
+## UC-08 — Lịch học của lớp và thông báo trong ứng dụng
 
-- **Actor:** Lecturer, Student. **Rule:** G3/G4. **FR:** FR-SO-03, FR-NO-01/02. **Test:** TC-022–TC-024.
+- **Vai trò:** Giáo viên, Học sinh. **Quy tắc:** G3/G4. **Yêu cầu:** FR-SO-03, FR-NO-01/02. **Kiểm thử:** TC-022–TC-024.
+- **Phạm vi:** Hai chức năng đã triển khai nhưng có cơ chế xử lý riêng. Không coi thao tác tạo lịch của lớp là nguyên nhân tự động phát sinh thông báo.
 
-**Luồng chính:** Lecturer tạo CORE event với starts_at trước ends_at → mutation + outbox V2 cùng transaction → worker xử lý recipient snapshot → recipient xem inbox, mở liên kết (kiểm tra quyền tại lúc mở), mark read.
+**Luồng A — Tạo và xem lịch lớp (ĐÃ TRIỂN KHAI):** Giáo viên đang được phân công mở lớp → nhập tiêu đề, thời gian bắt đầu và kết thúc, bảo đảm thời gian bắt đầu trước thời gian kết thúc → Core xác minh quyền quản lý lịch và lưu sự kiện thuộc nguồn `CORE` → thành viên còn quyền truy cập mở lịch để xem sự kiện. Thao tác tạo, sửa hoặc xóa sự kiện lịch nguồn `CORE` hiện **không ghi sự kiện vào hàng đợi thông báo và không tự tạo thông báo trong hộp thư**.
 
-**Ngoại lệ:** worker crash/replay không trùng thông báo; user mới gia nhập sau event không được coi là recipient quá khứ; V1 legacy thiếu snapshot không tự gửi theo audience hiện tại.
+**Luồng B — Nhận thông báo từ hoạt động có hỗ trợ phát thông báo (ĐÃ TRIỂN KHAI):** Người dùng có quyền tạo bài đăng hoặc bình luận trong lớp → Core ghi thay đổi nghiệp vụ và sự kiện thông báo kèm danh sách người nhận tại cùng giao dịch → tiến trình xử lý nền tiếp nhận, chống gửi trùng và tạo thông báo trong hộp thư người nhận → người nhận xem, mở tài nguyên sau khi hệ thống kiểm tra lại quyền hiện hành và đánh dấu đã đọc.
+
+**Luồng C — Đồng bộ hạn nộp từ dịch vụ Learning (CHƯA TÍCH HỢP):** Core có cơ chế nội bộ tiếp nhận bản chiếu hạn nộp, có thể ghi sự kiện `CALENDAR_DEADLINE_CHANGED` khi nhận thay đổi hợp lệ. Tuy nhiên, hợp đồng và luồng gọi từ Learning chưa được triển khai; không mô tả đây là thông báo hạn nộp đã hoạt động xuyên dịch vụ. Việc tự thông báo khi tạo lịch nguồn `CORE`, nếu cần, phải được đề xuất và phê duyệt riêng.
+
+**Ngoại lệ và kiểm soát:** Khoảng thời gian không hợp lệ bị từ chối; người không có quyền không thể sửa lịch. Đối với những nghiệp vụ có phát thông báo, tiến trình nền phải xử lý thử lại an toàn, không nhân đôi thông báo; không tự đưa thành viên tham gia sau sự kiện vào danh sách người nhận lịch sử; sự kiện cũ thiếu danh sách người nhận không được phát lại dựa trên thành viên hiện tại.
 
 ## UC-09 — Archive và restore lớp
 
