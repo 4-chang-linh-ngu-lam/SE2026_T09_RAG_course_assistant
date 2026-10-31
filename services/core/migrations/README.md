@@ -243,8 +243,10 @@ riêng, không trỏ sang staging. Không chạy lại bootstrap để gửi l�
 
 Production image hiện được build với tag
 `asia-southeast1-docker.pkg.dev/pelagic-cat-492008-i2/cloud-run-source-deploy/lumi-core:production-mock-20261030`
-từ working tree lúc deploy; source thay đổi chưa được đưa vào `main`. Trước lần build
-tiếp theo, cần đồng bộ/publish thay đổi đó để GitHub source và runtime không lệch nhau.
+trước khi PR #38 được hợp nhất vào `main`. Source hiện đã ở `main`, nhưng Cloud Run
+vẫn cần được build/deploy lại từ source đã hợp nhất để runtime và GitHub đồng bộ.
+Đặt `PUBLIC_WEB_URL` trên Core API và notification worker thành origin Vercel Production
+trước khi gửi invitation/reset link. Kiểm tra image digest và revision sau deploy.
 Vercel Production `CORE_API_URL`/`WEB_ORIGIN` đã được trỏ tới Core Production và redeploy
 hoàn tất. Trang Production trả 200; gọi `/api/v1/auth/refresh` không có session trả
 `401 UNAUTHENTICATED` từ Core qua Next proxy, xác nhận upstream không còn 503. Luồng

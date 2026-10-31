@@ -8,6 +8,8 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 
 ## Đọc tài liệu
 
+**Tài liệu thiết kế hệ thống:** [Lumi System Design Document](docs/architect/SYSTEM_DESIGN.md) — bản tổng hợp kiến trúc, service ownership, Core/Web, triển khai và giới hạn hiện tại. Business Rules và hợp đồng service liên quan vẫn là nguồn chuẩn.
+
 **Bàn giao backend TV4 (2026-10-19):** [task 001–015, phần đã làm, kiểm thử và toàn bộ vấn đề còn mở](tasks/TV4_BACKEND_HANDOVER.md).
 
 1. [Business Rules](docs/architect/BUSINESS_RULES.md) — nguồn nghiệp vụ.
@@ -16,17 +18,7 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 4. [Danh mục task](tasks/README.md) — hiện trạng, việc cần sửa và phụ thuộc của TASK-001–020 (rà soát 2026-10-16).
 5. [Roadmap](docs/architect/microservices-v1/IMPLEMENTATION_ROADMAP.md), [Quality Attributes](docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md), [Contributing](docs/CONTRIBUTING.md).
 
-**Trạng thái:** Core đã có Common, Identity, Classroom Admin/access API, Social, Notification inbox/outbox worker và Administration backend (staff/role/status/audit, import Student CSV/XLSX, data-request review). Yêu cầu dữ liệu thiếu policy/executor giữ IN_REVIEW. Xem [Core README](services/core/README.md) để cấu hình, migration và kiểm thử. Sau khi cấu hình môi trường theo `.env.example`, chạy `docker compose up --build -d`; Compose tự chạy migration trước Core và notification worker. Chưa nghiệm thu toàn Core/Web G2 hoặc chuyển G3.
-
-TASK-014 có [runbook migration/seed](services/core/migrations/README.md), guard downgrade
-và CLI report/plan/apply School theo manifest; seed atomic/idempotent chỉ cho database
-dev/test riêng. Local đạt **313 test Core trên PostgreSQL 16**, không skip. Mapping
-Mapping School cho tài khoản thật vẫn cần TV1/TV2 xác minh; working tree có migration 0014 thêm FK nullable `users.school_id`, chưa chạy regression hay áp dụng vào staging/production. UUID tổng hợp chỉ dùng trong database test/dev.
-
-TASK-015 đã có [bộ kiểm chứng backend](services/core/tests/README.md): **342 test
-đạt PostgreSQL 16**, coverage tổng **91%**, 300 thao tác cạnh tranh, Rule/evidence
-artifacts và backend Compose smoke. Bài đo class-list 10 phút tách backend/client
-latency và ghi rõ giới hạn; Web E2E ngoài scope lần này, full TP-01/G2 chưa nghiệm thu.
+**Trạng thái (2026-10-31):** Core và Web MVP được hợp nhất vào `main` qua PR #38. CI của commit merge đã đạt Core PostgreSQL tests, Web build và Compose smoke. Đây chưa phải nghiệm thu full mixed-service TP-01: Document, AI, Learning và Learner Intelligence chưa có live backend; data request DELETE/retention còn deferred. Xem [System Design](docs/architect/SYSTEM_DESIGN.md) và [Core README](services/core/README.md) để biết trạng thái, bằng chứng và giới hạn. Production hiện là `Lumi Mock School`; Cloud Run cần được redeploy từ `main` và cấu hình `PUBLIC_WEB_URL` để áp dụng luồng email link mới.
 
 ## Phạm vi sản phẩm Lumi
 Lumi phục vụ **học sinh THCS và THPT (khối 6–12)** trong **lớp học chính khóa**. Tiểu học, đại học và lớp học thêm không thuộc phạm vi MVP. Giao diện hướng đến học sinh phổ thông, giữ phong cách sáng, gọn, không game hóa hoặc trang trí quá mức.
