@@ -27,7 +27,23 @@
 
 ## A2. Sơ đồ ngữ cảnh hệ thống
 
-![A01 - Ngữ cảnh hệ thống](diagrams_arch/A01_System_Context_Current.png)
+**A01 - Ngữ cảnh hệ thống**
+
+```mermaid
+flowchart LR
+  A["Quản trị viên"] --> W
+  T["Giáo viên"] --> W
+  S["Học sinh"] --> W
+  subgraph Lumi["Lumi — phần lõi đã triển khai"]
+    W["Giao diện web (Next.js)"] --> P["Bộ chuyển tiếp API cùng miền"]
+    P --> C["Dịch vụ lõi FastAPI"]
+    C --> DB[("PostgreSQL 16")]
+    BW["Tác vụ nền: thông báo, thư xác thực"] --> DB
+  end
+  BW --> SMTP["Nhà cung cấp thư điện tử"]
+```
+
+[Nguồn sơ đồ](diagrams_arch/A01_System_Context_Current.mmd)
 
 ### A2.1. Chủ thể
 
@@ -46,7 +62,26 @@
 
 ## A3. Bản đồ năng lực nghiệp vụ
 
-![A02 - Bản đồ năng lực nghiệp vụ](diagrams_arch/A02_Capability_Map.png)
+**A02 - Bản đồ năng lực nghiệp vụ**
+
+```mermaid
+flowchart TB
+  subgraph Core["Đã triển khai — phiên bản thử nghiệm phần lõi"]
+    I["Danh tính và phiên truy cập"]
+    C["Lớp học, danh sách học sinh"]
+    A["Quản trị và nhật ký kiểm toán"]
+    S["Bảng tin, bình luận, lịch học"]
+    N["Thông báo trong ứng dụng"]
+  end
+  subgraph Future["Chưa triển khai — thiết kế đề xuất"]
+    D["Quản lý tài liệu và ghi chú"]
+    L["Luyện tập, đánh giá, bài tập"]
+    R["Phân tích học tập, báo cáo"]
+  end
+  AI["Trí tuệ nhân tạo — chưa thuộc phạm vi thiết kế"] -.-> Future
+```
+
+[Nguồn sơ đồ](diagrams_arch/A02_Capability_Map.mmd)
 
 **Tách hai khái niệm MVP.** `Core MVP 0.1` có Identity, Classroom, Administration, Social, Calendar và Notifications. Sản phẩm đầy đủ trong Business Rules còn có Document, Learning, Intelligence; những service đó chưa có phía máy chủ live được chứng thực ở baseline. Vì AI Service bị hoãn nghiên cứu, sơ đồ chỉ giữ một ô không thiết kế, không có cạnh kỹ thuật sang các service khác.
 
@@ -54,7 +89,23 @@
 
 ## A4. Kiến trúc tổng thể theo tầng xử lý
 
-![A03 - Kiến trúc phân tầng](diagrams_arch/A03_Layered_Architecture.png)
+**A03 - Kiến trúc phân tầng**
+
+```mermaid
+flowchart TB
+  U["Tầng 1 — Người sử dụng: Quản trị viên / Giáo viên / Học sinh"]
+  W["Tầng 2 — Trình bày: giao diện web Next.js"]
+  P["Tầng 3 — Tiếp nhận và chuyển tiếp API cùng miền"]
+  C["Tầng 4 — Nghiệp vụ: dịch vụ lõi FastAPI"]
+  D["Tầng 5 — Dữ liệu và xử lý nền: PostgreSQL, tác vụ nền, sự kiện"]
+  H["Tầng 6 — Hạ tầng và vận hành: Compose, Vercel, Cloud Run, Neon, CI"]
+  U --> W --> P --> C --> D
+  H -. "cung cấp môi trường vận hành" .-> W
+  H -. "cung cấp môi trường vận hành" .-> C
+  H -. "cung cấp môi trường vận hành" .-> D
+```
+
+[Nguồn sơ đồ](diagrams_arch/A03_Layered_Architecture.mmd)
 
 ### A4.1. Diễn giải từng tầng
 
@@ -78,9 +129,43 @@
 
 ## A5. Kiến trúc các đơn vị triển khai và phân hệ ứng dụng
 
-![A04 - Các đơn vị triển khai](diagrams_arch/A04_Container_Runtime.png)
+**A04 - Các đơn vị triển khai**
 
-![A05 - Các phân hệ của dịch vụ lõi](diagrams_arch/A05_Core_Component.png)
+```mermaid
+flowchart LR
+  B["Trình duyệt"] -->|HTTPS / HTTP trong môi trường phát triển| W["Máy chủ Next.js"]
+  W -->|/api/v1| C["Core FastAPI — một tiến trình xử lý"]
+  C -->|Giao dịch SQL| DB[("PostgreSQL 16")]
+  M["Tác vụ migration Alembic"] -->|Cập nhật cấu trúc| DB
+  K["Tiến trình thông báo và thư xác thực"] --> DB
+  K -->|SMTP/TLS| E["Dịch vụ gửi thư"]
+  M -. "phải hoàn tất trước khi khởi động" .-> C
+```
+
+[Nguồn sơ đồ](diagrams_arch/A04_Container_Runtime.mmd)
+
+**A05 - Các phân hệ của dịch vụ lõi**
+
+```mermaid
+flowchart TB
+  W["Giao diện web / yêu cầu HTTP"] --> R["Tiếp nhận và kiểm tra yêu cầu"]
+  R --> I["Danh tính và xác thực"]
+  R --> C["Quản lý lớp học"]
+  R --> S["Bảng tin, bình luận, lịch học"]
+  R --> A["Quản trị và kiểm toán"]
+  R --> N["Thông báo"]
+  I --> H["Hạ tầng chung: cấu hình, kết nối, quyền và kiểm toán"]
+  C --> H
+  S --> H
+  A --> H
+  N --> H
+  H --> DB[("PostgreSQL — lược đồ Core")]
+  C -. "giao diện công khai giữa phân hệ" .-> I
+  S -. "kiểm tra quyền lớp" .-> C
+  A -. "thao tác tài khoản qua giao diện" .-> I
+```
+
+[Nguồn sơ đồ](diagrams_arch/A05_Core_Component.mmd)
 
 ### A5.1. Các tiến trình và dịch vụ của phần lõi
 
@@ -106,7 +191,27 @@ Danh tính, chức năng dùng chung, quản lý lớp học, bảng tin, thông
 
 ### A6.1. Cấp và kích hoạt Student
 
-![A10 - Kích hoạt tài khoản học sinh](diagrams_arch/A10_Seq_Student_Activation.png)
+**A10 - Kích hoạt tài khoản học sinh**
+
+```mermaid
+sequenceDiagram
+  participant Admin as Quản trị viên
+  participant Web as Giao diện web
+  participant Core as Dịch vụ lõi
+  participant DB as PostgreSQL
+  participant Student as Học sinh
+  Admin->>Web: Cấp tài khoản với tên đăng nhập
+  Web->>Core: Yêu cầu tạo tài khoản học sinh
+  Core->>DB: Kiểm tra quyền, lưu mã băm và ghi kiểm toán
+  Core-->>Admin: Trả mã sử dụng một lần (không lưu bộ nhớ đệm)
+  Admin->>Student: Bàn giao mã qua kênh an toàn
+  Student->>Web: Nhập tên, mã và mật khẩu mới
+  Web->>Core: Yêu cầu kích hoạt
+  Core->>DB: Kiểm tra hạn, loại mã và tình trạng tài khoản
+  Core-->>Student: Hoàn thành hoặc trả lỗi tương ứng
+```
+
+[Nguồn sơ đồ](diagrams_arch/A10_Seq_Student_Activation.mmd)
 
 - **Tiền điều kiện:** Admin ACTIVE/cùng trường; Student chưa được tạo; username hợp lệ và chưa trùng.
 - **Transaction:** ghi User/Role/Token hash/audit; trả `code` đúng một lần và `Cache-Control: no-store`. Mã là bí mật được bàn giao ngoài app.
@@ -115,7 +220,26 @@ Danh tính, chức năng dùng chung, quản lý lớp học, bảng tin, thông
 
 ### A6.2. Thay đổi lớp và thông báo
 
-![A11 - Thay đổi lớp học và phát thông báo](diagrams_arch/A11_Seq_Class_Notification.png)
+**A11 - Thay đổi lớp học và phát thông báo**
+
+```mermaid
+sequenceDiagram
+  participant Admin as Quản trị viên
+  participant Core as Dịch vụ lõi
+  participant DB as PostgreSQL
+  participant Worker as Tác vụ nền
+  participant User as Người nhận
+  Admin->>Core: Cập nhật danh sách lớp hoặc lưu trữ lớp
+  Core->>Core: Kiểm tra quyền, trường học và phiên bản
+  Core->>DB: Ghi thay đổi, nhật ký, người nhận và sự kiện trong một giao dịch
+  DB-->>Core: Giao dịch đã ghi nhận
+  Worker->>DB: Nhận sự kiện có kiểm soát và chống xử lý trùng
+  Worker->>DB: Tạo thông báo người nhận, ghi trạng thái xử lý
+  User->>Core: Mở hộp thông báo của mình
+  Core-->>User: Chỉ trả thông báo thuộc tài khoản
+```
+
+[Nguồn sơ đồ](diagrams_arch/A11_Seq_Class_Notification.mmd)
 
 - **Admin mutation:** kiểm tra role/school và `expected_class_version`/roster version khi contract yêu cầu. 409 khi version đã cũ; không lặng lẽ ghi đè.
 - **Atomic transaction:** thay đổi nghiệp vụ + audit + V2 event chứa recipient snapshot được commit cùng nhau. Nếu một bước thất bại, khôi phục phiên bản trước mutation liên quan.
@@ -124,7 +248,25 @@ Danh tính, chức năng dùng chung, quản lý lớp học, bảng tin, thông
 
 ## A7. Kiến trúc dữ liệu tổng thể
 
-![A12 - Miền dữ liệu của dịch vụ lõi](diagrams_arch/A12_Core_Data_Domains.png)
+**A12 - Miền dữ liệu của dịch vụ lõi**
+
+```mermaid
+erDiagram
+  TRUONG_HOC ||--o{ NGUOI_DUNG : pham_vi
+  TRUONG_HOC ||--o{ LOP_HANH_CHINH : quan_ly
+  LOP_HANH_CHINH ||--o{ LOP_MON_HOC : lien_ket
+  LOP_MON_HOC ||--o{ THANH_VIEN : ghi_danh
+  NGUOI_DUNG ||--o{ THANH_VIEN : tham_gia
+  LOP_MON_HOC ||--o{ PHAN_CONG_GV : phan_cong
+  NGUOI_DUNG ||--o{ PHAN_CONG_GV : giang_day
+  LOP_MON_HOC ||--o{ BAI_DANG : co
+  BAI_DANG ||--o{ BINH_LUAN : co
+  LOP_MON_HOC ||--o{ SU_KIEN_NEN : phat_sinh
+  SU_KIEN_NEN ||--o{ THONG_BAO : xu_ly
+  NGUOI_DUNG ||--o{ THONG_BAO : nhan
+```
+
+[Nguồn sơ đồ](diagrams_arch/A12_Core_Data_Domains.mmd)
 
 **Phân biệt dữ liệu logic và vật lý:** hình A12 chỉ biểu thị các đối tượng miền và liên kết chính. Tên bảng/cột, ràng buộc, index, nullability và migration chính xác phải đọc từ SQLAlchemy models và Alembic 0001–0014. Sơ đồ logic không thay thế “bảng thuộc tính từng bảng” trong `09_LLD_Core.md` và `11_ERD_DFD.md`.
 
@@ -145,7 +287,25 @@ Danh tính, chức năng dùng chung, quản lý lớp học, bảng tin, thông
 
 ## A8. Ranh giới tương lai — không tự thiết kế công nghệ
 
-![A15 - Ranh giới các dịch vụ](diagrams_arch/A15_Logical_Service_Boundaries.png)
+**A15 - Ranh giới các dịch vụ**
+
+```mermaid
+flowchart LR
+  W["Giao diện web"] --> C["Dịch vụ lõi — ĐÃ TRIỂN KHAI"]
+  C --> DB[("PostgreSQL Core")]
+  W -.-> D["Tài liệu — CHƯA TRIỂN KHAI"]
+  W -.-> L["Học tập — CHƯA TRIỂN KHAI"]
+  W -.-> I["Phân tích học tập — CHƯA TRIỂN KHAI"]
+  D -. "kiểm tra quyền hiện hành" .-> C
+  L -. "kiểm tra quyền hiện hành" .-> C
+  I -. "bằng chứng đã xác nhận" .-> L
+  D -.-> DS[("Kho dữ liệu Document — CHƯA CHỐT")]
+  L -.-> LS[("Kho dữ liệu Learning — CHƯA CHỐT")]
+  I -.-> IS[("Kho dữ liệu phân tích — CHƯA CHỐT")]
+  A["Dịch vụ AI — ngoài phạm vi thiết kế hiện tại"]
+```
+
+[Nguồn sơ đồ](diagrams_arch/A15_Logical_Service_Boundaries.mmd)
 
 Dựa trên kiến trúc đã duyệt, chỉ ghi nhận ownership: Document (file/version/grant/note), Learning (practice/assessment/assignment/grade) và Learner Intelligence (evidence/recommendation/report). `TASK-017`, `TASK-019`, `TASK-020` mới là bản **đề xuất** cho endpoint/schema/processing. Các thành phần chưa được triển khai phải được vẽ nét đứt và tránh đóng dấu `IMPLEMENTED`.
 

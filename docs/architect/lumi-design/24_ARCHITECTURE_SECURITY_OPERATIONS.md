@@ -18,7 +18,28 @@
 
 ## D2. Mô hình nguy cơ theo các điểm truy cập hệ thống
 
-![A09 - Ranh giới bảo mật](diagrams_arch/A09_Trust_Boundaries.png)
+**A09 - Ranh giới bảo mật**
+
+```mermaid
+flowchart LR
+  subgraph U["Vùng không tin cậy"]
+    B["Trình duyệt — URL và dữ liệu gửi lên không phải quyền truy cập"]
+  end
+  subgraph W["Tầng web"]
+    P["Chuyển tiếp API — danh sách thao tác cho phép, kiểm tra Origin"]
+  end
+  subgraph C["Tầng nghiệp vụ"]
+    A["Core — JWT, vai trò, trạng thái, phạm vi trường/lớp"]
+    K["Tác vụ nền — dữ liệu sự kiện được kiểm soát"]
+  end
+  subgraph D["Vùng dữ liệu"]
+    DB[("PostgreSQL Core")]
+  end
+  B --> P --> A --> DB
+  K --> DB
+```
+
+[Nguồn sơ đồ](diagrams_arch/A09_Trust_Boundaries.mmd)
 
 | ID | Bề mặt tấn công / loại rủi ro | Ví dụ thao tác | Bảo vệ phải kiểm tra | Test evidence cần có |
 |---|---|---|---|---|
@@ -46,7 +67,25 @@
 
 ## D3. Quản trị dữ liệu và bảo đảm tính nhất quán
 
-![A12 - Core data domains](diagrams_arch/A12_Core_Data_Domains.png)
+**A12 - Core data domains**
+
+```mermaid
+erDiagram
+  TRUONG_HOC ||--o{ NGUOI_DUNG : pham_vi
+  TRUONG_HOC ||--o{ LOP_HANH_CHINH : quan_ly
+  LOP_HANH_CHINH ||--o{ LOP_MON_HOC : lien_ket
+  LOP_MON_HOC ||--o{ THANH_VIEN : ghi_danh
+  NGUOI_DUNG ||--o{ THANH_VIEN : tham_gia
+  LOP_MON_HOC ||--o{ PHAN_CONG_GV : phan_cong
+  NGUOI_DUNG ||--o{ PHAN_CONG_GV : giang_day
+  LOP_MON_HOC ||--o{ BAI_DANG : co
+  BAI_DANG ||--o{ BINH_LUAN : co
+  LOP_MON_HOC ||--o{ SU_KIEN_NEN : phat_sinh
+  SU_KIEN_NEN ||--o{ THONG_BAO : xu_ly
+  NGUOI_DUNG ||--o{ THONG_BAO : nhan
+```
+
+[Nguồn sơ đồ](diagrams_arch/A12_Core_Data_Domains.mmd)
 
 ### D3.1. Ranh giới owner và transaction
 
@@ -99,9 +138,37 @@
 
 ## D6. Quy trình phát hành và ứng phó sự cố
 
-![A13 - Quy trình phát hành và kiểm chứng](diagrams_arch/A13_Release_Pipeline.png)
+**A13 - Quy trình phát hành và kiểm chứng**
 
-![A16 - Xử lý và khôi phục sau sự cố](diagrams_arch/A16_Incident_Recovery.png)
+```mermaid
+flowchart TB
+  A["Đề nghị hợp nhất và rà soát mã nguồn"]
+  B["Kiểm tra dịch vụ lõi, xây dựng giao diện và thử khởi động"]
+  C["Đối chiếu phiên bản và bằng chứng kiểm thử"]
+  D["Đóng gói phần mềm, xác minh nguồn gốc gói triển khai — đề xuất"]
+  E["Kiểm tra migration, sao lưu và phương án khôi phục — đề xuất"]
+  F["Triển khai môi trường thử nghiệm bằng dữ liệu giả lập"]
+  G["Kiểm tra trình duyệt E2E, quyền và ghi nhận lỗi"]
+  H["Phê duyệt phát hành sau đánh giá chính sách và nghiệm thu"]
+  A --> B --> C --> D --> E --> F --> G --> H
+```
+
+[Nguồn sơ đồ](diagrams_arch/A13_Release_Pipeline.mmd)
+
+**A16 - Xử lý và khôi phục sau sự cố**
+
+```mermaid
+flowchart TB
+  A["Phát hiện sự cố — tình trạng dịch vụ, nhật ký, tỷ lệ lỗi và phiên bản"]
+  B["Phân loại mức ảnh hưởng — truy cập, bảo mật, toàn vẹn dữ liệu"]
+  C["Cô lập phạm vi ảnh hưởng, không hạ mức kiểm soát an toàn"]
+  D["Xác minh bản sao lưu, trạng thái migration và tính toàn vẹn dữ liệu"]
+  E["Khôi phục và kiểm tra nhanh quy trình nghiệp vụ"]
+  F["Báo cáo sau sự cố, bổ sung kiểm thử và cập nhật hướng dẫn vận hành"]
+  A --> B --> C --> D --> E --> F
+```
+
+[Nguồn sơ đồ](diagrams_arch/A16_Incident_Recovery.mmd)
 
 **Phân biệt CI hiện hành và điều kiện chấp thuận phát hành đề xuất:** `core-ci.yml` có core-tests, web-build, compose-smoke và core-load manual. Các bước image provenance, staging sign-off, rollout phê duyệt production, chính sách RPO/RTO và backup restore rehearsal trong A13 là **PROPOSED**; không được tự nhận là pipeline hiện nay đã triển khai đủ.
 

@@ -15,7 +15,25 @@ Một báo cáo thiết kế có thể đúng về logic nhưng vẫn thiếu c�
 - **Khả năng chịu tải**: Core-06 class-list subset, không bao gồm Document/AI/Learning/LI.
 - **Không thực nghiệm AI Service**: chưa có thiết kế; không mô phỏng chất lượng RAG như kết quả của hệ thống.
 
-![A14 - Chuỗi môi trường thực nghiệm](diagrams_arch/A14_Experimental_Environments.png)
+**A14 - Chuỗi môi trường thực nghiệm**
+
+```mermaid
+flowchart TB
+  A["Máy phát triển — xây dựng và kiểm tra chức năng"] 
+  B["Kiểm thử Core — PostgreSQL 16, kiểm tra hợp đồng và an toàn"]
+  C["Kiểm tra giao diện — Node.js 22, xây dựng bản thực tế"]
+  D["CI Compose — khởi động thử, ngắt kết nối và phục hồi"]
+  E["Môi trường tiền triển khai — kiểm tra trình duyệt bằng tài khoản giả lập"]
+  F["Môi trường đám mây giả lập — Vercel, Cloud Run, Neon"]
+  G["Vận hành với người dùng thật — CHƯA PHÊ DUYỆT"]
+  A --> B
+  A --> C
+  B --> D
+  C --> D
+  D --> E --> F -.-> G
+```
+
+[Nguồn sơ đồ](diagrams_arch/A14_Experimental_Environments.mmd)
 
 ## C2. Cấu hình môi trường phải lưu cùng kết quả
 

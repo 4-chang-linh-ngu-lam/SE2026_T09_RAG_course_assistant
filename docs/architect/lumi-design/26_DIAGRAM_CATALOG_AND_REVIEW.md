@@ -1,6 +1,6 @@
 # PHỤ LỤC — DANH MỤC SƠ ĐỒ VÀ QUY TRÌNH KIỂM SOÁT THAY ĐỔI
 
-**Mã:** LUMI-DIAGRAMS-002 · **Trạng thái:** DRAFT. Toàn bộ hình vẽ mới được tạo từ mô tả Graphviz `.dot`; cùng một ID có `.dot`, `.png`, `.svg` trong `diagrams_arch/`. Không chứa ảnh screenshot từ tài liệu doanh nghiệp khác.
+**Mã:** LUMI-DIAGRAMS-002 · **Trạng thái:** DRAFT. Các sơ đồ trong repository được lưu ở dạng Mermaid `.mmd` và hiển thị trực tiếp trong các chương; bản PNG/SVG chỉ là xuất bản phục vụ in ấn. Không chứa ảnh screenshot từ tài liệu doanh nghiệp khác.
 
 ## 1. Danh mục 16 sơ đồ
 
@@ -29,8 +29,8 @@
 
 ## 3. Cập nhật và quản lý phiên bản sơ đồ
 
-1. Chọn đúng sơ đồ bị ảnh hưởng; cập nhật `.dot` trước, render lại PNG/SVG từ chính `.dot`.
-2. Đối chiếu `Business Rules`, `SYSTEM_DESIGN.md`, `API_CONTRACT.md`, `compose.yaml`, CI và migration khi sơ đồ thay đổi.
+1. Chọn đúng sơ đồ bị ảnh hưởng; cập nhật `.mmd` và các đoạn Mermaid nhúng cùng một lần thay đổi.
+2. Đối chiếu `Business Rules`, `00_INDEX.md`, `API_CONTRACT.md`, `compose.yaml`, CI và migration khi sơ đồ thay đổi.
 3. Nếu thay đổi trách nhiệm module/service hoặc mạng, cập nhật Architecture Atlas, deployment và ADR cùng lúc.
 4. Không sửa hình PNG thủ công dẫn tới lệch mã nguồn. Chỉ dùng PNG/SVG là rendered outputs.
 5. Mỗi release ghi Git commit + reviewer + ngày kiểm tra; không dùng sơ đồ draft làm evidence triển khai.
@@ -41,5 +41,5 @@
 - [ ] Các khối thể hiện đúng boundary; có hướng mũi tên và protocol/logic được giải thích trong chapter.
 - [ ] Service chưa có code dùng nét đứt, không vẽ như live dependency.
 - [ ] Sơ đồ topology khác với sơ đồ tầng logic; không copy kết quả triển khai đề xuất thành hiện trạng.
-- [ ] Mỗi hình có mã Axx, đường dẫn nguồn `.dot`, không nhầm tên file.
+- [ ] Mỗi hình có mã Axx, đường dẫn nguồn `.mmd`, không nhầm tên file.
 - [ ] Các giá trị RTO/RPO, size VM, region, auth secrets chưa được đo hoặc chốt không được ghi số cụ thể.

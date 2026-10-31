@@ -11,7 +11,21 @@
 
 ## B2. Sơ đồ triển khai local — Docker Compose
 
-![A06 - Triển khai tại máy phát triển](diagrams_arch/A06_Deployment_Local.png)
+**A06 - Triển khai tại máy phát triển**
+
+```mermaid
+flowchart LR
+  subgraph Host["Máy phát triển — Docker Compose"]
+    B["Trình duyệt"] -->|localhost:3000| W["web :3000 / Next.js"]
+    W -->|HTTP nội bộ| C["core :8000 / FastAPI"]
+    C --> DB[("db :5432 / PostgreSQL 16")]
+    K["notification-worker"] --> DB
+    M["migrate / Alembic"] --> DB
+    DB <--> V[("Docker volume pgdata")]
+  end
+```
+
+[Nguồn sơ đồ](diagrams_arch/A06_Deployment_Local.mmd)
 
 ### B2.1. Bảng triển khai `compose.yaml` đã đối chiếu
 
@@ -58,7 +72,19 @@ Các lệnh minh họa trên là **runbook đề xuất để thực hiện**. C
 
 ## B3. Sơ đồ triển khai CI và quy trình test tự động
 
-![A07 - Môi trường tích hợp liên tục](diagrams_arch/A07_Deployment_CI.png)
+**A07 - Môi trường tích hợp liên tục**
+
+```mermaid
+flowchart TB
+  G["Push / Pull Request / kích hoạt thủ công"] --> T["Kiểm thử Core — PostgreSQL 16, Ruff, Alembic, pytest"]
+  G --> W["Biên dịch và kiểm tra Web — Node.js 22"]
+  G --> S["Khởi động thử bằng Compose — Core / Web / DB / Worker"]
+  G -.-> L["Kiểm tra tải Core theo yêu cầu — 100 người dùng, 600 giây"]
+  T --> E["Bằng chứng: JUnit / coverage / truy vết yêu cầu"]
+  L --> E
+```
+
+[Nguồn sơ đồ](diagrams_arch/A07_Deployment_CI.mmd)
 
 ### B3.1. Những job thực sự có trong `.github/workflows/core-ci.yml`
 
@@ -73,7 +99,19 @@ Các lệnh minh họa trên là **runbook đề xuất để thực hiện**. C
 
 ## B4. Mô hình cloud đã được báo cáo — môi trường giả lập triển khai chính thức
 
-![A08 - Triển khai trực tuyến tại môi trường giả lập](diagrams_arch/A08_Deployment_Cloud_Mock.png)
+**A08 - Triển khai trực tuyến tại môi trường giả lập**
+
+```mermaid
+flowchart LR
+  B["Trình duyệt — HTTPS"] --> V["Vercel — giao diện Next.js và chuyển tiếp API"]
+  V -->|HTTPS| C["Cloud Run — dịch vụ lõi FastAPI"]
+  C --> N[("Neon — PostgreSQL 16 / dữ liệu trường giả lập")]
+  W["Tác vụ nền — trạng thái vận hành cần xác minh"] -.-> N
+  W -.-> M["Nhà cung cấp SMTP — xác nhận thư đến còn cần kiểm thử"]
+  G["GitHub main, kết quả CI, mã phiên bản"] -. "đối chiếu nguồn phát hành" .-> C
+```
+
+[Nguồn sơ đồ](diagrams_arch/A08_Deployment_Cloud_Mock.mmd)
 
 ### B4.1. Phân biệt một môi trường hoạt động và hạ tầng mục tiêu
 
@@ -101,7 +139,28 @@ Các lệnh minh họa trên là **runbook đề xuất để thực hiện**. C
 
 ## B5. Kiến trúc mạng và vùng tin cậy
 
-![A09 - Ranh giới bảo mật](diagrams_arch/A09_Trust_Boundaries.png)
+**A09 - Ranh giới bảo mật**
+
+```mermaid
+flowchart LR
+  subgraph U["Vùng không tin cậy"]
+    B["Trình duyệt — URL và dữ liệu gửi lên không phải quyền truy cập"]
+  end
+  subgraph W["Tầng web"]
+    P["Chuyển tiếp API — danh sách thao tác cho phép, kiểm tra Origin"]
+  end
+  subgraph C["Tầng nghiệp vụ"]
+    A["Core — JWT, vai trò, trạng thái, phạm vi trường/lớp"]
+    K["Tác vụ nền — dữ liệu sự kiện được kiểm soát"]
+  end
+  subgraph D["Vùng dữ liệu"]
+    DB[("PostgreSQL Core")]
+  end
+  B --> P --> A --> DB
+  K --> DB
+```
+
+[Nguồn sơ đồ](diagrams_arch/A09_Trust_Boundaries.mmd)
 
 | Vùng | Mức tin cậy | Tài sản | Kiểm soát phải có | Rủi ro kiểm thử |
 |---|---|---|---|---|
