@@ -156,7 +156,7 @@ def test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors(monkeypatch, secur
     assert "https://lumi.example.com/staff/invitation#token=" in plain
     assert "Kính gửi Quý Thầy/Cô và Quý Cán bộ Nhà trường" in plain
     assert "Nhà trường trân trọng mời Quý vị" in plain
-    assert "Nếu không mở được liên kết" in plain
+    assert "Nếu nút thiết lập không mở được" in plain
     assert "Mã xác thực dùng một lần" in plain
     assert "Vui lòng không chia sẻ mã này" in plain
     assert "Bộ phận vận hành hệ thống Lumi" in plain
