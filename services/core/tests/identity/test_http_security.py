@@ -151,14 +151,18 @@ def test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors(monkeypatch, secur
     plain = email.get_body(preferencelist=("plain",)).get_content()
     html = email.get_body(preferencelist=("html",)).get_content()
     assert email["To"] == "lecturer@example.com"
-    assert email["Subject"] == "Lumi | Mời bạn thiết lập tài khoản"
+    assert email["Subject"] == "Lumi | Thư mời thiết lập tài khoản nhân sự"
     assert token.get_secret_value() in plain
     assert "https://lumi.example.com/staff/invitation#token=" in plain
-    assert "Quản trị viên nhà trường đã tạo tài khoản nhân sự" in plain
-    assert "Nếu không mở được liên kết" in plain
+    assert "Kính gửi Quý Thầy/Cô và Quý Cán bộ Nhà trường" in plain
+    assert "Nhà trường trân trọng mời Quý vị" in plain
+    assert "Nếu nút thiết lập không mở được" in plain
     assert "Mã xác thực dùng một lần" in plain
+    assert "Vui lòng không chia sẻ mã này" in plain
+    assert "Bộ phận vận hành hệ thống Lumi" in plain
     assert 'href="https://lumi.example.com/staff/invitation#token=' in html
-    assert "Trân trọng" in plain and "Đội ngũ Lumi" in plain
+    assert "Thiết lập tài khoản Lumi" in html
+    assert "Trân trọng" in plain
     if security == "starttls":
         context = client.starttls.call_args.kwargs["context"]
     else:
@@ -194,10 +198,11 @@ def test_staff_password_reset_email_links_to_existing_reset_page(monkeypatch):
 
     email = client.send_message.call_args.args[0]
     plain = email.get_body(preferencelist=("plain",)).get_content()
-    assert email["Subject"] == "Lumi | Đặt lại mật khẩu"
+    assert email["Subject"] == "Lumi | Hướng dẫn đặt lại mật khẩu"
     assert "https://lumi.example.com/reset-password#token=" in plain
+    assert "Kính gửi Quý Thầy/Cô và Quý Cán bộ Nhà trường" in plain
     assert "Mã xác thực dùng một lần" in plain
-    assert "Trân trọng" in plain and "Đội ngũ Lumi" in plain
+    assert "Trân trọng" in plain and "Bộ phận vận hành hệ thống Lumi" in plain
     assert "mật khẩu hiện tại sẽ không thay đổi" in plain
 
 

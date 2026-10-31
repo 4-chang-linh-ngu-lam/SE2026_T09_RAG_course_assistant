@@ -8,7 +8,7 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 
 ## Đọc tài liệu
 
-**Bộ hồ sơ yêu cầu và thiết kế hệ thống Lumi (bản 2.1, chờ phê duyệt):** [Mục lục hồ sơ](docs/architect/lumi-design/00_INDEX.md) — BRD, SRS, FRS, HLD/LLD, sơ đồ kiến trúc theo tầng, triển khai, môi trường thực nghiệm, bảo mật và kiểm thử.
+**Bộ hồ sơ yêu cầu và thiết kế hệ thống Lumi (2.1, dự thảo):** [Mục lục hồ sơ](docs/architect/lumi-design/00_INDEX.md) — yêu cầu nghiệp vụ, đặc tả, kiến trúc phân tầng, triển khai, kiểm thử và các quyết định còn mở. Business Rules và hợp đồng Core hiện hành vẫn là nguồn chuẩn.
 
 **Bàn giao backend TV4 (2026-10-19):** [task 001–015, phần đã làm, kiểm thử và toàn bộ vấn đề còn mở](tasks/TV4_BACKEND_HANDOVER.md).
 
@@ -18,7 +18,7 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 4. [Danh mục task](tasks/README.md) — hiện trạng, việc cần sửa và phụ thuộc của TASK-001–020 (rà soát 2026-10-16).
 5. [Roadmap](docs/architect/microservices-v1/IMPLEMENTATION_ROADMAP.md), [Quality Attributes](docs/architect/microservices-v1/QUALITY_ATTRIBUTES.md), [Contributing](docs/CONTRIBUTING.md).
 
-**Trạng thái (2026-10-31):** Core và Web MVP được hợp nhất vào `main` qua PR #38. CI của commit merge đã đạt Core PostgreSQL tests, Web build và Compose smoke. Đây chưa phải nghiệm thu full mixed-service TP-01: Document, AI, Learning và Learner Intelligence chưa có live backend; data request DELETE/retention còn deferred. Xem [Hồ sơ thiết kế Lumi](docs/architect/lumi-design/00_INDEX.md) và [Core README](services/core/README.md) để biết trạng thái, bằng chứng và giới hạn. Production hiện là `Lumi Mock School`; Cloud Run cần được redeploy từ `main` và cấu hình `PUBLIC_WEB_URL` để áp dụng luồng email link mới.
+**Trạng thái (2026-10-31):** Core và Web MVP được hợp nhất vào `main` qua PR #38. CI của commit merge đã đạt Core PostgreSQL tests, Web build và Compose smoke. Core email link template sau đó được deploy lên Cloud Run Production mock từ commit `a01985e`; nội dung email thật chưa được kiểm tra bằng một lần gửi mới. Đây chưa phải nghiệm thu full mixed-service TP-01: Document, AI, Learning và Learner Intelligence chưa có live backend; data request DELETE/retention còn deferred. Xem [Hồ sơ thiết kế Lumi](docs/architect/lumi-design/00_INDEX.md) và [Core README](services/core/README.md) để biết trạng thái, bằng chứng và giới hạn.
 
 ## Phạm vi sản phẩm Lumi
 Lumi phục vụ **học sinh THCS và THPT (khối 6–12)** trong **lớp học chính khóa**. Tiểu học, đại học và lớp học thêm không thuộc phạm vi MVP. Giao diện hướng đến học sinh phổ thông, giữ phong cách sáng, gọn, không game hóa hoặc trang trí quá mức.

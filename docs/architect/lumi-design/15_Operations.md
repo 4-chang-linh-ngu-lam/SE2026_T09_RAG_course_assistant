@@ -71,7 +71,7 @@ Bằng chứng PR #33–#38 trong repo là lịch sử riêng của từng revis
 
 ## 6. Deploy runtime hiện tại và drift
 
-Hồ sơ `SYSTEM_DESIGN.md` ngày 31/10 ghi PR #38 đã hợp nhất Core/Web; Cloud Run từng cần redeploy từ `main` và cấu hình `PUBLIC_WEB_URL` để áp dụng email link mới. Một production image trước đó được build từ working tree chưa sync. Vì vậy mỗi lần phát hành phải xác nhận:
+PR #38 đã hợp nhất Core/Web; theo cập nhật trên `main` ngày 31/10, mẫu thư mời/khôi phục nhân sự đã được triển khai trên Cloud Run Production mock từ `a01985e`, đồng thời API và tác vụ nền được cấu hình `PUBLIC_WEB_URL`. Nội dung thư mới chưa được xác minh bằng một lần gửi thực tế sau triển khai. Một image production trước đó từng được xây dựng từ mã nguồn chưa đồng bộ; vì vậy mỗi lần phát hành phải xác nhận:
 
 - Git source SHA = CI source SHA = container image provenance = runtime revision.
 - `PUBLIC_WEB_URL`, `WEB_ORIGIN`, `CORE_API_URL`, `CORS_ORIGINS`, cookie flags khớp domain/HTTPS.

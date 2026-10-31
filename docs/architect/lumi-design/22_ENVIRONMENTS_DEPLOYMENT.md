@@ -124,7 +124,7 @@ flowchart LR
 | Notification worker | Core image + worker runtime theo design | PARTIAL EVIDENCE | Worker invocation/trigger/credentials/batch, inbox end-to-end |
 | Production thực | Chưa có bằng chứng sẵn sàng cho dữ liệu học sinh thật | NOT APPROVED | Privacy policy, identity verification, backup, recovery, load, release acceptance |
 
-**Lưu ý phát hành:** trong lịch sử 30/10 có image build từ working tree chưa sync source; tài liệu mới 31/10 nói PR #38 đã merge Core/Web. Vì vậy không được tự kết luận runtime hiện nay bằng đúng `55324dc`. Cần lấy image digest và source commit ở Cloud Run, đối chiếu GitHub/CI và kiểm tra thực tế trước phát hành. Các link, account và secrets production không được ghi thẳng vào hồ sơ chia sẻ công khai.
+**Lưu ý phát hành:** trong lịch sử 30/10 có image được xây dựng từ mã nguồn chưa đồng bộ với kho Git; PR #38 sau đó đã hợp nhất Core/Web. Theo cập nhật trên `main` ngày 31/10/2026, Core Production mock đã triển khai image `production-mock-a01985e`, revision `lumi-core-api-production-00002-7jm`; kết nối PostgreSQL và cấu hình `PUBLIC_WEB_URL` cho API và tác vụ nền đã được ghi nhận. Tuy nhiên, nội dung thư mời/khôi phục thực nhận **chưa được xác minh sau lần triển khai này**; cần phát sinh yêu cầu mới và kiểm tra trực tiếp. Trước mỗi lần phát hành tiếp theo vẫn phải đối chiếu image digest, mã nguồn, kết quả CI và cấu hình môi trường; không công khai đường dẫn nhạy cảm hay thông tin xác thực.
 
 ### B4.2. Luồng request thực tế cần đo trong cloud
 

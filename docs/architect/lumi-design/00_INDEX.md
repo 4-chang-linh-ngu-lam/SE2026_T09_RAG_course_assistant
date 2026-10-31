@@ -6,10 +6,13 @@
 | Phiên bản | **2.1 – DỰ THẢO · bổ sung hồ sơ kiến trúc và môi trường thực nghiệm** |
 | Ngày lập | 31/10/2026 |
 | Repository | `4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant` |
-| Mốc đối chiếu | `main` — commit `55324dc37c85c111d439a22f57f5e26544de9ce6` |
+| Mốc thiết kế gốc | `main` — commit `55324dc37c85c111d439a22f57f5e26544de9ce6` (cơ sở kiểm kê ban đầu) |
+| Đối chiếu cập nhật | `main` — commit `382ceea5e0f474cacc2d22c8ab03b99c4c13bd0c` (tài liệu và triển khai ngày 31/10/2026) |
 | Trạng thái | **Dự thảo thiết kế, chưa được phê duyệt; không phải bằng chứng triển khai** |
 | Phạm vi | Core, Web, Document, Learning, Learner Intelligence; **không đặc tả AI Service** |
 | Ngôn ngữ | Tiếng Việt trang trọng, thống nhất; chỉ giữ thuật ngữ kỹ thuật và tên chuẩn khi cần |
+
+> **Ghi nhận mới khi hợp nhất:** Theo cập nhật trên `main` ngày 31/10/2026, mẫu thư mời và khôi phục tài khoản nhân sự đã được triển khai lên Cloud Run Production mock từ commit `a01985e`. API và tác vụ xử lý nền đã nhận cấu hình `PUBLIC_WEB_URL` trỏ đến Vercel Production; **chưa xác minh nội dung một thư thực nhận mới sau triển khai**. Các sơ đồ và phần thiết kế bên dưới giữ nguyên mốc nghiên cứu gốc, không phải xác nhận môi trường thực tế đã được kiểm thử lại.
 
 ## 1. Mục đích và cách sử dụng
 

@@ -36,17 +36,23 @@ class SMTPTokenSender:
     def _template(delivery: TokenDelivery) -> tuple[str, str, str, str]:
         if delivery.purpose == TokenPurpose.ADMIN_INVITATION:
             return (
-                "Lumi | Mời bạn thiết lập tài khoản",
+                "Lumi | Thư mời thiết lập tài khoản nhân sự",
                 "/staff/invitation",
-                "Thiết lập tài khoản",
-                "Quản trị viên nhà trường đã tạo tài khoản nhân sự cho bạn trên Lumi.",
+                "Thiết lập tài khoản Lumi",
+                (
+                    "Nhà trường trân trọng mời Quý vị hoàn tất thiết lập tài khoản nhân sự trên "
+                    "hệ thống Lumi để phục vụ công tác quản lý và giảng dạy theo phân công."
+                ),
             )
         if delivery.purpose == TokenPurpose.PASSWORD_RESET:
             return (
-                "Lumi | Đặt lại mật khẩu",
+                "Lumi | Hướng dẫn đặt lại mật khẩu",
                 "/reset-password",
                 "Đặt lại mật khẩu",
-                "Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản Lumi của bạn.",
+                (
+                    "Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản Lumi liên kết "
+                    "với địa chỉ email này. Nếu Quý vị là người gửi yêu cầu, vui lòng tiếp tục."
+                ),
             )
         raise AppError(400, "Email chỉ được gửi cho các luồng tài khoản nhân sự đã được hỗ trợ.")
 
@@ -57,37 +63,68 @@ class SMTPTokenSender:
         token = delivery.token.get_secret_value()
         link = f"{settings.public_web_url}{path}#token={quote(token, safe='')}"
         expiry = self._expiry_text(delivery)
+        salutation = "Kính gửi Quý Thầy/Cô và Quý Cán bộ Nhà trường,"
         if delivery.purpose == TokenPurpose.ADMIN_INVITATION:
             fallback = (
-                "Nếu không mở được liên kết, hãy nhập mã xác thực bên dưới tại trang nhận lời mời."
+                "Nếu nút thiết lập không mở được, Quý vị có thể truy cập trang nhận lời mời "
+                "của Lumi và nhập mã xác thực bên dưới."
             )
-            closing = "Nếu bạn không mong đợi lời mời này, hãy bỏ qua email và liên hệ quản trị viên nhà trường."
+            closing = (
+                "Nếu Quý vị không mong đợi thư mời này, vui lòng bỏ qua thư và liên hệ "
+                "quản trị viên nhà trường để được hỗ trợ."
+            )
         else:
-            fallback = "Nếu không mở được liên kết, hãy nhập mã xác thực bên dưới tại trang đặt lại mật khẩu."
-            closing = "Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email; mật khẩu hiện tại sẽ không thay đổi."
+            fallback = (
+                "Nếu nút đặt lại không mở được, Quý vị có thể truy cập trang đặt lại mật khẩu "
+                "của Lumi và nhập mã xác thực bên dưới."
+            )
+            closing = (
+                "Nếu Quý vị không yêu cầu thay đổi mật khẩu, vui lòng bỏ qua thư; mật khẩu "
+                "hiện tại sẽ không thay đổi."
+            )
+        security_note = (
+            "Liên kết và mã xác thực chỉ sử dụng được một lần, có hiệu lực đến "
+            f"{expiry}. Vui lòng không chia sẻ mã này với người khác."
+        )
+        signature = "Bộ phận vận hành hệ thống Lumi"
 
         message = EmailMessage()
         message["From"] = settings.smtp_from
         message["To"] = delivery.recipient
         message["Subject"] = subject
         message.set_content(
-            f"Xin chào,\n\n"
+            f"{salutation}\n\n"
             f"{introduction}\n\n"
-            f"Để tiếp tục, hãy mở liên kết an toàn sau:\n{link}\n\n"
-            f"{fallback}\nMã xác thực dùng một lần: {token}\n\n"
-            f"Liên kết chỉ dùng một lần và có hiệu lực đến {expiry}.\n\n"
+            f"Để tiếp tục, vui lòng mở liên kết an toàn sau:\n{action}: {link}\n\n"
+            f"{fallback}\n\n"
+            f"Mã xác thực dùng một lần: {token}\n"
+            f"{security_note}\n\n"
             f"{closing}\n\n"
-            "Trân trọng,\nĐội ngũ Lumi\n"
+            f"Trân trọng,\n{signature}\n"
         )
         message.add_alternative(
-            '<!doctype html><html lang="vi"><body>'
-            f"<p>Xin chào,</p><p>{escape(introduction)}</p>"
-            f'<p><a href="{escape(link, quote=True)}">{escape(action)}</a></p>'
-            f"<p>{escape(fallback)}</p>"
-            f"<p>Mã xác thực dùng một lần: <strong>{escape(token)}</strong></p>"
-            f"<p>Liên kết chỉ dùng một lần và có hiệu lực đến {escape(expiry)}.</p>"
-            f"<p>{escape(closing)}</p><p>Trân trọng,<br>Đội ngũ Lumi</p>"
-            "</body></html>",
+            '<!doctype html><html lang="vi"><body style="margin:0;background:#f4f6fa;'
+            'font-family:Arial,Helvetica,sans-serif;color:#1f2937">'
+            '<div style="max-width:600px;margin:32px auto;padding:32px;background:#ffffff;'
+            'border:1px solid #e5e7eb;border-radius:12px">'
+            '<p style="margin:0 0 24px;color:#315eea;font-size:13px;font-weight:700;'
+            'letter-spacing:1.4px">LUMI · TRỢ GIẢNG HỌC TẬP</p>'
+            f"<p>{escape(salutation)}</p>"
+            f'<p style="line-height:1.6">{escape(introduction)}</p>'
+            '<p style="margin:28px 0"><a '
+            f'href="{escape(link, quote=True)}" '
+            'style="display:inline-block;padding:13px 22px;background:#315eea;color:#ffffff;'
+            'text-decoration:none;border-radius:8px;font-weight:700">'
+            f"{escape(action)}</a></p>"
+            f'<p style="line-height:1.6">{escape(fallback)}</p>'
+            '<div style="margin:20px 0;padding:16px;background:#f4f6fa;border-radius:8px">'
+            f'<p style="margin:0 0 8px">Mã xác thực dùng một lần:</p>'
+            f'<p style="margin:0;font-size:18px;font-weight:700;letter-spacing:1px">'
+            f"{escape(token)}</p></div>"
+            f'<p style="line-height:1.6;color:#4b5563">{escape(security_note)}</p>'
+            f'<p style="line-height:1.6">{escape(closing)}</p>'
+            '<p style="margin-top:28px">Trân trọng,<br>'
+            f"{escape(signature)}</p></div></body></html>",
             subtype="html",
         )
         return message
