@@ -39,16 +39,20 @@ class SMTPTokenSender:
                 "Lumi | Thư mời thiết lập tài khoản nhân sự",
                 "/staff/invitation",
                 "Thiết lập tài khoản Lumi",
-                "Nhà trường trân trọng mời Quý vị hoàn tất thiết lập tài khoản nhân sự trên "
-                "hệ thống Lumi để phục vụ công tác quản lý và giảng dạy theo phân công.",
+                (
+                    "Nhà trường trân trọng mời Quý vị hoàn tất thiết lập tài khoản nhân sự trên "
+                    "hệ thống Lumi để phục vụ công tác quản lý và giảng dạy theo phân công."
+                ),
             )
         if delivery.purpose == TokenPurpose.PASSWORD_RESET:
             return (
                 "Lumi | Hướng dẫn đặt lại mật khẩu",
                 "/reset-password",
                 "Đặt lại mật khẩu",
-                "Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản Lumi liên kết "
-                "với địa chỉ email này. Nếu Quý vị là người gửi yêu cầu, vui lòng tiếp tục.",
+                (
+                    "Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản Lumi liên kết "
+                    "với địa chỉ email này. Nếu Quý vị là người gửi yêu cầu, vui lòng tiếp tục."
+                ),
             )
         raise AppError(400, "Email chỉ được gửi cho các luồng tài khoản nhân sự đã được hỗ trợ.")
 
