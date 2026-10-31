@@ -1,0 +1,7 @@
+flowchart TB
+  G["Push / Pull Request / kích hoạt thủ công"] --> T["Kiểm thử Core — PostgreSQL 16, Ruff, Alembic, pytest"]
+  G --> W["Biên dịch và kiểm tra Web — Node.js 22"]
+  G --> S["Khởi động thử bằng Compose — Core / Web / DB / Worker"]
+  G -.-> L["Kiểm tra tải Core theo yêu cầu — 100 người dùng, 600 giây"]
+  T --> E["Bằng chứng: JUnit / coverage / truy vết yêu cầu"]
+  L --> E

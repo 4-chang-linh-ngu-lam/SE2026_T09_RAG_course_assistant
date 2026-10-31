@@ -1,0 +1,13 @@
+erDiagram
+  TRUONG_HOC ||--o{ NGUOI_DUNG : pham_vi
+  TRUONG_HOC ||--o{ LOP_HANH_CHINH : quan_ly
+  LOP_HANH_CHINH ||--o{ LOP_MON_HOC : lien_ket
+  LOP_MON_HOC ||--o{ THANH_VIEN : ghi_danh
+  NGUOI_DUNG ||--o{ THANH_VIEN : tham_gia
+  LOP_MON_HOC ||--o{ PHAN_CONG_GV : phan_cong
+  NGUOI_DUNG ||--o{ PHAN_CONG_GV : giang_day
+  LOP_MON_HOC ||--o{ BAI_DANG : co
+  BAI_DANG ||--o{ BINH_LUAN : co
+  LOP_MON_HOC ||--o{ SU_KIEN_NEN : phat_sinh
+  SU_KIEN_NEN ||--o{ THONG_BAO : xu_ly
+  NGUOI_DUNG ||--o{ THONG_BAO : nhan

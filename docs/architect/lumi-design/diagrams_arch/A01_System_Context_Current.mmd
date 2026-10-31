@@ -1,0 +1,11 @@
+flowchart LR
+  A["Quản trị viên"] --> W
+  T["Giáo viên"] --> W
+  S["Học sinh"] --> W
+  subgraph Lumi["Lumi — phần lõi đã triển khai"]
+    W["Giao diện web (Next.js)"] --> P["Bộ chuyển tiếp API cùng miền"]
+    P --> C["Dịch vụ lõi FastAPI"]
+    C --> DB[("PostgreSQL 16")]
+    BW["Tác vụ nền: thông báo, thư xác thực"] --> DB
+  end
+  BW --> SMTP["Nhà cung cấp thư điện tử"]
