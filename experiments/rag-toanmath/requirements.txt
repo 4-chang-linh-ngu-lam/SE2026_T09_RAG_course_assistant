@@ -1,0 +1,4 @@
+olefile==0.47
+rank-bm25
+sentence-transformers
+numpy

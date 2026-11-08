@@ -1,0 +1,8 @@
+# Dữ liệu/kết quả sinh ra: không commit (bản quyền, dung lượng)
+out_md*/
+doc_converted/
+chunks.jsonl
+embeddings.npy
+*.log
+*_log.txt
+sample_out/
