@@ -17,7 +17,7 @@ assert not missing, missing
 
 pos = [it for it in items if it['gold']]
 neg = [it for it in items if not it['gold']]
-for mode in ['bm25', 'dense', 'hybrid']:
+for mode in ['bm25', 'dense', 'hybrid', 'rerank']:
     r1 = r5 = mrr = 0
     fails = []
     for it in pos:
@@ -31,7 +31,7 @@ for mode in ['bm25', 'dense', 'hybrid']:
             fails.append(it['q'])
     n = len(pos)
     print(f'{mode:6} R@1 {r1/n:.0%}  R@5 {r5/n:.0%}  MRR {mrr/n:.2f}  (n={n})  trượt top10: {len(fails)}')
-    if mode == 'hybrid':
+    if mode in ('hybrid', 'rerank'):
         for q in fails:
             print('   trượt:', q)
 
@@ -50,3 +50,13 @@ for t in [0.5, 0.55, 0.6, 0.65]:
     keep = sum(s >= t for s in ps) / len(ps)
     rej = sum(s < t for s in ns) / len(ns)
     print(f'  ngưỡng {t}: giữ đúng {keep:.0%} câu có dữ liệu, từ chối đúng {rej:.0%} câu ngoài dữ liệu')
+
+# Ngưỡng từ chối theo điểm reranker (logit của cross-encoder)
+ps = [R.search(it['q'], it['lop'], top=1, mode='rerank')[0]['score'] for it in pos]
+ns = [R.search(it['q'], it['lop'], top=1, mode='rerank')[0]['score'] for it in neg]
+print(f'\nđiểm reranker top1 — có dữ liệu: min {min(ps):.2f} median {np.median(ps):.2f}')
+print(f'                     ngoài dữ liệu: max {max(ns):.2f} median {np.median(ns):.2f}')
+for t in sorted(set(round(x, 1) for x in np.linspace(min(ns), max(ps), 8))):
+    keep = sum(s >= t for s in ps) / len(ps)
+    rej = sum(s < t for s in ns) / len(ns)
+    print(f'  ngưỡng {t:.1f}: giữ đúng {keep:.0%}, từ chối đúng {rej:.0%}')

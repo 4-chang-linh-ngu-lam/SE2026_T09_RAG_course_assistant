@@ -15,6 +15,8 @@ from rank_bm25 import BM25Okapi
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL = 'BAAI/bge-m3'
+RERANKER = 'BAAI/bge-reranker-v2-m3'
+RERANK_POOL = 20
 
 
 def load():
@@ -94,7 +96,19 @@ class Retriever:
         r_de = list(np.argsort(-ds)[:50])
         if mode == 'dense':
             return [self.docs[i] for i in r_de[:top]]
-        return [self.docs[i] for i in rrf([r_bm, r_de], top=top)]
+        if mode != 'rerank':
+            return [self.docs[i] for i in rrf([r_bm, r_de], top=top)]
+        cand = [self.docs[i] for i in rrf([r_bm, r_de], top=RERANK_POOL)]
+        scores = self.reranker().predict([(q, d['index_text'][:1500]) for d in cand], batch_size=8)
+        for d, s in zip(cand, scores):
+            d['score'] = float(s)
+        return sorted(cand, key=lambda d: -d['score'])[:top]
+
+    def reranker(self):
+        if not hasattr(self, '_rr'):
+            from sentence_transformers import CrossEncoder
+            self._rr = CrossEncoder(RERANKER, device='cpu', max_length=512)
+        return self._rr
 
 
 if __name__ == '__main__':

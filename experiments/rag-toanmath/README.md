@@ -7,6 +7,7 @@
 
 Nguồn: `DataSGK/ToanMathWord` (191 `.docx` + 24 `.doc`). Công thức trong file là **MathType (OLE)**, đọc trực tiếp dữ liệu MTEF → LaTeX, không dùng OCR.
 
+
 ## Chạy lại
 ```
 pip install olefile rank_bm25 sentence-transformers
@@ -15,6 +16,7 @@ python docx2md.py <ToanMathWord> out_md          # .docx -> Markdown + LaTeX
 python chunk.py out_md out_md_doc chunks.jsonl   # chia theo câu + metadata
 python retrieve.py build                         # embeddings bge-m3 (CPU)
 python retrieve.py "câu hỏi" 11                  # truy vấn, lọc lớp 11
+python answer.py "câu hỏi" --lop 10 --mode step  # hỏi đáp có trích dẫn (cần OPENAI_API_KEY)
 python eval_mtef.py <ToanMathWord>               # kiểm tra chất lượng chuyển MathType
 ```
 
@@ -33,9 +35,19 @@ python eval_mtef.py <ToanMathWord>               # kiểm tra chất lượng ch
 | BM25 | 78% | 88% | 0,83 |
 | bge-m3 | 72% | 94% | 0,82 |
 | Kết hợp (RRF) | 75% | 91% | 0,82 |
+| RRF + reranker `bge-reranker-v2-m3` (top 20) | **84%** | **97%** | **0,89** |
 
 Từ chối theo ngưỡng điểm bge-m3 top-1: 0,60 → giữ 91% câu có dữ liệu, từ chối đúng 75% câu ngoài dữ liệu; 0,65 → 81% / 100%. Ngưỡng đơn lẻ chưa đủ, cần thêm bước LLM tự kiểm tra căn cứ.
+Điểm reranker (0–1) tách tốt hơn: ngưỡng 0,3 → giữ 97%, từ chối 62%; 0,9 → 78% / 100%.
+`answer.py` dùng ngưỡng 0,3 để chặn sớm, phần còn lại do LLM trả `KHONG_DU_CAN_CU`.
 Bộ còn nhỏ (40 câu, do 1 người viết) — chỉ là tín hiệu ban đầu.
 
 ## Hệ quả cho Tutor
 - Dữ liệu này hợp để **tìm đề/bài tương tự**, không đủ làm nguồn **lời giải từng bước**. Phần lý thuyết/định nghĩa/ví dụ mẫu vẫn cần SGK.
+
+## Sinh câu trả lời (`answer.py`)
+- LLM mặc định `gpt-4o-mini` (đổi qua `OPENAI_MODEL`); key lấy từ `OPENAI_API_KEY`, không ghi vào code.
+- 2 chế độ: `quick` (QUICK_QA) và `step` (STEP_BY_STEP).
+- Fail closed: từ chối khi điểm reranker < ngưỡng, khi LLM báo thiếu căn cứ, khi không có trích dẫn hoặc trích dẫn nguồn không tồn tại.
+- Đã kiểm tra logic bằng client giả lập; **chưa chạy với API thật**.
+- Lưu ý dữ liệu: câu hỏi + đoạn đề được gửi sang OpenAI. Với chat thật của học sinh (riêng tư, E5/F3) cần nhóm duyệt provider/điều khoản trước.
