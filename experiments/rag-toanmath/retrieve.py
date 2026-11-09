@@ -21,16 +21,40 @@ RERANK_POOL = 20
 
 def load():
     ch = [json.loads(l) for l in open(os.path.join(HERE, 'chunks.jsonl'), encoding='utf-8')]
+    import answer_keys as AK
+    de_files = defaultdict(set)
+    for c in ch:
+        if c['kieu'] == 'de':
+            de_files[c['bo_de']].add(c['file'])
     ans = defaultdict(list)
     for c in ch:
         if c['kieu'] == 'dap_an' and c['cau'] != '*':
-            ans[(c['bo_de'], c['phan'], c['cau'])].append(c['text'])
+            ans[(c['bo_de'], c['phan'], c['cau'])].append((AK.code_of(c['file']), c['text']))
+
+    def solution_for(c):
+        """Chỉ ghép lời giải khi chắc cùng mã đề: mã khớp, hoặc file đáp án không ghi mã và bộ đề chỉ có 1 file đề."""
+        out = []
+        code = AK.code_of(c['file'])
+        for acode, text in ans.get((c['bo_de'], c['phan'], c['cau']), []):
+            if (acode and acode == code) or (acode is None and len(de_files[c['bo_de']]) == 1):
+                out.append(text)
+        return out
+    keys = AK.build(ch)
     docs = []
     for c in ch:
         if not c['canonical'] or c['kieu'] == 'ma_tran':
             continue
-        sol = ans.get((c['bo_de'], c['phan'], c['cau'])) if c['kieu'] == 'de' else None
+        sol = solution_for(c) if c['kieu'] == 'de' else None
         c['loi_giai'] = '\n'.join(sol) if sol else None
+        c['dap_an_tn'] = None
+        if c['kieu'] == 'de' and not sol and c['phan'] in (None, 'I', '1') and c['cau'].isdigit() and AK.is_mcq(c['text']):
+            k = keys.get((c['bo_de'], AK.code_of(c['file']) or 'file:' + c['file']))
+            if k is None and len(de_files[c['bo_de']]) == 1:  # bảng không ghi mã đề: chỉ tin khi bộ đề có 1 file đề
+                k = keys.get((c['bo_de'], None))
+            hit = k.get(int(c['cau'])) if k else None
+            if hit:
+                c['dap_an_tn'] = hit[0]
+                c['loi_giai'] = f"Đáp án trắc nghiệm (theo file đáp án «{hit[1]}»): {hit[0]}"
         head = f"Lớp {c['lop']} | {c['loai_de']} | {c['nam_hoc'] or ''} | {c['truong'] or ''}"
         c['index_text'] = head + '\n' + c['text'] + (('\n' + c['loi_giai']) if c['loi_giai'] else '')
         docs.append(c)

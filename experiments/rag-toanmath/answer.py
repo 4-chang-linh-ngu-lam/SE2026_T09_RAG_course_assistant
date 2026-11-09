@@ -34,12 +34,15 @@ _load_dotenv()
 MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 MIN_SCORE = float(os.environ.get('RAG_MIN_SCORE', '0.3'))
 TOP_K = 5
+ANSWER_MIN = float(os.environ.get('RAG_ANSWER_MIN', '0.5'))  # điểm reranker tối thiểu của nguồn có lời giải
 REFUSAL = 'Mình không tìm thấy nội dung phù hợp trong tài liệu của lớp để trả lời câu này.'
 
 SYSTEM = """Bạn là trợ giảng Toán cho học sinh Việt Nam. Quy tắc bắt buộc:
 1. CHỈ dùng thông tin trong các NGUỒN được cung cấp. Không dùng kiến thức ngoài nguồn.
 2. Mỗi ý lấy từ nguồn phải ghi trích dẫn dạng [số], ví dụ [1] hoặc [2][3]. Chỉ dùng số nguồn có trong danh sách.
-3. Nếu các nguồn không đủ để trả lời, trả về đúng một dòng: KHONG_DU_CAN_CU
+3. Nếu không thể trả lời từ nguồn, trả về ĐÚNG MỘT dòng mã sau (không viết gì thêm):
+   - CHI_CO_BAI_TUONG_TU : có nguồn cùng dạng bài/chủ đề với câu hỏi nhưng không có lời giải/đáp án để dựa vào.
+   - KHONG_LIEN_QUAN     : không nguồn nào cùng chủ đề với câu hỏi.
 4. Viết công thức bằng LaTeX trong $...$. Trả lời bằng tiếng Việt, ngắn gọn, rõ ràng.
 5. Mỗi nguồn có nhãn. Nguồn "CHỈ CÓ ĐỀ" KHÔNG chứa đáp án: tuyệt đối không nêu đáp án/kết quả/phương án đúng
    dựa trên nó (kể cả khi bạn tự biết). Chỉ được giới thiệu nó là bài tương tự để học sinh tự luyện.
@@ -47,10 +50,12 @@ SYSTEM = """Bạn là trợ giảng Toán cho học sinh Việt Nam. Quy tắc b
 
 VERIFY = """Bạn là bộ kiểm tra căn cứ. Cho các NGUỒN và một CÂU TRẢ LỜI có trích dẫn [số].
 Liệt kê mọi khẳng định toán học cụ thể trong câu trả lời (kết quả, đáp án, phương án đúng, công thức, giá trị số).
-Một khẳng định là CÓ CĂN CỨ chỉ khi nội dung đó xuất hiện tường minh (hoặc suy ra trực tiếp) từ văn bản nguồn được trích.
-Đề bài/phương án trắc nghiệm KHÔNG phải căn cứ cho việc phương án nào đúng.
-Câu giới thiệu "đây là bài tương tự trong đề [n]" và các câu hướng dẫn chung không nêu kết quả thì bỏ qua.
-Chỉ trả JSON: {"claims":[{"text":"...","supported":true|false}],"grounded":true|false}
+Một khẳng định là CÓ CĂN CỨ chỉ khi chính kết quả/giá trị đó có sẵn tường minh trong phần lời giải/đáp án của một nguồn
+nhãn [CÓ LỜI GIẢI] cho CÙNG bài toán đó. Phép tính, công thức hay kết quả do người trả lời tự thực hiện mà nguồn không ghi sẵn
+là KHÔNG căn cứ, kể cả khi đúng. Đề bài/phương án trắc nghiệm KHÔNG phải căn cứ cho việc phương án nào đúng.
+Lời giải của một bài KHÁC không phải căn cứ cho bài đang hỏi.
+Câu giới thiệu "đây là bài tương tự trong đề [n]" và hướng dẫn chung không nêu kết quả thì bỏ qua.
+Chỉ trả JSON: {"claims":[{"text":"...","sources":[số nguồn làm căn cứ],"supported":true|false}],"grounded":true|false}
 grounded=false nếu có bất kỳ khẳng định nào không có căn cứ."""
 
 MODE_HINT = {
@@ -90,8 +95,24 @@ def verify(client, docs, text):
     usage = (r.usage.prompt_tokens, r.usage.completion_tokens)
     try:
         v = json.loads(r.choices[0].message.content)
-        return bool(v.get('grounded')) and all(c.get('supported') for c in v.get('claims', [])), v, usage
-    except (ValueError, AttributeError):
+        claims = v.get('claims', [])
+        # Luật cứng thêm: mỗi khẳng định phải dựa vào ít nhất 1 nguồn CÓ LỜI GIẢI có thật.
+        claims = [c for c in claims if isinstance(c, dict)]
+
+        def backed(c):
+            ns = []
+            for n in c.get('sources') or []:
+                try:
+                    ns.append(int(str(n).strip('[] ')))
+                except ValueError:
+                    pass
+            return any(1 <= n <= len(docs) and has_solution(docs[n - 1]) for n in ns)
+        for c in claims:
+            if c.get('supported') and not backed(c):
+                c['supported'] = False
+                c['note'] = 'không trỏ tới nguồn có lời giải'
+        return bool(v.get('grounded')) and all(c.get('supported') for c in claims), v, usage
+    except (ValueError, AttributeError, TypeError):
         return False, {'error': 'verifier trả JSON lỗi'}, usage  # fail closed
 
 
@@ -106,7 +127,9 @@ def similar_only(docs):
 
 def check_citations(text, n):
     """Fail closed: phải có ít nhất 1 trích dẫn, và mọi trích dẫn phải trỏ tới nguồn có thật."""
-    cited = [int(x) for x in re.findall(r'\[(\d+)\]', text)]
+    # Bỏ phần công thức trước khi dò trích dẫn: \sqrt[2022]{..} hay [a;b] trong LaTeX không phải trích dẫn.
+    prose = re.sub(r'\$\$.*?\$\$|\$[^$]*\$|\\\[.*?\\\]|\\\(.*?\\\)', ' ', text, flags=re.S)
+    cited = [int(x) for x in re.findall(r'\[(\d{1,2})\]', prose)]
     if not cited:
         return False, 'không có trích dẫn'
     bad = [c for c in cited if not 1 <= c <= n]
@@ -129,20 +152,24 @@ def answer(q, lop, mode='quick', R=None, client=None):
                   {'role': 'user', 'content': build_prompt(q, docs, mode)}])
     text = r.choices[0].message.content.strip()
     usage = {'in': r.usage.prompt_tokens, 'out': r.usage.completion_tokens}
-    if 'KHONG_DU_CAN_CU' in text:
-        return {'status': 'refused', 'reason': 'LLM: không đủ căn cứ', 'answer': REFUSAL, 'sources': [], 'usage': usage}
-    ok, info = check_citations(text, len(docs))
     src = lambda ns: [{'n': i, 'id': docs[i - 1]['id'], 'label': source_label(docs[i - 1])} for i in ns]
     fallback = lambda why: {'status': 'similar_only', 'reason': why, 'answer': similar_only(docs),
                             'sources': src(range(1, min(3, len(docs)) + 1)), 'usage': usage}
+    if 'KHONG_LIEN_QUAN' in text:
+        return {'status': 'refused', 'reason': 'LLM: nguồn không liên quan', 'answer': REFUSAL, 'sources': [], 'usage': usage}
+    if 'CHI_CO_BAI_TUONG_TU' in text or 'KHONG_DU_CAN_CU' in text:
+        return fallback('LLM: chỉ có bài tương tự, không có lời giải')
+    ok, info = check_citations(text, len(docs))
     if not ok:
         if 'không tồn tại' in str(info):  # trích nguồn bịa -> từ chối hẳn
             return {'status': 'refused', 'reason': f'kiểm tra trích dẫn thất bại ({info})', 'answer': REFUSAL,
                     'sources': [], 'usage': usage}
         return fallback(f'kiểm tra trích dẫn thất bại ({info})')
-    # Luật cứng: nguồn "CHỈ CÓ ĐỀ" không thể làm căn cứ cho bất kỳ kết quả nào.
+    # Luật cứng: nguồn "CHỈ CÓ ĐỀ" không thể làm căn cứ; nguồn có lời giải phải rất sát câu hỏi (gần như cùng bài).
     if not any(has_solution(docs[i - 1]) for i in info):
         return fallback('mọi nguồn được trích chỉ có đề, không có lời giải')
+    if not any(has_solution(docs[i - 1]) and docs[i - 1].get('score', 0) >= ANSWER_MIN for i in info):
+        return fallback(f'nguồn có lời giải được trích không đủ sát câu hỏi (điểm < {ANSWER_MIN})')
     grounded, v, vu = verify(client, docs, text)
     usage = {'in': usage['in'] + vu[0], 'out': usage['out'] + vu[1]}
     if not grounded:

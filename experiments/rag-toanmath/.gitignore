@@ -6,3 +6,4 @@ embeddings.npy
 *.log
 *_log.txt
 sample_out/
+eval_answers_out_*.jsonl

@@ -9,6 +9,7 @@ Nguồn: `DataSGK/ToanMathWord` (191 `.docx` + 24 `.doc`). Công thức trong fi
 
 
 
+
 ## Chạy lại
 ```
 pip install olefile rank_bm25 sentence-transformers
@@ -19,6 +20,7 @@ python retrieve.py build                         # embeddings bge-m3 (CPU)
 python retrieve.py "câu hỏi" 11                  # truy vấn, lọc lớp 11
 python answer.py "câu hỏi" --lop 10 --mode step  # hỏi đáp có trích dẫn (cần OPENAI_API_KEY)
 python eval_mtef.py <ToanMathWord>               # kiểm tra chất lượng chuyển MathType
+python eval_answers.py --mode quick               # đánh giá bước trả lời (gọi API thật, ~40 câu)
 ```
 
 ## Số liệu (2026-11-08)
@@ -26,7 +28,8 @@ python eval_mtef.py <ToanMathWord>               # kiểm tra chất lượng ch
 - File `.doc` (24 file): Word chuyển sang `.docx` làm **rỗng 270/2.767 công thức** (~10%) → thành `[CÔNG THỨC LỖI]`. Muốn lấy lại phải đọc ObjectPool trong `.doc` gốc.
 - 472 ảnh dán thẳng (`w:pict`) + 395 ở file `.doc` → `[HÌNH]`, mất nội dung.
 - 3.565 chunk (3.314 đề, 222 đáp án, 29 ma trận); 2.626 là chunk của mã đề chính (mỗi bộ đề giữ 1 mã).
-- **Chỉ ~8% câu hỏi ghép được lời giải chi tiết** (44/114 bộ đề có file đáp án; nhiều file chỉ là bảng A/B/C/D).
+- Ghép căn cứ đáp án vào câu (chỉ khi khớp mã đề): 156 lời giải chữ + 294 đáp án trắc nghiệm đọc từ bảng (`answer_keys.py`, 4 kiểu bảng)
+  = **450/2.375 câu (19%)**. Trước khi bắt khớp mã đề có 41 lời giải bị ghép nhầm sang mã đề khác.
 
 ## Đánh giá truy hồi (`eval_set.jsonl`, `python eval_retrieval.py`)
 32 câu diễn đạt lại theo lời học sinh (đáp án = chunk gốc) + 8 câu ngoài dữ liệu, có lọc theo lớp.
@@ -55,7 +58,23 @@ Bộ còn nhỏ (40 câu, do 1 người viết) — chỉ là tín hiệu ban đ
   2. LLM báo `KHONG_DU_CAN_CU` → `refused`; trích nguồn không tồn tại → `refused`.
   3. Không có trích dẫn, hoặc **mọi nguồn được trích chỉ có đề** (luật cứng, không dựa LLM) → `similar_only`: chỉ liệt kê bài tương tự.
   4. LLM thứ hai (nhiệt độ 0, JSON) đối chiếu từng khẳng định với nguồn; có khẳng định không căn cứ → `similar_only`.
-- Đã chạy thật với `gpt-4o-mini` (2026-11-09) trên 6 câu: 6/6 đúng hành vi mong muốn
-  (2 trả lời có lời giải, 2 chuyển bài tương tự, 2 từ chối). Chi phí ~2.200 token vào/câu (2 lần gọi).
-- Phát hiện: bộ kiểm tra LLM từng chấp nhận phương án trắc nghiệm làm căn cứ → cần luật cứng ở bước 3.
+  5. Nguồn có lời giải được trích phải có điểm reranker ≥ 0,5 (gần như cùng bài) → nếu không: `similar_only`.
+- LLM trả mã `KHONG_LIEN_QUAN` (→ `refused`) hoặc `CHI_CO_BAI_TUONG_TU` (→ `similar_only`).
+- Dò trích dẫn bỏ qua phần công thức (`\sqrt[2022]{}` từng bị hiểu là trích dẫn [2022]).
+
+### Đánh giá bước trả lời (`eval_answers.py`, gpt-4o-mini, 2026-11-09, 40 câu)
+| Chỉ số | Kết quả |
+|---|---|
+| Hành vi đúng tổng | **37/40 (92%)** |
+| — cần trả lời (có căn cứ) | 6/8 |
+| — cần chỉ gợi ý bài tương tự | 23/24 |
+| — cần từ chối (ngoài dữ liệu) | 8/8 |
+| Trích dẫn chứa chunk đúng | 29/32 (91%) |
+| Câu được trả lời mà nội dung sai (soát tay 7 câu) | 0 |
+| Token/câu | ~2.000 vào, ~80 ra |
+
+3 ca lệch: 2 ca quá thận trọng (gợi ý thay vì trả lời), 1 ca trả lời bài "nhận biết BPT bậc nhất hai ẩn" dựa trên đáp án của câu tương tự.
+Lỗi đã tìm và sửa qua đánh giá: lời giải ghép nhầm mã đề (dẫn tới phương sai sai công thức $rac{1}{n-1}$),
+LLM kiểm tra chấp nhận lời giải của bài khác làm căn cứ → thêm luật điểm ≥ 0,5.
+Bộ 40 câu do 1 người viết, chưa đủ cho QAS-06 (≥100 câu).
 - Lưu ý dữ liệu: câu hỏi + đoạn đề được gửi sang OpenAI. Với chat thật của học sinh (riêng tư, E5/F3) cần nhóm duyệt provider/điều khoản trước.
