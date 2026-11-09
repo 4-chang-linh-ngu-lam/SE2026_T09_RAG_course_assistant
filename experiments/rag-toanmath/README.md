@@ -8,6 +8,7 @@
 Nguồn: `DataSGK/ToanMathWord` (191 `.docx` + 24 `.doc`). Công thức trong file là **MathType (OLE)**, đọc trực tiếp dữ liệu MTEF → LaTeX, không dùng OCR.
 
 
+
 ## Chạy lại
 ```
 pip install olefile rank_bm25 sentence-transformers
@@ -48,6 +49,13 @@ Bộ còn nhỏ (40 câu, do 1 người viết) — chỉ là tín hiệu ban đ
 ## Sinh câu trả lời (`answer.py`)
 - LLM mặc định `gpt-4o-mini` (đổi qua `OPENAI_MODEL`); key lấy từ `OPENAI_API_KEY`, không ghi vào code.
 - 2 chế độ: `quick` (QUICK_QA) và `step` (STEP_BY_STEP).
-- Fail closed: từ chối khi điểm reranker < ngưỡng, khi LLM báo thiếu căn cứ, khi không có trích dẫn hoặc trích dẫn nguồn không tồn tại.
-- Đã kiểm tra logic bằng client giả lập; **chưa chạy với API thật**.
+- Mỗi nguồn gắn nhãn `CÓ LỜI GIẢI` / `CHỈ CÓ ĐỀ`; cấm nêu đáp án từ nguồn chỉ có đề.
+- Kiểm tra theo thứ tự (fail closed):
+  1. Điểm reranker < ngưỡng → `refused`.
+  2. LLM báo `KHONG_DU_CAN_CU` → `refused`; trích nguồn không tồn tại → `refused`.
+  3. Không có trích dẫn, hoặc **mọi nguồn được trích chỉ có đề** (luật cứng, không dựa LLM) → `similar_only`: chỉ liệt kê bài tương tự.
+  4. LLM thứ hai (nhiệt độ 0, JSON) đối chiếu từng khẳng định với nguồn; có khẳng định không căn cứ → `similar_only`.
+- Đã chạy thật với `gpt-4o-mini` (2026-11-09) trên 6 câu: 6/6 đúng hành vi mong muốn
+  (2 trả lời có lời giải, 2 chuyển bài tương tự, 2 từ chối). Chi phí ~2.200 token vào/câu (2 lần gọi).
+- Phát hiện: bộ kiểm tra LLM từng chấp nhận phương án trắc nghiệm làm căn cứ → cần luật cứng ở bước 3.
 - Lưu ý dữ liệu: câu hỏi + đoạn đề được gửi sang OpenAI. Với chat thật của học sinh (riêng tư, E5/F3) cần nhóm duyệt provider/điều khoản trước.
