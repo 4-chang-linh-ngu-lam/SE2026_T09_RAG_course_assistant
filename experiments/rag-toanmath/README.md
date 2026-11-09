@@ -5,6 +5,8 @@
 > (bge-m3, BM25, RRF) chỉ là ứng viên chờ thiết kế được duyệt. Dữ liệu đề thi và kết quả sinh ra **không commit**
 > (xem `.gitignore`); bộ dữ liệu mô tả ở [DATA_SGK_THCS_TOANMATH](../../docs/data/DATA_SGK_THCS_TOANMATH.md) và báo cáo `ToanMathWord` của người thu thập.
 
+Thiết kế chi tiết, số liệu và các quyết định cần duyệt: [DESIGN.md](DESIGN.md).
+
 Nguồn: `DataSGK/ToanMathWord` (191 `.docx` + 24 `.doc`). Công thức trong file là **MathType (OLE)**, đọc trực tiếp dữ liệu MTEF → LaTeX, không dùng OCR.
 
 
