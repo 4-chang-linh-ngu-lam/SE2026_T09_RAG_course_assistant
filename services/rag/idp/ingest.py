@@ -14,18 +14,18 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from . import digital
-from .fallback import tesseract_marker
-from .filetypes import (
+from idp.documents import digital
+from idp.ocr.fallback import tesseract_marker
+from idp.input.filetypes import (
     InputError,
     InputLimits,
     choose_ocr_language,
     detect_file_type,
     validate_input,
 )
-from .pipeline import PIPELINE_VERSION, run_ingestion, sha256_file
-from .profiles import resolve_profile
-from .registry import DocumentRegistry
+from idp.orchestration.pipeline import PIPELINE_VERSION, run_ingestion, sha256_file
+from idp.input.profiles import resolve_profile
+from idp.orchestration.registry import DocumentRegistry
 
 
 def _image_frames(path: Path, limits: InputLimits) -> list[Image.Image]:
@@ -86,7 +86,7 @@ def _ingest_image(
             )
         except Exception as exc:
             if region_enricher and str(exc) == "tesseract fallback found no text":
-                from .fallback import lines_to_marker
+                from idp.ocr.fallback import lines_to_marker
                 marker = markers_dir / f"p{index:04d}.json"
                 marker.write_text(json.dumps(lines_to_marker([], frame.width, frame.height, index, "tesseract_fallback")), "utf-8")
                 marker_paths[index] = marker
@@ -329,11 +329,11 @@ def main() -> int:
     parser.add_argument("--layout-model-dir", type=Path)
     parser.add_argument("--layout-policy", choices=("default", "v3_vl16"), default="default")
     parser.add_argument("--region-budget", type=float, default=15)
-    from .enrichment import add_structured_arguments, structured_context
+    from idp.structured.enrichment import add_structured_arguments, structured_context
     add_structured_arguments(parser)
     args = parser.parse_args()
     try:
-        from .recovery import PaddleLayoutDetector, cli_recovery_options
+        from idp.ocr.recovery import PaddleLayoutDetector, cli_recovery_options
 
         options = cli_recovery_options(parser, args)
         with (

@@ -13,9 +13,9 @@ from pathlib import Path
 import math
 import re
 
-from .profiles import resolve_profile
-from .structure import visual_evidence, parse_table_html
-from .questions import analyze_questions
+from idp.input.profiles import resolve_profile
+from idp.structured.structure import visual_evidence, parse_table_html
+from idp.structured.questions import analyze_questions
 
 CANONICAL_VERSION = "idp-canonical-1"
 LOW_CONFIDENCE = 0.60
