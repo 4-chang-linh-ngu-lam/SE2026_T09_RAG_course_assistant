@@ -15,6 +15,22 @@ import sys
 
 from retrieve import Retriever
 
+
+def _load_dotenv(path=os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')):
+    """Đọc KEY=VALUE từ file .env cạnh script (không ghi đè biến môi trường đã có)."""
+    if not os.path.exists(path):
+        return
+    for line in open(path, encoding='utf-8'):
+        line = line.strip()
+        if line and not line.startswith('#') and '=' in line:
+            k, v = line.split('=', 1)
+            v = v.strip().strip('"').strip("'")
+            if v:
+                os.environ.setdefault(k.strip(), v)
+
+
+_load_dotenv()
+
 MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 MIN_SCORE = float(os.environ.get('RAG_MIN_SCORE', '0.3'))
 TOP_K = 5
