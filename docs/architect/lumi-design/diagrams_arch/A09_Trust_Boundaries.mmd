@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph U["Vùng không tin cậy"]
+    B["Trình duyệt — URL và dữ liệu gửi lên không phải quyền truy cập"]
+  end
+  subgraph W["Tầng web"]
+    P["Chuyển tiếp API — danh sách thao tác cho phép, kiểm tra Origin"]
+  end
+  subgraph C["Tầng nghiệp vụ"]
+    A["Core — JWT, vai trò, trạng thái, phạm vi trường/lớp"]
+    K["Tác vụ nền — dữ liệu sự kiện được kiểm soát"]
+  end
+  subgraph D["Vùng dữ liệu"]
+    DB[("PostgreSQL Core")]
+  end
+  B --> P --> A --> DB
+  K --> DB

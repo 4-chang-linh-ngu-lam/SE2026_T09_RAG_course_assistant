@@ -1,0 +1,9 @@
+flowchart LR
+  subgraph Host["Máy phát triển — Docker Compose"]
+    B["Trình duyệt"] -->|localhost:3000| W["web :3000 / Next.js"]
+    W -->|HTTP nội bộ| C["core :8000 / FastAPI"]
+    C --> DB[("db :5432 / PostgreSQL 16")]
+    K["notification-worker"] --> DB
+    M["migrate / Alembic"] --> DB
+    DB <--> V[("Docker volume pgdata")]
+  end

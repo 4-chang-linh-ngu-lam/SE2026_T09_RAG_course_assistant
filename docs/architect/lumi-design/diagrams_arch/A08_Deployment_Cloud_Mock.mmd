@@ -1,0 +1,7 @@
+flowchart LR
+  B["Trình duyệt — HTTPS"] --> V["Vercel — giao diện Next.js và chuyển tiếp API"]
+  V -->|HTTPS| C["Cloud Run — dịch vụ lõi FastAPI"]
+  C --> N[("Neon — PostgreSQL 16 / dữ liệu trường giả lập")]
+  W["Tác vụ nền — trạng thái vận hành cần xác minh"] -.-> N
+  W -.-> M["Nhà cung cấp SMTP — xác nhận thư đến còn cần kiểm thử"]
+  G["GitHub main, kết quả CI, mã phiên bản"] -. "đối chiếu nguồn phát hành" .-> C

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph Core["Đã triển khai — phiên bản thử nghiệm phần lõi"]
+    I["Danh tính và phiên truy cập"]
+    C["Lớp học, danh sách học sinh"]
+    A["Quản trị và nhật ký kiểm toán"]
+    S["Bảng tin, bình luận, lịch học"]
+    N["Thông báo trong ứng dụng"]
+  end
+  subgraph Future["Chưa triển khai — thiết kế đề xuất"]
+    D["Quản lý tài liệu và ghi chú"]
+    L["Luyện tập, đánh giá, bài tập"]
+    R["Phân tích học tập, báo cáo"]
+  end
+  AI["Trí tuệ nhân tạo — chưa thuộc phạm vi thiết kế"] -.-> Future

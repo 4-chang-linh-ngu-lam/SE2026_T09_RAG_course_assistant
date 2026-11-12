@@ -1,0 +1,16 @@
+flowchart TB
+  W["Giao diện web / yêu cầu HTTP"] --> R["Tiếp nhận và kiểm tra yêu cầu"]
+  R --> I["Danh tính và xác thực"]
+  R --> C["Quản lý lớp học"]
+  R --> S["Bảng tin, bình luận, lịch học"]
+  R --> A["Quản trị và kiểm toán"]
+  R --> N["Thông báo"]
+  I --> H["Hạ tầng chung: cấu hình, kết nối, quyền và kiểm toán"]
+  C --> H
+  S --> H
+  A --> H
+  N --> H
+  H --> DB[("PostgreSQL — lược đồ Core")]
+  C -. "giao diện công khai giữa phân hệ" .-> I
+  S -. "kiểm tra quyền lớp" .-> C
+  A -. "thao tác tài khoản qua giao diện" .-> I

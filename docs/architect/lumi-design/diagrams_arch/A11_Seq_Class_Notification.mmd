@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant Admin as Quản trị viên
+  participant Core as Dịch vụ lõi
+  participant DB as PostgreSQL
+  participant Worker as Tác vụ nền
+  participant User as Người nhận
+  Admin->>Core: Cập nhật danh sách lớp hoặc lưu trữ lớp
+  Core->>Core: Kiểm tra quyền, trường học và phiên bản
+  Core->>DB: Ghi thay đổi, nhật ký, người nhận và sự kiện trong một giao dịch
+  DB-->>Core: Giao dịch đã ghi nhận
+  Worker->>DB: Nhận sự kiện có kiểm soát và chống xử lý trùng
+  Worker->>DB: Tạo thông báo người nhận, ghi trạng thái xử lý
+  User->>Core: Mở hộp thông báo của mình
+  Core-->>User: Chỉ trả thông báo thuộc tài khoản

@@ -1,0 +1,13 @@
+flowchart LR
+  W["Giao diện web"] --> C["Dịch vụ lõi — ĐÃ TRIỂN KHAI"]
+  C --> DB[("PostgreSQL Core")]
+  W -.-> D["Tài liệu — CHƯA TRIỂN KHAI"]
+  W -.-> L["Học tập — CHƯA TRIỂN KHAI"]
+  W -.-> I["Phân tích học tập — CHƯA TRIỂN KHAI"]
+  D -. "kiểm tra quyền hiện hành" .-> C
+  L -. "kiểm tra quyền hiện hành" .-> C
+  I -. "bằng chứng đã xác nhận" .-> L
+  D -.-> DS[("Kho dữ liệu Document — CHƯA CHỐT")]
+  L -.-> LS[("Kho dữ liệu Learning — CHƯA CHỐT")]
+  I -.-> IS[("Kho dữ liệu phân tích — CHƯA CHỐT")]
+  A["Dịch vụ AI — ngoài phạm vi thiết kế hiện tại"]
