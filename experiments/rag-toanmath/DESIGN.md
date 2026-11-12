@@ -131,6 +131,21 @@ Luật 4–5 được thêm vì đánh giá cho thấy **LLM kiểm tra một m�
 
 Các lỗi tìm ra nhờ đánh giá và đã sửa: lời giải ghép nhầm mã đề (dẫn tới đáp án phương sai sai công thức), `\sqrt[2022]` bị hiểu là trích dẫn `[2022]`, LLM gộp "không liên quan" với "chỉ có bài tương tự", bộ kiểm tra chấp nhận lời giải của bài khác.
 
+### Chạy lại với key mới, cả hai chế độ (2026-11-12, 40 câu mỗi chế độ)
+
+| Chỉ số | `quick` | `step` |
+|---|---|---|
+| Hành vi đúng tổng | 35/40 (88%) | **37/40 (92%)** |
+| Từ chối đúng câu ngoài dữ liệu | 8/8 | 8/8 |
+| Chỉ gợi ý bài tương tự đúng | 21/24 | **24/24** |
+| Trả lời đúng khi có căn cứ | 6/8 | 5/8 |
+| Trích dẫn chứa đúng nguồn | 28/31 (90%) | **31/32 (97%)** |
+| Token ra / câu | ~80 | ~190 |
+
+- Giữa hai lần chạy `quick` (lần trước 37/40, lần này 35/40) kết quả lệch 2 câu dù cùng dữ liệu: LLM không tất định (nhiệt độ 0,2) nên mỗi con số nên đọc như khoảng ±2 câu, không phải số chính xác.
+- `step` thận trọng hơn: không có câu nào trả lời khi chỉ có đề; đổi lại bỏ lỡ nhiều câu có thể trả lời (5/8).
+- Soát tay các câu trả lời ngoài dự kiến ở `quick`: 1 câu có căn cứ và đúng (nhãn đánh giá chưa phản ánh việc tài liệu có lời giải của bài tương đương), 1 câu **lạc đề** (nêu bất phương trình lấy từ đề của câu khác, không trả lời câu hỏi). Chưa có câu trả lời sai nội dung.
+
 **Giới hạn của số liệu:** 40 câu, 1 người viết, chỉ chế độ `quick` → **chưa đủ làm bằng chứng QAS-06** (yêu cầu ≥ 100 câu theo phương pháp được duyệt).
 
 ## 7. Đối chiếu với TASK-018
