@@ -26,7 +26,7 @@ python eval_answers.py --mode quick               # đánh giá bước trả l�
 ```
 
 ## Số liệu (2026-11-08)
-- MathType → LaTeX: 21.622/21.657 công thức (99,8%) ở file `.docx`; khớp TeX gốc người soạn 99,64% (4.775 công thức có TeX gốc).
+- MathType → LaTeX: 21.622/21.657 công thức (99,8%) ở file `.docx`; khớp TeX gốc người soạn 99,62% (4.775 công thức có TeX gốc).
 - File `.doc` (24 file): Word chuyển sang `.docx` làm **rỗng 270/2.767 công thức** (~10%) → thành `[CÔNG THỨC LỖI]`. Muốn lấy lại phải đọc ObjectPool trong `.doc` gốc.
 - 472 ảnh dán thẳng (`w:pict`) + 395 ở file `.doc` → `[HÌNH]`, mất nội dung.
 - 3.565 chunk (3.314 đề, 222 đáp án, 29 ma trận); 2.626 là chunk của mã đề chính (mỗi bộ đề giữ 1 mã).

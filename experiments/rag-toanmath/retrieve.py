@@ -110,14 +110,17 @@ class Retriever:
             self.m = SentenceTransformer(MODEL, device='cpu')
 
     def search(self, q, lop=None, top=5, mode='hybrid'):
-        mask = np.array([lop is None or d['lop'] == lop for d in self.docs])
-        sc = self.bm.get_scores(tok(q)) * mask
-        r_bm = [i for i in np.argsort(-sc)[:50] if mask[i]]
+        # Chỉ xếp hạng trong tập được phép (fail closed): không bao giờ lấy chunk ngoài bộ lọc để "lấp chỗ".
+        allowed = np.flatnonzero([lop is None or d['lop'] == lop for d in self.docs])
+        if allowed.size == 0:
+            return []
+        sc = self.bm.get_scores(tok(q))[allowed]
+        r_bm = [int(i) for i in allowed[np.argsort(-sc)[:50]]]
         if self.emb is None or mode == 'bm25':
             return [self.docs[i] for i in r_bm[:top]]
         qv = self.m.encode([q], normalize_embeddings=True)[0]
-        ds = (self.emb @ qv) * mask - (1 - mask) * 9
-        r_de = list(np.argsort(-ds)[:50])
+        ds = self.emb[allowed] @ qv
+        r_de = [int(i) for i in allowed[np.argsort(-ds)[:50]]]
         if mode == 'dense':
             return [self.docs[i] for i in r_de[:top]]
         if mode != 'rerank':

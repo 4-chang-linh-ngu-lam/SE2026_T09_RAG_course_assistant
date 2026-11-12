@@ -54,8 +54,10 @@ flowchart LR
 | Kiểm chứng | Kết quả |
 |---|---|
 | Công thức MathType chuyển được | 21.622 / 21.657 (99,8%) |
-| Khớp TeX gốc người soạn đã gõ (4.775 công thức có chú thích TeX) | **99,64%** |
+| Khớp TeX gốc người soạn đã gõ (4.775 công thức có chú thích TeX) | **99,62%** |
 | Soát bằng mắt 10 công thức phức tạp ngẫu nhiên so với ảnh gốc | 10/10 |
+
+Bộ so khớp giữ nguyên dấu chấm thập phân/dấu nhân (`1.5` ≠ `15`); bản đầu xoá dấu chấm và tính nhầm 1 công thức là khớp (99,64% → 99,62%).
 
 Lỗi đã biết: Word làm rỗng ~270 công thức khi chuyển `.doc` → `.docx`; ~870 ảnh dán (công thức dạng ảnh) mất nội dung.
 
@@ -75,7 +77,7 @@ Lỗi đã biết: Word làm rỗng ~270 công thức khi chuyển `.doc` → `.
 | Bước | Cách làm |
 |---|---|
 | Văn bản đánh chỉ mục | `Lớp | loại đề | năm | trường` + nội dung câu + lời giải (nếu có) |
-| Lọc | theo `lop` (mô phỏng lọc theo phạm vi tài liệu được cấp quyền) |
+| Lọc | theo `lop` (mô phỏng lọc theo phạm vi tài liệu được cấp quyền); BM25 và dense chỉ xếp hạng trong tập được phép, tập rỗng → không trả kết quả (fail closed) |
 | BM25 | tách từ thường + tách lệnh LaTeX thành từ (`\frac` → `frac`) |
 | Dense | `BAAI/bge-m3`, chuẩn hoá vector, cosine |
 | Kết hợp | Reciprocal Rank Fusion (k=60) trên top 50 mỗi bên |

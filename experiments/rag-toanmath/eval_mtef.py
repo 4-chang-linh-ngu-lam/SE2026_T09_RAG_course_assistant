@@ -14,13 +14,15 @@ import zipfile
 from mtef import ole_to_latex
 
 EQUIV = [
-    (r'\dfrac', r'\frac'), (r'\tfrac', r'\frac'), (r'\cfrac', r'\frac'), (r'\left', ''), (r'\right', ''),
+    (r'\dfrac', r'\frac'), (r'\tfrac', r'\frac'), (r'\cfrac', r'\frac'),
+    (r'\left.', ''), (r'\right.', ''),  # ngoặc rỗng: dấu chấm ở đây là cú pháp, không phải toán
+    (r'\left', ''), (r'\right', ''),
     (r'\vec', r'\overrightarrow'), (r'\bar', r'\overline'), (r'\widehat', r'\hat'),
     (r'\cdots', r'\ldots'), (r'\dots', r'\ldots'), (r'\implies', r'\Rightarrow'), (r'\iff', r'\Leftrightarrow'),
     (r'\qquad', ''), (r'\quad', ''), (r'\lvert', '|'), (r'\rvert', '|'), (r'\vert', '|'),
     (r'\begin{cases}', r'\{\begin{matrix}'), (r'\end{cases}', r'\end{matrix}'),
     (r'\begin{array}{l}', r'\begin{matrix}'), (r'\end{array}', r'\end{matrix}'),
-    (r'\varnothing', r'\emptyset'), (r'\displaystyle', ''), (r'\cdot', '.'),
+    (r'\varnothing', r'\emptyset'), (r'\displaystyle', ''), (r'\cdot', '·'),
     (r'\,', ''), (r'\;', ''), (r'\ ', ''), ('~', ''),
 ]
 
@@ -33,7 +35,11 @@ def norm(s):
     s = re.sub(r'\\(geqslant|geq)(?![a-zA-Z])', r'\\ge', s)
     s = re.sub(r'\\neq(?![a-zA-Z])', r'\\ne', s)
     s = re.sub(r'\\to(?![a-zA-Z])', r'\\rightarrow', s)
-    return re.sub(r'[\s{}.]', '', s)
+    s = re.sub(r'[\s{}]', '', s)
+    s = re.sub(r'\.+$', '', s)  # chỉ bỏ dấu chấm kết câu ở cuối
+    # Giữ dấu chấm giữa biểu thức: không được để 1.5 == 15. Trong sách VN "." cũng là dấu nhân,
+    # nên "." và \cdot quy về cùng một token (2.3 == 2\cdot3), nhưng không bao giờ bị xoá.
+    return s.replace('.', '·')
 
 
 def main(root, show=15):
