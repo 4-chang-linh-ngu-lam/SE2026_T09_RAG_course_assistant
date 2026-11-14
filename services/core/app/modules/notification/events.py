@@ -67,6 +67,7 @@ EVENT_SCHEMAS = {
     "CLASS_STUDENT_TRANSFERRED": StudentTransferred,
     "HOMEROOM_STUDENT_TRANSFERRED": HomeroomTransferred,
     "SOCIAL_POST_CREATED": PostCreated,
+    "SOCIAL_POST_UPDATED": PostCreated,
     "SOCIAL_COMMENT_CREATED": CommentCreated,
     "CALENDAR_DEADLINE_CHANGED": DeadlineChanged,
 }

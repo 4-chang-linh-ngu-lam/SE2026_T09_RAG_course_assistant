@@ -129,6 +129,7 @@ const notificationCopy: Record<string, { title: string; content: string; categor
   CLASS_STUDENT_TRANSFERRED: { title: 'Thông tin chuyển lớp', content: 'Ghi danh lớp học của bạn đã được cập nhật.', category: 'CLASS', target: 'classes' },
   HOMEROOM_STUDENT_TRANSFERRED: { title: 'Thông tin lớp hành chính', content: 'Danh sách lớp hành chính của bạn đã được cập nhật.', category: 'CLASS', target: 'classes' },
   SOCIAL_POST_CREATED: { title: 'Bài viết mới', content: 'Có bài viết mới trong bảng tin lớp.', category: 'CLASS', target: 'feed' },
+  SOCIAL_POST_UPDATED: { title: 'Bài viết đã cập nhật', content: 'Một bài viết trong bảng tin lớp vừa được chỉnh sửa.', category: 'CLASS', target: 'feed' },
   SOCIAL_COMMENT_CREATED: { title: 'Bình luận mới', content: 'Có bình luận mới trong bảng tin lớp.', category: 'CLASS', target: 'feed' },
   CALENDAR_DEADLINE_CHANGED: { title: 'Lịch lớp học đã cập nhật', content: 'Thời hạn hoặc sự kiện học tập của lớp đã thay đổi.', category: 'ASSIGNMENT', target: 'calendar' },
 };

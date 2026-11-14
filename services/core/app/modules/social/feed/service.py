@@ -124,8 +124,21 @@ class FeedService:
                 raise AppError(404)
             if post.author_id != current_user.id:
                 raise AppError(403)
+            if post.body == request.body:
+                return self._response(post)
             post.body = request.body
             self.session.flush()
+            record_outbox_event(
+                self.session,
+                event_type="SOCIAL_POST_UPDATED",
+                aggregate_id=post.id,
+                payload_json={
+                    **snapshot_audience(self.session, class_id),
+                    "class_id": str(class_id),
+                    "post_id": str(post.id),
+                    "author_id": str(current_user.id),
+                },
+            )
             return self._response(post)
 
     def delete_post(

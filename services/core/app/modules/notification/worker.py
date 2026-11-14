@@ -24,6 +24,9 @@ def drain_outbox(*, session_factory=SessionLocal, batch_size: int = 100) -> int:
     Notification insert + published_at commit together. Exceptions/crashes roll
     back both, while the committed business transaction remains intact.
     """
+    # Bound direct callers too; CLI validation alone does not protect this API.
+    if type(batch_size) is not int or batch_size < 1 or batch_size > 1000:
+        raise ValueError("batch_size must be an integer between 1 and 1000")
     delivered = 0
     for _ in range(batch_size):
         event_id = None

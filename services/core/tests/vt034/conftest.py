@@ -8,11 +8,11 @@ from app.common.config import settings
 from app.common.db import get_db
 from app.common.errors import register_error_handlers
 from app.common.security import create_access_token
-from tests.notification.test_postgres import database, system  # noqa: F401, F811
+from tests.notification.test_postgres import database, system  # noqa: F401
 
 
 @pytest.fixture
-def client(system, monkeypatch):
+def client(system, monkeypatch):  # noqa: F811 -- reused pytest fixture
     monkeypatch.setattr(settings, "secret_key", SecretStr("vt034-synthetic-key-" + "x" * 32))
     app = FastAPI()
     register_error_handlers(app)

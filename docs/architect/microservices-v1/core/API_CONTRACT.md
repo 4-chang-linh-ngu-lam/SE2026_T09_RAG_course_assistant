@@ -1,5 +1,17 @@
 # Core API Contract v1
 
+## Individual change VT-034 — pending TV3/TV4 review
+
+On this branch, an authorized, content-changing `PATCH /api/v1/classes/{class_id}/posts/{post_id}`
+records `SOCIAL_POST_UPDATED` with the existing PostCreated payload schema in the
+same transaction as the edit. Equal content records no event. This reuses the
+existing worker: exclude the author; recheck current school/class/source access;
+deduplicate retries by event UUID and recipient. Payloads never include post text.
+Enqueue failure aborts the edit; delivery failure after commit retries independently.
+No HTTP schema or DB migration changes. Worker direct calls accept integer batches
+1..1000 inclusive and reject other values before DB access. Changes require team
+review before merge; no new global Business Rule is implied.
+
 **Trạng thái:** Identity, Student provisioning/activation/recovery, Classroom Admin/access, Social, Notification và Administration backend **IMPLEMENTED**; public register **BLOCKED — LEGACY**. Data requests dùng quy trình Admin thủ công đã duyệt cho ACCESS/EXPORT/CORRECTION; DELETE và retention liên service tiếp tục fail-safe. Business Rules là nguồn quyết định nghiệp vụ.
 
 ## Quy ước

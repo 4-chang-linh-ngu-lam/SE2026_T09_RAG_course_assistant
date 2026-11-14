@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
 import pytest
@@ -214,3 +215,20 @@ def test_tc13_backend_journey_patch_worker_inbox_read(system, client):
         item["id"] == str(post.id) and item["body"] == "corrected"
         for item in listing.json()["items"]
     )
+
+
+def test_tc15_two_workers_deliver_each_event_once(system):
+    post = make_post(system)
+    for i in range(5):
+        edit(system, post, f"correction-{i}")
+    due(system)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(
+            executor.map(
+                lambda _: drain_outbox(session_factory=system.factory, batch_size=10), range(2)
+            )
+        )
+    assert sum(results) == 5
+    rows = inbox(system)
+    assert len(rows) == 10 and len({row.dedup_key for row in rows}) == 10
+    assert body_in_db(system, post) == "correction-4"
