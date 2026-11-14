@@ -71,6 +71,7 @@ class InputLimits:
     max_pages: int = 5000
     max_chars: int = 10_000_000
     max_image_pixels: int = 100_000_000
+    max_total_image_pixels: int = 400_000_000
 
 
 def _zip_kind(path: Path) -> str:

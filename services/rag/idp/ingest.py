@@ -30,6 +30,7 @@ from idp.orchestration.registry import DocumentRegistry
 
 def _image_frames(path: Path, limits: InputLimits) -> list[Image.Image]:
     frames = []
+    total_pixels = 0
     with Image.open(path) as image:
         count = getattr(image, "n_frames", 1)
         if count > limits.max_pages:
@@ -39,7 +40,15 @@ def _image_frames(path: Path, limits: InputLimits) -> list[Image.Image]:
             )
         for index in range(count):
             image.seek(index)
-            frames.append(ImageOps.exif_transpose(image).convert("RGB"))
+            frame = ImageOps.exif_transpose(image).convert("RGB")
+            total_pixels += frame.width * frame.height
+            if total_pixels > limits.max_total_image_pixels:
+                raise InputError(
+                    "IMAGE_PIXEL_BUDGET_EXCEEDED",
+                    f"image frames exceed the aggregate pixel budget "
+                    f"({total_pixels} > {limits.max_total_image_pixels})",
+                )
+            frames.append(frame)
     return frames
 
 

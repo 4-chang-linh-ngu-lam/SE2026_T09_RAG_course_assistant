@@ -1563,7 +1563,24 @@ class _HtmlCollector(HTMLParser):
         self.table_cell: list[str] | None = None
         self.loose_text: list[str] = []
 
+    def _flush_loose(self):
+        if not self.loose_text:
+            return
+        text = normalize_text(" ".join(self.loose_text), self.profile)[0]
+        self.loose_text = []
+        if not text.strip():
+            return
+        self.blocks.append(_block(
+            f"p0001_b{len(self.blocks):03d}",
+            "Text",
+            None,
+            text,
+            text,
+            section_path=list(self.section_path),
+        ))
+
     def _add(self, btype: str, text: str, md: str | None = None, **kwargs):
+        self._flush_loose()
         text = normalize_text(text, self.profile)[0]
         if not text.strip() and btype not in {"Picture"}:
             return
@@ -1684,8 +1701,7 @@ def _html_pages(path: Path, assets: Path, profile: str):
     parser = _HtmlCollector(assets, path.parent, profile)
     parser.feed(raw)
     parser.close()
-    if not parser.blocks and parser.loose_text:
-        parser._add("Text", " ".join(parser.loose_text))
+    parser._flush_loose()
     return [_page(1, parser.blocks, None, page_number=1)]
 
 
