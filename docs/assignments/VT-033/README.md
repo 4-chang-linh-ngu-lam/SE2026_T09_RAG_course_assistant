@@ -12,9 +12,9 @@ all three failed profiles are retained. No operational acceptance is claimed.
 
 Read [spec/plan](spec-and-plan.md), [independent AI review](plan-review.md),
 [18 risk-based cases](test-strategy.md), [traceability](traceability.md),
-[AI usage](ai-usage.md), [coverage](coverage-summary.md), [reflection](reflection.md)
+[coverage](coverage-summary.md), [reflection](reflection.md)
 and the machine-readable [submission summary](submission.json) for actual results.
-Human/student/module-owner approval is pending. Do not merge the Draft PR.
+AI assistance is disclosed in section 6 (page 7) of the submitted PDF; the technical review evidence remains in `plan-review.md`. Human/student/module-owner approval is pending. Do not merge the Draft PR.
 
 ## Feature and important lines
 
@@ -225,10 +225,9 @@ page count. Final PDF is root `BT3_23001878_VT-033.pdf`; main8 pages plus append
 See `evidence/09-pdf-qa.json` for the actual page/text/link/font checks. The student
 must review the final report and responsibility statement before Classroom submission.
 
-Submission PDF (local only, excluded from Git):8main pages+2appendices, embedded
-Vietnamese font,8clickable links,346-word reflection. CI verification snapshot
-`359b667c0e5b03929e526b1d64755a8b298f2045` passed
-[Core CI](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/43587143297),
+Submitted PDF (local only, excluded from Git): 8 total pages, embedded Vietnamese
+font, and a 331-word reflection. Recorded CI success at commit `c970355e5d7654b5f27b668f9bd087126fa2ab06`:
+[Core CI](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/43604135809),
 with artifact JUnit439tests/0failures/0errors/0skips. Later report-only commits can
 have a newer branch head; check the PR for current CI. Performance remains FAIL.
 Run `verify_report.py --visual-review-complete` only after actually inspecting all
