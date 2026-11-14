@@ -1,0 +1,9 @@
+diff --git a/services/core/app/modules/identity/service.py b/services/core/app/modules/identity/service.py
+--- a/services/core/app/modules/identity/service.py
++++ b/services/core/app/modules/identity/service.py
+@@ -814,4 +814,4 @@
+         with transaction(self.session):
+             user = self.repository.get_by_id(user_id, for_update=True)
+-            if user is None or user.status != UserStatus.ACTIVE:
++            if user is None:
+                 raise AppError(401)

@@ -1,0 +1,12 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____________ test_data_requests_pagination_and_cross_user_access _____________
+tests\identity\test_router.py:520: in test_data_requests_pagination_and_cross_user_access
+    assert all(item["user_id"] == first_user.json()["user_id"] for item in page["items"])
+E   assert False
+E    +  where False = all(<generator object test_data_requests_pagination_and_cross_user_access.<locals>.<genexpr> at 0x0000023AEE4DA6C0>)
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+=========================== short test summary info ===========================
+FAILED tests/identity/test_router.py::test_data_requests_pagination_and_cross_user_access
+1 failed in 2.35s

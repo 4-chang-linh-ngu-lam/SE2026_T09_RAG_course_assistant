@@ -1,7 +1,8 @@
 Exploratory run diagnosis
 
-The first 150-user x 10-round run sent a unique Idempotency-Key on every measured
-request and on the 150-request warm-up. It recorded 850 HTTP 201 and 650 HTTP 503.
+The diagnostic 150-user x 10-round run against POST /api/v1/users/me/data-export
+sent a unique Idempotency-Key on every measured request and on the 150-request
+warm-up. It recorded 850 HTTP 201 and 650 HTTP 503 with code SERVICE_UNAVAILABLE.
 
 The bounded IdempotencyStore defaults to 1,000 keys. The 150 warm-up keys plus the
 first 850 measured keys fill that limit; the remaining 650 requests are rejected
@@ -9,7 +10,8 @@ with SERVICE_UNAVAILABLE. This matches the observed counts and the guard in
 app/modules/identity/idempotency.py. It is a harness setup error for this workload,
 not evidence of a database failure.
 
-The benchmark now omits Idempotency-Key because each POST is a distinct user intent.
-Runs 2 and 3 each recorded 1,500/1,500 HTTP 201, zero response/scope/contract/DB
-mismatches, and client p95 below 4.0 seconds. Retry/idempotency cache capacity is
-not measured by those two runs; the separate API tests cover replay behavior.
+The p95 benchmark omits Idempotency-Key because each POST is a distinct user intent.
+Runs 2 and 3 against the dedicated route each recorded 1,500/1,500 HTTP 201, zero
+response/scope/contract/DB mismatches, and client p95 below 4.0 seconds. Retry
+cache capacity is measured separately by this diagnostic; same-key replay is
+covered by the API test.

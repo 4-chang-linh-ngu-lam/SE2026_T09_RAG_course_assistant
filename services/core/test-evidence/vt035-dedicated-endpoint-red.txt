@@ -1,0 +1,26 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_ test_personal_data_export_request_creates_pending_request_for_current_user __
+tests\identity\test_router.py:561: in test_personal_data_export_request_creates_pending_request_for_current_user
+    assert pending.status_code == 201
+E   assert 404 == 201
+E    +  where 404 = <Response [404 Not Found]>.status_code
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+_ test_data_request_manual_resolution_requires_verification_and_audit[EXPORT] _
+tests\administration\test_postgres.py:754: in test_data_request_manual_resolution_requires_verification_and_audit
+    assert created.status_code == 201
+E   assert 404 == 201
+E    +  where 404 = <Response [404 Not Found]>.status_code
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+______________________ test_openapi_auth_contract_shapes ______________________
+tests\identity\test_openapi.py:47: in test_openapi_auth_contract_shapes
+    assert len(contract["paths"]) == 14
+E   AssertionError: assert 13 == 14
+E    +  where 13 = len({'/api/v1/auth/register': {'post': {'tags': ['Identity'], 'summary': 'Register', 'operationId': 'register_api_v1_auth_...auth_activate_post', 'requestBody': {'content': {'application/json': {'schema': {...}}}, 'required': True}, ...}}, ...})
+=========================== short test summary info ===========================
+FAILED tests/identity/test_router.py::test_personal_data_export_request_creates_pending_request_for_current_user
+FAILED tests/administration/test_postgres.py::test_data_request_manual_resolution_requires_verification_and_audit[EXPORT]
+FAILED tests/identity/test_openapi.py::test_openapi_auth_contract_shapes - As...
+3 failed in 3.76s

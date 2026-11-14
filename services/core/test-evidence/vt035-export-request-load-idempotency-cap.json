@@ -1,7 +1,7 @@
 {
-  "scope": "Authenticated Core Identity EXPORT request creation only; no data file is generated or delivered",
+  "scope": "Authenticated POST /users/me/data-export request creation only; no data file is generated or delivered",
   "policy": "Admin identity verification and approved manual handoff remain required by the current contract",
-  "recorded_at_utc": "2026-11-14T05:23:00.145453+00:00",
+  "recorded_at_utc": "2026-11-14T07:17:48.544894+00:00",
   "users": 150,
   "rounds": 10,
   "warmup_rounds": 1,
@@ -14,6 +14,9 @@
   "worker_count": 1,
   "database_pool_size": 5,
   "database_max_overflow": 10,
+  "database_pool_timeout_seconds": 3,
+  "auth_idempotency_max_keys": 1000,
+  "idempotency_key_used": true,
   "warmup_passed": true,
   "status_counts": {
     "201": 850,
@@ -23,15 +26,19 @@
   "scope_or_contract_mismatches": 0,
   "contract_errors": 0,
   "transport_errors": 0,
-  "non_200_responses": {
+  "non_201_responses": {
     "503": 650
   },
-  "client_p95_ms": 1870.376099999703,
-  "client_p99_ms": 3270.5061999986356,
-  "client_max_ms": 3750.491400000101,
-  "app_p95_ms": 22.8201000008994,
-  "app_p99_ms": 32.62960000029125,
-  "app_max_ms": 72.14709999971092,
+  "non_201_error_codes": {
+    "SERVICE_UNAVAILABLE": 650
+  },
+  "warmup_non_201_error_codes": {},
+  "client_p95_ms": 2111.9235000005574,
+  "client_p99_ms": 3494.454300001962,
+  "client_max_ms": 3807.2094000017387,
+  "app_p95_ms": 25.300099998275982,
+  "app_p99_ms": 37.34149999945657,
+  "app_max_ms": 80.15289999821107,
   "database_persisted_scope_mismatches": 0,
   "target_p95_ms": 4000,
   "passed": false,

@@ -76,6 +76,7 @@ async def run_round(
     client,
     actors,
     round_number,
+    idempotency_key_per_request,
     client_latencies,
     status_counts,
     scope_mismatches,
@@ -89,13 +90,13 @@ async def run_round(
         user_id, token = actor
         started = time.perf_counter()
         try:
+            headers = {"Authorization": f"Bearer {token}"}
+            if idempotency_key_per_request:
+                headers["Idempotency-Key"] = str(uuid4())
             response = await client.post(
-                "/api/v1/users/me/data-requests",
-                headers={"Authorization": f"Bearer {token}"},
-                json={
-                    "type": "EXPORT",
-                    "reason": f"VT035-load-{user_id.hex}-{round_number}",
-                },
+                "/api/v1/users/me/data-export",
+                headers=headers,
+                json={"reason": f"VT035-load-{user_id.hex}-{round_number}"},
             )
             status = str(response.status_code)
             status_counts[status] = status_counts.get(status, 0) + 1
@@ -148,6 +149,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--users", type=int, default=150)
     parser.add_argument("--rounds", type=int, default=10)
+    parser.add_argument(
+        "--idempotency-key-per-request",
+        action="store_true",
+        help="Diagnostic: use a fresh key per intent to measure bounded retry-cache capacity",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if not 1 <= args.users <= 150 or args.rounds < 1:
@@ -211,7 +217,7 @@ def main() -> None:
                         collecting
                         and scope["type"] == "http"
                         and scope["method"] == "POST"
-                        and scope["path"] == "/api/v1/users/me/data-requests"
+                        and scope["path"] == "/api/v1/users/me/data-export"
                     ):
                         backend_samples.append(((time.perf_counter() - started) * 1000, status))
 
@@ -271,6 +277,7 @@ def main() -> None:
                     client,
                     actors,
                     "warmup",
+                    args.idempotency_key_per_request,
                     [],
                     warmup_statuses,
                     warmup_scope_mismatches,
@@ -286,6 +293,7 @@ def main() -> None:
                         client,
                         actors,
                         round_number,
+                        args.idempotency_key_per_request,
                         client_latencies,
                         status_counts,
                         scope_mismatches,
@@ -337,7 +345,7 @@ def main() -> None:
             and not warmup_response_error_codes
         )
         report = {
-            "scope": "Authenticated Core Identity EXPORT request creation only; no data file is generated or delivered",
+            "scope": "Authenticated POST /users/me/data-export request creation only; no data file is generated or delivered",
             "policy": "Admin identity verification and approved manual handoff remain required by the current contract",
             "recorded_at_utc": datetime.now(UTC).isoformat(),
             "users": args.users,
@@ -354,7 +362,7 @@ def main() -> None:
             "database_max_overflow": settings.database_max_overflow,
             "database_pool_timeout_seconds": settings.database_pool_timeout_seconds,
             "auth_idempotency_max_keys": settings.auth_idempotency_max_keys,
-            "idempotency_key_used": False,
+            "idempotency_key_used": args.idempotency_key_per_request,
             "warmup_passed": warmup_passed,
             "status_counts": status_counts,
             "success_ratio": success,

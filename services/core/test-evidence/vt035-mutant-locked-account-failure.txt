@@ -1,0 +1,14 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+______________ test_create_export_request_rejects_locked_account ______________
+tests\identity\test_service.py:180: in test_create_export_request_rejects_locked_account
+    expect_error(
+tests\identity\test_service.py:126: in expect_error
+    with pytest.raises(AppError) as raised:
+         ^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE AppError
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+=========================== short test summary info ===========================
+FAILED tests/identity/test_service.py::test_create_export_request_rejects_locked_account
+1 failed in 2.01s

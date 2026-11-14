@@ -1,0 +1,9 @@
+diff --git a/services/core/app/modules/identity/repository.py b/services/core/app/modules/identity/repository.py
+--- a/services/core/app/modules/identity/repository.py
++++ b/services/core/app/modules/identity/repository.py
+@@ -72,4 +72,4 @@
+-        query = select(DataRequest).where(DataRequest.user_id == user_id)
++        query = select(DataRequest)
+         if cursor is not None:
+             query = query.where(DataRequest.id > cursor)
+         return list(self.session.scalars(query.order_by(DataRequest.id).limit(limit + 1)))

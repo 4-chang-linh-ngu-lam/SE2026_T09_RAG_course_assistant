@@ -99,18 +99,18 @@ the workflow file existing.
 
 ## VT-035 export-request characterization
 
-The current approved flow records an `EXPORT` data request as `PENDING`; an Admin
-must verify the requester and confirm the school-approved manual handoff before
-marking it complete. Core does not create or deliver an export file. The
-characterization tests protect that request-only boundary, owner scope, and the
-Admin verification/attestation checks.
+The VT-035 branch adds `POST /api/v1/users/me/data-export` as a request-only alias:
+it records an `EXPORT` DataRequest as `PENDING`, without creating or delivering a
+file. An Admin must verify the requester and confirm the school-approved manual
+handoff before marking it complete. The branch characterization tests protect
+that boundary, owner scope, and the Admin verification/attestation checks.
 
 From `services/core`, with `TEST_DATABASE_URL` set to a disposable PostgreSQL
 server/account with `CREATEDB`:
 
 ```sh
 python -m pytest tests/identity/test_router.py -k 'personal_data_export_request or concurrent_personal_data_export_requests' -q -W error
-python -m pytest tests/identity/test_schemas.py -k export_request_response -q -W error
+python -m pytest tests/identity/test_schemas.py -k 'export_request' -q -W error
 python -m pytest tests/identity/test_openapi.py tests/administration/test_postgres.py -k 'openapi_auth_contract_shapes or data_request_manual_resolution_requires_verification_and_audit' -q -W error
 python tests/performance/data_export_request_load.py --users 150 --rounds 10 --output test-evidence/vt035-export-request-load.json
 ```
@@ -122,6 +122,11 @@ request intake, not file generation, out-of-band delivery, or full-service expor
 It uses one Uvicorn worker on loopback and omits `Idempotency-Key` because each POST
 is a distinct user intent; retry-cache behavior is a separate test concern. Local
 results do not certify production capacity.
+
+For a cache-capacity diagnostic, repeat with `--idempotency-key-per-request`; that
+mode intentionally creates a fresh cache key for every intent and can exceed the
+configured 1,000-key bound. Treat its 503 result as a separate retry-cache limit,
+not as the request-intake p95 run.
 
 ## Corrections discovered by this suite
 
