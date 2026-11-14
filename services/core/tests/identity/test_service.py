@@ -28,6 +28,7 @@ from app.modules.identity import public
 from app.modules.identity.models import (
     AuthSession,
     CredentialDelivery,
+    DataRequest,
     DataRequestType,
     OneTimeToken,
     Role,
@@ -108,6 +109,7 @@ def identity(engine, monkeypatch):
     school_ids = session.info.pop("test_school_ids")
     session.close()
     with engine.begin() as connection:
+        connection.execute(delete(DataRequest).where(DataRequest.user_id.in_(created_ids)))
         connection.execute(delete(User).where(User.id.in_(created_ids)))
         connection.execute(delete(School).where(School.id.in_(school_ids)))
 

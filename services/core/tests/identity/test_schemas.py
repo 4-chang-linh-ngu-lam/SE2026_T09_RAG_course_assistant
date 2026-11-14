@@ -8,6 +8,7 @@ from app.modules.identity.models import DataRequestStatus, DataRequestType, User
 from app.modules.identity.schemas import (
     ActivateStudentRequest,
     AdminCreateStudentRequest,
+    CreateDataExportRequest,
     DataRequestResponse,
     LoginRequest,
     RegisterRequest,
@@ -76,6 +77,13 @@ def test_export_request_response_is_metadata_not_an_export_payload():
         "created_at",
         "updated_at",
     }
+
+
+def test_data_export_request_schema_rejects_target_user():
+    request = CreateDataExportRequest(reason="User-requested export")
+    assert request.reason == "User-requested export"
+    with pytest.raises(ValidationError):
+        CreateDataExportRequest(reason="User-requested export", user_id=uuid4())
 
 
 @pytest.mark.parametrize(

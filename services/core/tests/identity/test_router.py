@@ -605,6 +605,21 @@ def test_personal_data_export_request_rejects_client_selected_owner(http):
     assert response.status_code == 422
 
 
+def test_personal_data_export_request_replays_same_idempotency_key(http):
+    client, _, register, _ = http
+    email, _ = register()
+    headers = {**bearer(login(client, email)), "Idempotency-Key": str(uuid4())}
+    body = {"reason": "same export intent"}
+
+    first = client.post("/api/v1/users/me/data-export", headers=headers, json=body)
+    retry = client.post("/api/v1/users/me/data-export", headers=headers, json=body)
+
+    assert first.status_code == retry.status_code == 201
+    assert first.json() == retry.json()
+    history = client.get("/api/v1/users/me/data-requests", headers=headers)
+    assert [row["id"] for row in history.json()["items"]] == [first.json()["id"]]
+
+
 def test_concurrent_personal_data_export_requests_preserve_each_owner_scope(http, engine):
     _, _, _, app = http
     actors = []
