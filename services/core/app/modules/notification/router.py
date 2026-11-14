@@ -1,11 +1,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.common.auth_dependencies import CurrentUser, get_current_user
+from app.common.config import settings
 from app.common.db import get_db
 from app.common.errors import ErrorEnvelope
 from app.common.pagination import Pagination, get_pagination
@@ -23,13 +24,24 @@ def get_notification_service(session: Annotated[Session, Depends(get_db)]) -> No
     return NotificationService(session)
 
 
+def get_notification_pagination(
+    limit: Annotated[int | None, Query(ge=1, le=100)] = None,
+    cursor: Annotated[str | None, Query(max_length=22)] = None,
+) -> Pagination:
+    return get_pagination(
+        limit=settings.notification_page_size_default if limit is None else limit, cursor=cursor
+    )
+
+
 User = Annotated[CurrentUser, Depends(get_current_user)]
 Service = Annotated[NotificationService, Depends(get_notification_service)]
 
 
 @router.get("", response_model=NotificationListResponse)
 def list_notifications(
-    user: User, pagination: Annotated[Pagination, Depends(get_pagination)], service: Service
+    user: User,
+    pagination: Annotated[Pagination, Depends(get_notification_pagination)],
+    service: Service,
 ) -> Response:
     result = service.list_notifications(user.id, pagination)
     return JSONResponse(result.model_dump(mode="json"), headers={"Cache-Control": "no-store"})

@@ -32,6 +32,10 @@ Common, Identity, Classroom Admin/access, Social, Notification và Administratio
 
 ## Notification (TASK-012)
 
+- Default inbox page size: `NOTIFICATION_PAGE_SIZE_DEFAULT` (integer 1–100, default 20).
+  Settings are validated when the process starts; restart after changing the environment.
+  An explicit valid `limit` overrides this default. Invalid configuration prevents startup.
+  This setting affects only Notification; other pagination defaults remain 20.
 - API đã đăng ký: `GET /api/v1/notifications?limit=&cursor=` → `{items,unread_count,next_cursor}`; `PATCH /api/v1/notifications/{id}/read` → `{id,read:true}`; `POST /api/v1/notifications/read-all` → 204. Bearer authentication lấy user hiện hành từ Identity; chỉ đọc/sửa inbox của chính mình. ID người khác/không tồn tại trả 404, cursor ngoài inbox trả 400. Response có `Cache-Control: no-store`.
 - Outbox thuộc Common: `record_outbox_event(session, *, event_type, aggregate_id, payload_json, schema_version=2, aggregate_version=None)` thêm event có UUID ổn định, không commit. `aggregate_version` mặc định lấy `payload.version`. V1 được dành cho event cũ không có snapshot người nhận và worker bỏ qua; V2 producer phải ghi snapshot cùng mutation trong một transaction. Lỗi enqueue phải rollback mutation. Không đưa token, activation/reset code hoặc nội dung riêng tư vào event.
 - `notification.public.snapshot_audience(session, class_id)` trả `{school_id,recipient_ids}` từ `classroom.public.get_notification_audience(class_id, *, session=None, homeroom=False) -> NotificationAudienceDTO | None`. Classroom bổ sung người vừa kết thúc membership/assignment vào snapshot thông báo thay đổi. Worker kiểm tra lại trường của từng người nhận qua Identity public; Social còn kiểm tra quyền lớp hiện hành và post chưa xóa. Thông báo chỉ chứa ID/phiên bản, không cấp quyền mở nguồn.
