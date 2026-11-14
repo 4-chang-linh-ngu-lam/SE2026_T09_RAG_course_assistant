@@ -1,0 +1,183 @@
+......................No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+No new upgrade operations detected.
+.......No new upgrade operations detected.
+..................... [ 16%]
+..................................No new upgrade operations detected.
+...................................... [ 32%]
+.No new upgrade operations detected.
+............................No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+No new upgrade operations detected.
+.No new upgrade operations detected.
+......No new upgrade operations detected.
+......No new upgrade operations detected.
+.No new upgrade operations detected.
+..No new upgrade operations detected.
+No new upgrade operations detected.
+.....No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+............. [ 49%]
+...............................No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+No new upgrade operations detected.
+........................No new upgrade operations detected.
+. [ 65%]
+No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+.No new upgrade operations detected.
+........................................................... [ 82%]
+........................................................................ [ 98%]
+.......                                                                  [100%]
+=============================== tests coverage ================================
+______________ coverage: platform win32, python 3.12.14-final-0 _______________
+
+Name                                          Stmts   Miss Branch BrPart  Cover   Missing
+-----------------------------------------------------------------------------------------
+app\__init__.py                                   0      0      0      0   100%
+app\background_worker.py                         32     32     12      0     0%   3-54
+app\bootstrap.py                                 19      0      0      0   100%
+app\common\__init__.py                            0      0      0      0   100%
+app\common\admission.py                          24      1      4      1    93%   14
+app\common\audit.py                              37      1      6      1    95%   71
+app\common\auth_dependencies.py                  55      1     14      1    97%   75
+app\common\config.py                             59      0      8      0   100%
+app\common\db.py                                 32      0      2      0   100%
+app\common\errors.py                             50      0      4      0   100%
+app\common\outbox.py                             24      0      0      0   100%
+app\common\pagination.py                         28      1      4      1    94%   33
+app\common\security.py                           48      1      6      1    96%   46
+app\integrations\__init__.py                      0      0      0      0   100%
+app\main.py                                      11      0      0      0   100%
+app\maintenance\__init__.py                       0      0      0      0   100%
+app\maintenance\__main__.py                     145     28     48     13    76%   47-48, 70, 75-76, 78, 151, 164, 170, 184, 190, 204, 211, 224-239, 243, 250, 255-258, 260-262, 270
+app\maintenance\database.py                     210     18     98     18    88%   68, 108, 134, 140, 145, 190, 262, 345, 351, 379, 385, 410, 412, 414, 418, 430, 433, 450
+app\maintenance\migration_safety.py              50      8     38      3    83%   38-41, 45-47, 77
+app\model_registry.py                            11      0      0      0   100%
+app\modules\__init__.py                           0      0      0      0   100%
+app\modules\administration\__init__.py            0      0      0      0   100%
+app\modules\administration\import_parser.py     105     10     56     10    88%   29, 42, 58, 61, 69, 73, 76, 81, 104, 127
+app\modules\administration\models.py             18      0      0      0   100%
+app\modules\administration\repository.py         32      3     14      3    87%   44, 48, 50
+app\modules\administration\router.py             86      5      4      2    92%   57, 75-76, 79, 206
+app\modules\administration\schemas.py            90      7      6      1    88%   33, 39-44
+app\modules\administration\service.py           161     10     38      4    93%   150, 206-212, 313, 397, 410-411
+app\modules\classroom\__init__.py                 0      0      0      0   100%
+app\modules\classroom\maintenance.py             42      3     22      3    91%   49, 54, 56
+app\modules\classroom\models.py                  82      0      0      0   100%
+app\modules\classroom\permissions.py             21      2      8      2    86%   23, 29
+app\modules\classroom\public.py                  82      5     26      3    93%   66, 103, 160, 178-179
+app\modules\classroom\repository.py              79      2     14      3    95%   176->192, 193, 251
+app\modules\classroom\router.py                 129     14     20      5    87%   71, 106, 119, 125, 151, 156, 161, 212, 260, 290-291, 302, 367, 491
+app\modules\classroom\schemas.py                174      4      8      1    96%   93, 175-177
+app\modules\classroom\service.py                387     47    134     36    84%   54-55, 101, 126, 136, 143, 146, 151, 156, 171, 177-178, 232, 243-244, 299, 313, 318, 325, 327, 372, 383, 385, 425-426, 430, 471-472, 554, 574, 577, 589-590, 607, 616, 626, 658, 665->688, 705, 708-710, 726, 740, 746, 750, 752, 790, 792->803
+app\modules\health\__init__.py                    0      0      0      0   100%
+app\modules\health\router.py                     22      0      0      0   100%
+app\modules\identity\__init__.py                  0      0      0      0   100%
+app\modules\identity\admin_public.py            243     38    108     27    80%   108-111, 121, 125-126, 136-140, 143->152, 202, 256, 269, 276, 277->285, 279, 281, 286, 289-290, 292->294, 294->296, 296->311, 332, 336->360, 348, 376, 383, 385, 394, 433, 441-454, 481, 492, 518->537
+app\modules\identity\admin_schemas.py            69      2     10      2    95%   94, 100
+app\modules\identity\admin_security.py           12      0      2      0   100%
+app\modules\identity\credential_tokens.py        17      0      2      0   100%
+app\modules\identity\delivery_worker.py          45     45     16      0     0%   7-84
+app\modules\identity\email_delivery.py           75      6     24      5    89%   20, 22, 31, 61, 155, 161
+app\modules\identity\http_security.py            23      0      4      0   100%
+app\modules\identity\idempotency.py              61      0     16      0   100%
+app\modules\identity\maintenance.py             131      9     58      9    90%   89, 117, 179, 189, 268, 279, 287, 290, 307
+app\modules\identity\models.py                   78      0      0      0   100%
+app\modules\identity\public.py                   81      0      2      0   100%
+app\modules\identity\rate_limit.py               67      0     20      0   100%
+app\modules\identity\repository.py               97      2     22      2    97%   93, 184->186, 206
+app\modules\identity\router.py                  151      0     14      1    99%   263->265
+app\modules\identity\schemas.py                 128      5     14      2    94%   49, 175-178
+app\modules\identity\service.py                 457     52    142     31    85%   134, 142, 178, 219-222, 264, 287->295, 308, 315, 343, 352, 371, 376, 379->exit, 432-437, 453, 460, 484-485, 493, 498, 500, 510-512, 525, 527-529, 532-534, 548, 642-643, 657-659, 660->664, 662, 677-679, 692, 743, 746, 751-752, 817, 832, 909
+app\modules\notification\__init__.py              0      0      0      0   100%
+app\modules\notification\events.py               83      2     26      2    96%   101, 114
+app\modules\notification\models.py               17      0      0      0   100%
+app\modules\notification\public.py               10      0      2      0   100%
+app\modules\notification\repository.py           34      0      8      1    98%   73->exit
+app\modules\notification\router.py               31      0      0      0   100%
+app\modules\notification\schemas.py              16      0      0      0   100%
+app\modules\notification\service.py              25      0      0      0   100%
+app\modules\notification\worker.py               66     20     20      4    63%   28->92, 75, 83->28, 89-91, 96-110, 114
+app\modules\social\__init__.py                    0      0      0      0   100%
+app\modules\social\access.py                     34      0     10      0   100%
+app\modules\social\calendar\__init__.py           0      0      0      0   100%
+app\modules\social\calendar\models.py            21      0      0      0   100%
+app\modules\social\calendar\repository.py        42      8     12      5    72%   23->25, 32->34, 60, 62, 64-72, 90-91
+app\modules\social\calendar\router.py            37      3      0      0    92%   90, 100-101
+app\modules\social\calendar\schemas.py           64      2     12      2    95%   28, 55
+app\modules\social\calendar\service.py           85     11     28      7    82%   57, 59, 61, 127-130, 147, 150, 165, 182
+app\modules\social\comments\__init__.py           0      0      0      0   100%
+app\modules\social\comments\models.py            14      0      0      0   100%
+app\modules\social\comments\repository.py        25      4      6      2    74%   24->26, 34-42
+app\modules\social\comments\router.py            34      1      0      0    97%   83
+app\modules\social\comments\schemas.py           28      0      2      0   100%
+app\modules\social\comments\service.py           75      8     18      6    83%   38->42, 143-147, 162, 165, 167, 170->exit
+app\modules\social\feed\__init__.py               0      0      0      0   100%
+app\modules\social\feed\models.py                14      0      0      0   100%
+app\modules\social\feed\public.py                18      0      2      0   100%
+app\modules\social\feed\repository.py            29      1      8      2    92%   29->31, 54
+app\modules\social\feed\router.py                39      4      0      0    90%   53, 57, 99-100
+app\modules\social\feed\schemas.py               34      1      4      1    95%   39
+app\modules\social\feed\service.py               68      7     14      3    85%   125-129, 142, 145
+app\modules\social\router.py                      9      0      0      0   100%
+app\modules\social\schemas.py                     6      0      0      0   100%
+-----------------------------------------------------------------------------------------
+TOTAL                                          5038    434   1220    226    88%
+Coverage XML written to file ../../docs/assignments/VT-033/evidence/05-coverage.xml
+Coverage JSON written to file ../../docs/assignments/VT-033/evidence/05-coverage.json
+439 passed in 801.73s (0:13:21)

@@ -1,0 +1,20 @@
+{
+  "started_at_utc": "2026-11-14T10:13:13.625682+00:00",
+  "finished_at_utc": "2026-11-14T10:13:13.930943+00:00",
+  "sha": "6dd9ebfea7ae8617a04fb3ff5b570f93c23322bb",
+  "branch": "assignment/23001878-vt033-notification-config",
+  "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "ruff",
+    "check",
+    "app",
+    "tests",
+    "migrations"
+  ],
+  "exit_code": 0,
+  "application_sha256": "f86c69a4d62db853a7fb69c2496115b4dc368088cb2016d6ef275b54d0183907",
+  "test_database_configured": true,
+  "log": "02-green-lint.log"
+}

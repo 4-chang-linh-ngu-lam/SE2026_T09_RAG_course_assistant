@@ -1,0 +1,24 @@
+{
+  "started_at_utc": "2026-11-14T10:11:34.371424+00:00",
+  "finished_at_utc": "2026-11-14T10:13:13.215278+00:00",
+  "sha": "6dd9ebfea7ae8617a04fb3ff5b570f93c23322bb",
+  "branch": "assignment/23001878-vt033-notification-config",
+  "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/notification",
+    "-q",
+    "-W",
+    "error",
+    "-p",
+    "no:cacheprovider",
+    "--tb=short",
+    "--junitxml=../../docs/assignments/VT-033/evidence/02-green-notification-junit.xml"
+  ],
+  "exit_code": 0,
+  "application_sha256": "f86c69a4d62db853a7fb69c2496115b4dc368088cb2016d6ef275b54d0183907",
+  "test_database_configured": true,
+  "log": "02-green-notification.log"
+}

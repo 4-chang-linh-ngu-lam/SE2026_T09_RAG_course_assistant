@@ -1,0 +1,27 @@
+{
+  "started_at_utc": "2026-11-14T10:37:06.140541+00:00",
+  "finished_at_utc": "2026-11-14T10:40:51.651426+00:00",
+  "sha": "c7f8ac2672a967aa6552a66949363a1a4dde3799",
+  "branch": "assignment/23001878-vt033-notification-config",
+  "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "tests/performance/vt033_notification_load.py",
+    "--client-library",
+    "httpx2",
+    "--users",
+    "120",
+    "--page-size",
+    "2",
+    "--warmup-seconds",
+    "30",
+    "--duration-seconds",
+    "180",
+    "--output",
+    "../../docs/assignments/VT-033/evidence/07-load.json"
+  ],
+  "exit_code": 1,
+  "application_sha256": "f86c69a4d62db853a7fb69c2496115b4dc368088cb2016d6ef275b54d0183907",
+  "test_database_configured": true,
+  "log": "07-load-httpx2-run.log"
+}

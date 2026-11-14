@@ -1,0 +1,16 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+__________________ test_configured_inbox_business_outcome[2] __________________
+tests\notification\test_vt033_postgres.py:131: in test_configured_inbox_business_outcome
+    first = check_page(
+tests\notification\test_vt033_postgres.py:112: in check_page
+    assert [row["id"] for row in body["items"]] == [str(value) for value in expected]
+E   AssertionError: assert ['3ec53951-70...901eacb', ...] == ['3ec53951-70...296e9fafd12a']
+E
+E     Left contains 18 more items, first extra item: '09aa4be7-ad11-4e11-a5ec-c26f5daf3e70'
+E     Use -v to get more diff
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+=========================== short test summary info ===========================
+FAILED tests/notification/test_vt033_postgres.py::test_configured_inbox_business_outcome[2]
+1 failed in 9.22s
