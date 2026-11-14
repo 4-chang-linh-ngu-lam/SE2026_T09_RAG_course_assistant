@@ -1,0 +1,46 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_____ test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors[starttls] _____
+tests\identity\test_http_security.py:149: in test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors
+    sender.send(delivery)
+app\modules\identity\email_delivery.py:134: in send
+    message = self._message(delivery)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\identity\email_delivery.py:65: in _message
+    expiry = self._expiry_text(delivery)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\identity\email_delivery.py:33: in _expiry_text
+    return local.strftime("%H:%M ngày %d/%m/%Y (giờ Việt Nam)")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'locale' codec can't encode character '\u1edd' in position 23: encoding error
+_______ test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors[tls] ________
+tests\identity\test_http_security.py:149: in test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors
+    sender.send(delivery)
+app\modules\identity\email_delivery.py:134: in send
+    message = self._message(delivery)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\identity\email_delivery.py:65: in _message
+    expiry = self._expiry_text(delivery)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\identity\email_delivery.py:33: in _expiry_text
+    return local.strftime("%H:%M ngày %d/%m/%Y (giờ Việt Nam)")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'locale' codec can't encode character '\u1edd' in position 23: encoding error
+________ test_staff_password_reset_email_links_to_existing_reset_page _________
+tests\identity\test_http_security.py:197: in test_staff_password_reset_email_links_to_existing_reset_page
+    SMTPTokenSender().send(delivery)
+app\modules\identity\email_delivery.py:134: in send
+    message = self._message(delivery)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\identity\email_delivery.py:65: in _message
+    expiry = self._expiry_text(delivery)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\identity\email_delivery.py:33: in _expiry_text
+    return local.strftime("%H:%M ngày %d/%m/%Y (giờ Việt Nam)")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'locale' codec can't encode character '\u1edd' in position 23: encoding error
+=========================== short test summary info ===========================
+FAILED tests/identity/test_http_security.py::test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors[starttls]
+FAILED tests/identity/test_http_security.py::test_smtp_delivery_uses_tls_and_keeps_token_out_of_errors[tls]
+FAILED tests/identity/test_http_security.py::test_staff_password_reset_email_links_to_existing_reset_page
+3 failed, 22 deselected in 2.03s
