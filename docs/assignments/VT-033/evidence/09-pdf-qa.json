@@ -1,0 +1,29 @@
+{
+  "recorded_at_utc": "2026-11-14T11:00:33.478268+00:00",
+  "pdf": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\BT3_23001878_VT-033.pdf",
+  "sha256": "cf8cc8c09ff9b47a607a291d76fdcfbd80444b347d22f89bce89253e79ca5d42",
+  "main_pages": 8,
+  "appendix_pages": 2,
+  "total_pages": 10,
+  "reflection_words_whitespace": 346,
+  "required_cover_text": "PASS",
+  "reflection_not_truncated": "PASS",
+  "test_case_ids_01_to_18_unbroken": "PASS",
+  "clickable_uri_count": 8,
+  "verified_branch_pr_ci_links": [
+    "https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/tree/assignment/23001878-vt033-notification-config",
+    "https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/pull/45",
+    "https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/43587143297"
+  ],
+  "embedded_arial_font_bytes": {
+    "AAAAAA+ArialMT": 75460,
+    "AAAAAA+Arial-BoldMT": 54332
+  },
+  "out_of_page_text": [],
+  "renderer": "PyMuPDF (Poppler unavailable on host)",
+  "rendered_pages": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core\\.venv\\pdf-qa",
+  "visual_review_complete": true,
+  "reviewer": "Codex, not student/owner approval",
+  "ci_verification_snapshot": "359b667c0e5b03929e526b1d64755a8b298f2045",
+  "load_gate": "FAIL, retained explicitly in report"
+}

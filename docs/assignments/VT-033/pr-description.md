@@ -72,8 +72,17 @@ Owner notification/review requested: **TV4 Notification and Common/Identity
 consumers** for shared Settings, config deployment/restart and API documentation.
 Student must read/review the report/reflection/responsibility statement. No human
 approval is asserted. Codex/AI assistance and the separate user-requested read-only
-plan reviewer are disclosed in `ai-usage.md`; full prompt and318-word reflection
-are saved. PDF will be added after real branch/PR/CI URLs are verified.
+plan reviewer are disclosed in `ai-usage.md`; full prompt and346-word reflection
+are saved. The [submission PDF](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/blob/assignment/23001878-vt033-notification-config/BT3_23001878_VT-033.pdf)
+has8main pages+2appendices, embedded Vietnamese font,8clickable links and346-word
+reflection; render/text/link/font/bounds QA passed. Student/owner review is pending.
+
+Verified [Core CI snapshot](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/43587143297)
+at `359b667c0e5b03929e526b1d64755a8b298f2045`:SUCCESS for core-tests,web-build and
+compose-smoke. Downloaded JUnit artifact:439tests,0failures,0errors,0skips; coverage
+4604/5038lines and916/1220branches. Optional class-list core-load job was skipped
+as expected (workflow_dispatch only). This does not turn the local VT033 load FAIL
+into a pass. The final PDF/docs commit triggers another regular CI run on the PR.
 
 GitHub Actions is independent evidence after push, not a substitute for local RED.
 The workflow's optional class-list load job does not verify this Notification NFR.

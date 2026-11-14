@@ -1,0 +1,197 @@
+{
+  "recorded_at_utc": "2026-11-14T10:55:44.390015+00:00",
+  "run_id": 43587143297,
+  "url": "https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/43587143297",
+  "head_sha": "359b667c0e5b03929e526b1d64755a8b298f2045",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "web-build",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm install --no-audit --no-fund",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run npm run build",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "compose-smoke",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Configure isolated test credentials",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and start a clean Compose project",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify runtime user, installed package and migration",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify combined notification and credential worker",
+          "conclusion": "success"
+        },
+        {
+          "name": "Probe live, ready and Web",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify DB outage and recovery",
+          "conclusion": "success"
+        },
+        {
+          "name": "Diagnose failed stack",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Remove only this job's isolated stack",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "core-tests",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Initialize containers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pip install -e '.[dev]'",
+          "conclusion": "success"
+        },
+        {
+          "name": "Lint and format",
+          "conclusion": "success"
+        },
+        {
+          "name": "Apply migrations and detect drift",
+          "conclusion": "success"
+        },
+        {
+          "name": "OpenAPI contract snapshot",
+          "conclusion": "success"
+        },
+        {
+          "name": "Full Core tests against PostgreSQL",
+          "conclusion": "success"
+        },
+        {
+          "name": "Public interface coverage gate",
+          "conclusion": "success"
+        },
+        {
+          "name": "Backend rule traceability (skipped tests cannot verify a scenario)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Upload test evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Stop containers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "core-load",
+      "conclusion": "skipped",
+      "steps": []
+    }
+  ],
+  "junit": {
+    "tests": 439,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "coverage_xml_attributes": {
+    "version": "7.17.3",
+    "timestamp": "1794653650188",
+    "lines-valid": "5038",
+    "lines-covered": "4604",
+    "line-rate": "0.9139",
+    "branches-valid": "1220",
+    "branches-covered": "916",
+    "branch-rate": "0.7508",
+    "complexity": "0"
+  },
+  "downloaded_artifact_path": "services\\core\\.venv\\ci-evidence\\43587143297",
+  "junit_sha256": "b6ef7f76d79d8fa26a403fd8c818a959fe0feb1cd99ac52fb8cbd5774e4eaae2",
+  "coverage_sha256": "095ce6cb0872ede370379b5f730a4a76bd1c60e5c63581d6a62d64a82de33ced",
+  "optional_core_load_skipped": "Expected workflow_dispatch-only class-list probe; does not verify VT033 Notification performance"
+}

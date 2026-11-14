@@ -4,6 +4,12 @@ Repo local: `D:\app\cnpm\W3\SE2026_T09_RAG_course_assistant`.
 Baseline `9ee864c3404f8057b394592791404f6db8692826`; branch
 `assignment/23001878-vt033-notification-config`. No pull/rebase changed the baseline.
 
+Verified delivery: [assignment branch](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/tree/assignment/23001878-vt033-notification-config),
+[Draft PR #45](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/pull/45)
+to main, OPEN/Draft, unmerged. **Functional tests pass;120-actor load gate FAILS.**
+Final profile7310requests,p95client3360.44ms but246HTTP503+2transport errors;
+all three failed profiles are retained. No operational acceptance is claimed.
+
 Read [spec/plan](spec-and-plan.md), [independent AI review](plan-review.md),
 [18 risk-based cases](test-strategy.md), [traceability](traceability.md),
 [AI usage](ai-usage.md), [coverage](coverage-summary.md), [reflection](reflection.md)
@@ -210,6 +216,7 @@ Report tools are isolated in `.venv/reporting-deps`, outside application imports
 ```bat
 py -3.12 -m pip install --target services/core/.venv/reporting-deps reportlab
 py -3.12 docs/assignments/VT-033/render_report.py
+py -3.12 docs/assignments/VT-033/verify_report.py
 ```
 
 These two commands run from repo root. PyMuPDF/pypdf already installed on the host
@@ -217,3 +224,12 @@ are used to render/check all pages, embedded Vietnamese font, clickable links an
 page count. Final PDF is root `BT3_23001878_VT-033.pdf`; main8 pages plus appendices.
 See `evidence/09-pdf-qa.json` for the actual page/text/link/font checks. The student
 must review the final report and responsibility statement before Classroom submission.
+
+[Submission PDF](../../../BT3_23001878_VT-033.pdf):8main pages+2appendices, embedded
+Vietnamese font,8clickable links,346-word reflection. CI verification snapshot
+`359b667c0e5b03929e526b1d64755a8b298f2045` passed
+[Core CI](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/43587143297),
+with artifact JUnit439tests/0failures/0errors/0skips. Later report-only commits can
+have a newer branch head; check the PR for current CI. Performance remains FAIL.
+Run `verify_report.py --visual-review-complete` only after actually inspecting all
+current rendered pages; it records Codex visual QA, not student/owner sign-off.

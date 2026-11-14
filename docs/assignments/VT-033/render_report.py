@@ -100,7 +100,7 @@ def main():
         ["Trạng thái GitHub", summary["ci_result"] + "; PR Draft/OPEN, chưa merge"],
     ], [154, 357])
     if not load["passed_vt033"]:
-        p('<font color="#B42318"><b>Gate tải120: FAIL.</b> p95 thấp hơn3500ms ở profile cuối '
+        p('<font color="#B42318"><b>Gate tải 120: FAIL.</b> p95 thấp hơn 3500 ms ở profile cuối '
           'vẫn chưa đủ vì còn lỗi HTTP/transport. Không tuyên bố nghiệm thu NFR.</font>')
     p("Cam kết theo mẫu đề bài (sinh viên cần đọc/xác nhận trước khi nộp):", "SubVI")
     p('“Tôi chịu trách nhiệm về toàn bộ code, test và nội dung bài làm; tôi đã khai báo việc sử dụng AI.”')
@@ -146,12 +146,12 @@ def main():
     p("Test cases 1-9 (C = test_vt033_config.py; P = test_vt033_postgres.py)", "SubVI")
     cases = summary["test_cases"]
     table(["ID", "Risk/AC", "Level", "Input/pre", "Business outcome", "P", "File/function"],
-          [row for row in cases[:9]], [24, 42, 37, 68, 143, 23, 174])
+          [row for row in cases[:9]], [30, 46, 48, 72, 151, 24, 140])
 
     new_page()
     heading("3. Test cases và test-first")
     table(["ID", "Risk/AC", "Level", "Input/pre", "Business outcome", "P", "File/function"],
-          [row for row in cases[9:]], [24, 42, 37, 68, 143, 23, 174])
+          [row for row in cases[9:]], [30, 46, 48, 72, 151, 24, 140])
     p("BVA cả config và query: 0,1,2,99,100,101; default20, custom1/2/100 và explicit override. "
       "Negative: T02/T04/T07/T11/T12/T14/T17; failure path T15 gây lỗi SQL thật rồi kiểm tra phục hồi.", "SmallVI")
     p("RED → GREEN", "SubVI")
@@ -207,10 +207,10 @@ def main():
     p(f'Máy: {html.escape(env["os"])}; {html.escape(env["cpu"])}; {env["logical_cpus"]} logical CPUs; '
       f'RAM {env["ram_bytes"]/1024**3:.1f}GiB. Python {env["python"]}; PostgreSQL {env["postgresql"]}; '
       f'pool {env["pool_size"]}+{env["max_overflow"]}; admission {env["admission_capacity"]}.', "SmallVI")
-    p(f'Profile báo cáo: {html.escape(env["client_library"])}. Đối chứng HTTPX0.28.1: '
+    p(f'Đối chứng HTTPX 0.28.1/pool 5+10: '
       f'{legacy["requests"]} requests, p95 client {legacy["client_p95_ms"]:.1f}ms, '
       f'backend {legacy["backend_p95_ms"]:.1f}ms, FAIL. Giữ nguyên app/DB/pool/target; '
-      "dùng thư viện client đã có trong dev dependency. Hai lượt được lưu riêng, không thay FAIL thành PASS.", "SmallVI")
+      "lượt HTTPX2/pool 5+10 chỉ đổi thư viện client đã có trong dev dependency. Các lượt được lưu riêng, không thay FAIL thành PASS.", "SmallVI")
     p(f'HTTPX2/pool5+10: {default_pool["requests"]} requests, p95 {default_pool["client_p95_ms"]:.1f}ms, '
       f'{default_pool["errors"]} errors, FAIL. Profile15+0 giữ cùng maximum15 kết nối/admission14; '
       "đã có hướng dẫn trong Core tests README. Production defaults không đổi. Ba lượt được báo cáo riêng.", "SmallVI")
@@ -226,7 +226,7 @@ def main():
         ["AC3 / R1,R4", "T09-T10,T15-T16 / P business pages, SQL-failure recovery", "GREEN + coverage; precise cursor/count/read/payload"],
         ["AC4 / R1,R4", "T11-T14 / P cross-recipient, locked-account, own/read-all", "03-before PASS → mutant KILLED →04-restored PASS"],
         ["AC5 / R2", "T08 / C::test_other_endpoint_keeps_twenty; entire Core regression", summary["full_result"]+"; unchanged shared helper/source diff"],
-        ["NFR / R5", "T18 / performance/vt033_notification_load.py", "07-load.json; p95 client and ownership gate"],
+        ["NFR / R5", "T18 / performance/vt033_notification_load.py", "FAIL:248 HTTP/transport errors; 07-load.json; p95 alone is insufficient"],
     ], [76, 222, 213])
     p("Hai điểm AI có vẻ hợp lý nhưng chưa đáng tin", "SubVI")
     p("1. Mock service trả200 dễ làm test xanh dù repository bỏ recipient guard. Test PostgreSQL "
@@ -251,7 +251,7 @@ def main():
     p("Baseline Python3.12.0:397 passed,4 failed,1 error (Unicode email và CLI decoding Windows). "
       "Chọn CPython3.12.14 đã cài, giữ nguyên package versions và dùng PYTHONUTF8=1 để verify lại. "
       + summary["full_result"] + ". Không sửa Identity để che baseline failure. "
-      "Load hữu hạn trên máy dùng chung; owner/human review chưa diễn ra.", "SmallVI")
+      "Gate tải 120 vẫn FAIL do 248 lỗi. Load hữu hạn trên máy dùng chung; owner/human review chưa diễn ra.", "SmallVI")
     p("Tái lập", "SubVI")
     p("Xem docs/assignments/VT-033/README.md cho CMD/PowerShell, venv, PostgreSQL test riêng, "
       "RED checkout, GREEN/coverage, mutation và harness. Mọi log đều có timestamp/SHA/command/exit; "
@@ -260,7 +260,7 @@ def main():
     new_page()
     heading("Phụ lục A. AI Usage Log")
     p("Công cụ: Codex (dòng GPT-6; không có model build ID chính xác trong runtime). Một agent "
-      "Codex chỉ đọc review plan theo lựa chọn rõ ràng của người dùng. Không có Gemini/frontend work.")
+      "Codex chỉ đọc review plan theo lựa chọn rõ ràng của người dùng.")
     p("Prompt chính nguyên văn được lưu ở " + link(repo + "/blob/" + summary["verification_sha"]
       + "/docs/assignments/VT-033/ai-main-prompt.md", "ai-main-prompt.md") + ". Nội dung yêu cầu: "
       "hoàn thiện local VT-033; test-first RED/GREEN, mutation authorization được hoàn nguyên, BVA, "
@@ -272,6 +272,8 @@ def main():
         ["AI viết patch 2 file", "Giữ Settings existing và helper shared", "69 Notification tests; full Core + lint/format"],
         ["AI viết mutation runner", "Chỉ detached worktree, restore finally", "3 pass →3 fail theo read_at →3 pass; source hashes equal"],
         ["AI viết load và báo cáo", "Kiểm tra actor/content/client timing và evidence động", "07-load.json, JUnit, coverage XML; PDF render/text/link QA"],
+        ["Client latency investigation", "HTTPX2 đã có trong dev; giữ raw HTTPX FAIL", "3541 requests/p95 17578.75ms FAIL; HTTPX2/default pool cũng FAIL526errors"],
+        ["Profile pool15+0 có sẵn", "Giữ maximum15/admission14, không đổi production defaults/target", "7310 requests/p95 3360.44ms nhưng248errors: FAIL, không nghiệm thu NFR"],
     ], [151, 177, 183])
     p("Prompt reviewer đã gửi (trích ý đúng nội dung)", "SubVI")
     p("Review spec-and-plan.md against baseline source, business rules and Core contracts. No edits, "
