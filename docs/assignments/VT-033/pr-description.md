@@ -72,11 +72,10 @@ Owner notification/review requested: **TV4 Notification and Common/Identity
 consumers** for shared Settings, config deployment/restart and API documentation.
 Student must read/review the report/reflection/responsibility statement. No human
 approval is asserted. Codex/AI assistance and the separate user-requested read-only
-plan reviewer are disclosed in `ai-usage.md`; full prompt and346-word reflection
-are saved; the full prompt and submission PDF remain local and are excluded from Git.
-The local submission PDF
-has8main pages+2appendices, embedded Vietnamese font,8clickable links and346-word
-reflection; render/text/link/font/bounds QA passed. Student/owner review is pending.
+plan reviewer are disclosed in section 6 (page 7) of the submitted PDF. The
+independent technical review remains in `plan-review.md`. The complete original
+prompt and submission PDF are local and excluded from Git. The submitted PDF has
+8 total pages and a 331-word reflection; its final text, layout, and links were inspected. Student/owner review is pending.
 
 Verified [Core CI snapshot](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/43587143297)
 at `359b667c0e5b03929e526b1d64755a8b298f2045`:SUCCESS for core-tests,web-build and
