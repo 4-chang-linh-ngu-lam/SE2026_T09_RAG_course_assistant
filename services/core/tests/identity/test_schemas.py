@@ -1,17 +1,21 @@
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
-from app.modules.identity.models import UserStatus
+from app.modules.identity.models import DataRequestStatus, DataRequestType, Role, UserStatus
 from app.modules.identity.schemas import (
     ActivateStudentRequest,
     AdminCreateStudentRequest,
+    DataRequestResponse,
     LoginRequest,
+    PersonalDataExport,
     RegisterRequest,
     RegisterResponse,
     ResetPasswordRequest,
     TokenResponse,
+    UserProfile,
 )
 
 
@@ -49,6 +53,42 @@ def test_responses_never_serialize_storage_hashes():
         "token_type",
         "expires_in",
     }
+
+
+def test_personal_data_export_schema_contains_only_core_identity_records():
+    user_id = uuid4()
+    now = datetime.now(UTC)
+    export = PersonalDataExport(
+        exported_at=now,
+        profile=UserProfile(
+            id=user_id,
+            email=None,
+            username="student.synthetic",
+            school_id=uuid4(),
+            display_name="Synthetic student",
+            roles=[Role.STUDENT],
+            status=UserStatus.ACTIVE,
+        ),
+        data_requests=[
+            DataRequestResponse(
+                id=uuid4(),
+                user_id=user_id,
+                request_type=DataRequestType.EXPORT,
+                reason="Synthetic request",
+                status=DataRequestStatus.PENDING,
+                resolution_note=None,
+                created_at=now,
+                updated_at=now,
+            )
+        ],
+    )
+
+    payload = export.model_dump(mode="json")
+    assert set(payload) == {"schema_version", "exported_at", "profile", "data_requests"}
+    assert payload["schema_version"] == 1
+    assert payload["data_requests"][0]["user_id"] == str(user_id)
+    assert "password_hash" not in payload["profile"]
+    assert all("token" not in key.lower() for key in payload)
 
 
 @pytest.mark.parametrize(
