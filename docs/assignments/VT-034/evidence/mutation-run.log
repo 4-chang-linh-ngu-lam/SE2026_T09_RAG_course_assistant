@@ -1,0 +1,12 @@
+Preparing worktree (detached HEAD 783ee5b)
+HEAD is now at 783ee5b feat(vt034): notify changed posts through transactional outbox and bound worker batches
+{
+  "mutant_commit": "8be5a1a9077fd771684cbee736a2d90536aaa3bb",
+  "operator": "> -> >=",
+  "boundary": 1000,
+  "exit_code": 1,
+  "killed": true,
+  "expected_failure": "test_tc06_batch_accepts_inclusive_boundary[1000]",
+  "temporary_detached_commit": true,
+  "mutation_in_submission": false
+}

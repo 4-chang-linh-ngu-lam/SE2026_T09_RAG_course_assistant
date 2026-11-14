@@ -1,0 +1,13 @@
+diff --git a/services/core/app/modules/notification/worker.py b/services/core/app/modules/notification/worker.py
+index 72df338..dcf4705 100644
+--- a/services/core/app/modules/notification/worker.py
++++ b/services/core/app/modules/notification/worker.py
+@@ -25,7 +25,7 @@ def drain_outbox(*, session_factory=SessionLocal, batch_size: int = 100) -> int:
+     back both, while the committed business transaction remains intact.
+     """
+     # Bound direct callers too; CLI validation alone does not protect this API.
+-    if type(batch_size) is not int or batch_size < 1 or batch_size > 1000:
++    if type(batch_size) is not int or batch_size < 1 or batch_size >= 1000:
+         raise ValueError("batch_size must be an integer between 1 and 1000")
+     delivered = 0
+     for _ in range(batch_size):

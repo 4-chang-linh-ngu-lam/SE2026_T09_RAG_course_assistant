@@ -1,0 +1,25 @@
+/home/agent/.local/lib/python3.12/site-packages/platformdirs/api.py:467: RuntimeDirWarning: XDG_RUNTIME_DIR /home/agent/.local/run has mode 0755, not 0700, falling back to /tmp/runtime-1000
+  return Path(self.user_runtime_dir)
+........................................................................ [ 61%]
+.............................................                            [100%]
+=============================== warnings summary ===============================
+../../../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.14-final-0 _______________
+
+Name                                 Stmts   Miss Branch BrPart  Cover   Missing
+--------------------------------------------------------------------------------
+app/modules/notification/events.py      83      1     26      1    98%   102
+app/modules/notification/worker.py      68     20     22      3    66%   78, 86->31, 92-94, 99-113, 117
+app/modules/social/feed/service.py      71      2     16      2    95%   155, 158
+--------------------------------------------------------------------------------
+TOTAL                                  222     23     64      6    87%
+Coverage JSON written to file ../../docs/assignments/VT-034/evidence/coverage.json
+117 passed, 1 warning in 21.54s

@@ -1,0 +1,201 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> rag-course-web@0.1.0 build
+> npm run check:boundaries && next build && npm run check:release
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> rag-course-web@0.1.0 check:boundaries
+> node scripts/check-boundaries.mjs
+
+Product import/network/storage boundaries passed.
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+   ▲ Next.js 15.5.12
+
+   Creating an optimized production build ...
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|/workspace/scratch/30bb9ca0bbea/repo/apps/web/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!/workspace/scratch/30bb9ca0bbea/repo/apps/web/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!/workspace/scratch/30bb9ca0bbea/repo/apps/web/src/features/assessment/assessment.css': No serializer registered for Warning
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> Array { 2 items } -> webpack/lib/ModuleWarning -> Warning
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|/workspace/scratch/30bb9ca0bbea/repo/apps/web/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!/workspace/scratch/30bb9ca0bbea/repo/apps/web/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!/workspace/scratch/30bb9ca0bbea/repo/apps/web/src/features/tutor/tutor.css': No serializer registered for Warning
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> Array { 4 items } -> webpack/lib/ModuleWarning -> Warning
+ ⚠ Compiled with warnings in 9.7s
+
+./src/features/assessment/assessment.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/assessment/assessment.css
+Warning
+
+(1:969) autoprefixer: start value has mixed support, consider using flex-start instead
+
+Import trace for requested module:
+./src/features/assessment/assessment.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/assessment/assessment.css
+./src/features/assessment/assessment.css
+./src/features/assessment/index.tsx
+./src/features/index.tsx
+./src/components/route-screen.tsx
+
+./src/features/assessment/assessment.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/assessment/assessment.css
+Warning
+
+(1:1516) autoprefixer: end value has mixed support, consider using flex-end instead
+
+Import trace for requested module:
+./src/features/assessment/assessment.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/assessment/assessment.css
+./src/features/assessment/assessment.css
+./src/features/assessment/index.tsx
+./src/features/index.tsx
+./src/components/route-screen.tsx
+
+./src/features/tutor/tutor.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/tutor/tutor.css
+Warning
+
+(2:1986) autoprefixer: start value has mixed support, consider using flex-start instead
+
+Import trace for requested module:
+./src/features/tutor/tutor.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/tutor/tutor.css
+./src/features/tutor/tutor.css
+./src/features/tutor/views/student-tutor-workspace.tsx
+./src/features/tutor/index.tsx
+./src/features/index.tsx
+./src/components/route-screen.tsx
+
+./src/features/tutor/tutor.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/tutor/tutor.css
+Warning
+
+(2:2201) autoprefixer: start value has mixed support, consider using flex-start instead
+
+Import trace for requested module:
+./src/features/tutor/tutor.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/tutor/tutor.css
+./src/features/tutor/tutor.css
+./src/features/tutor/views/student-tutor-workspace.tsx
+./src/features/tutor/index.tsx
+./src/features/index.tsx
+./src/components/route-screen.tsx
+
+./src/features/tutor/tutor.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/tutor/tutor.css
+Warning
+
+(2:4899) autoprefixer: start value has mixed support, consider using flex-start instead
+
+Import trace for requested module:
+./src/features/tutor/tutor.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/tutor/tutor.css
+./src/features/tutor/tutor.css
+./src/features/tutor/views/student-tutor-workspace.tsx
+./src/features/tutor/index.tsx
+./src/features/index.tsx
+./src/components/route-screen.tsx
+
+./src/features/tutor/tutor.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/tutor/tutor.css
+Warning
+
+(2:5156) autoprefixer: start value has mixed support, consider using flex-start instead
+
+Import trace for requested module:
+./src/features/tutor/tutor.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/features/tutor/tutor.css
+./src/features/tutor/tutor.css
+./src/features/tutor/views/student-tutor-workspace.tsx
+./src/features/tutor/index.tsx
+./src/features/index.tsx
+./src/components/route-screen.tsx
+
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/32) ...
+   Generating static pages (8/32) 
+   Generating static pages (16/32) 
+   Generating static pages (24/32) 
+ ✓ Generating static pages (32/32)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                                                    Size  First Load JS
+┌ ○ /                                                                                         663 B         134 kB
+├ ○ /_not-found                                                                               134 B         103 kB
+├ ○ /account                                                                                  138 B         143 kB
+├ ○ /account/data-requests                                                                    138 B         143 kB
+├ ○ /activate                                                                                 138 B         143 kB
+├ ○ /admin/accounts                                                                           138 B         143 kB
+├ ƒ /admin/accounts/[userId]                                                                  138 B         143 kB
+├ ○ /admin/accounts/legacy                                                                    138 B         143 kB
+├ ○ /admin/accounts/staff/invitations                                                         138 B         143 kB
+├ ○ /admin/accounts/students/new                                                              138 B         143 kB
+├ ○ /admin/audit                                                                              138 B         143 kB
+├ ○ /admin/catalog                                                                            138 B         143 kB
+├ ○ /admin/classes                                                                            138 B         143 kB
+├ ƒ /admin/classes/[classId]/enrollment                                                       138 B         143 kB
+├ ƒ /admin/classes/[classId]/lifecycle                                                        139 B         143 kB
+├ ƒ /admin/classes/[classId]/settings                                                         139 B         143 kB
+├ ○ /admin/classes/new                                                                        138 B         143 kB
+├ ○ /admin/data-requests                                                                      138 B         143 kB
+├ ○ /admin/homerooms                                                                          138 B         143 kB
+├ ƒ /admin/homerooms/[homeroomId]                                                             138 B         143 kB
+├ ƒ /admin/imports/[importId]                                                                 138 B         143 kB
+├ ○ /admin/imports/new                                                                        138 B         143 kB
+├ ○ /admin/reports                                                                            138 B         143 kB
+├ ○ /admin/reports/exports                                                                    138 B         143 kB
+├ ƒ /api/v1/[...path]                                                                         134 B         103 kB
+├ ○ /calendar                                                                                 138 B         143 kB
+├ ○ /login                                                                                    138 B         143 kB
+├ ○ /notifications                                                                            138 B         143 kB
+├ ○ /recover                                                                                  138 B         143 kB
+├ ○ /reset-password                                                                           138 B         143 kB
+├ ○ /staff/invitation                                                                         138 B         143 kB
+├ ○ /student                                                                                  138 B         143 kB
+├ ○ /student/classes                                                                          138 B         143 kB
+├ ƒ /student/classes/[classId]/assessments                                                    138 B         143 kB
+├ ƒ /student/classes/[classId]/assessments/[assessmentId]                                     138 B         143 kB
+├ ƒ /student/classes/[classId]/assessments/[assessmentId]/attempts/[attemptId]                138 B         143 kB
+├ ƒ /student/classes/[classId]/assessments/[assessmentId]/attempts/[attemptId]/receipt        138 B         143 kB
+├ ƒ /student/classes/[classId]/assessments/[assessmentId]/attempts/[attemptId]/result         138 B         143 kB
+├ ƒ /student/classes/[classId]/assignments                                                    139 B         143 kB
+├ ƒ /student/classes/[classId]/assignments/[assignmentId]                                     138 B         143 kB
+├ ƒ /student/classes/[classId]/calendar                                                       138 B         143 kB
+├ ƒ /student/classes/[classId]/documents                                                      138 B         143 kB
+├ ƒ /student/classes/[classId]/documents/[documentId]                                         138 B         143 kB
+├ ƒ /student/classes/[classId]/feed                                                           138 B         143 kB
+├ ƒ /student/classes/[classId]/overview                                                       138 B         143 kB
+├ ƒ /student/classes/[classId]/practice                                                       138 B         143 kB
+├ ƒ /student/classes/[classId]/practice/[practiceId]/attempts/[attemptId]                     139 B         143 kB
+├ ƒ /student/classes/[classId]/practice/[practiceId]/attempts/[attemptId]/result              138 B         143 kB
+├ ƒ /student/classes/[classId]/progress                                                       138 B         143 kB
+├ ƒ /student/classes/[classId]/tutor                                                          138 B         143 kB
+├ ƒ /student/history/classes/[classId]                                                        138 B         143 kB
+├ ƒ /student/history/results/[resultId]                                                       138 B         143 kB
+├ ○ /student/notes                                                                            138 B         143 kB
+├ ○ /teacher                                                                                  137 B         143 kB
+├ ○ /teacher/classes                                                                          139 B         143 kB
+├ ƒ /teacher/classes/[classId]/activities                                                     139 B         143 kB
+├ ƒ /teacher/classes/[classId]/analytics                                                      137 B         143 kB
+├ ƒ /teacher/classes/[classId]/analytics/students/[studentId]                                 138 B         143 kB
+├ ƒ /teacher/classes/[classId]/appeals/[appealId]                                             138 B         143 kB
+├ ƒ /teacher/classes/[classId]/assessments/[assessmentId]/attempts/[attemptId]/grade          138 B         143 kB
+├ ƒ /teacher/classes/[classId]/assessments/[assessmentId]/edit                                138 B         143 kB
+├ ƒ /teacher/classes/[classId]/assessments/[assessmentId]/review                              138 B         143 kB
+├ ƒ /teacher/classes/[classId]/assignments/[assignmentId]/edit                                138 B         143 kB
+├ ƒ /teacher/classes/[classId]/assignments/[assignmentId]/submissions/[submissionId]/grade    138 B         143 kB
+├ ƒ /teacher/classes/[classId]/calendar                                                       138 B         143 kB
+├ ƒ /teacher/classes/[classId]/documents                                                      138 B         143 kB
+├ ƒ /teacher/classes/[classId]/feed                                                           138 B         143 kB
+├ ƒ /teacher/classes/[classId]/grade-proposals/[proposalId]/review                            138 B         143 kB
+├ ƒ /teacher/classes/[classId]/grading                                                        137 B         143 kB
+├ ƒ /teacher/classes/[classId]/overview                                                       138 B         143 kB
+├ ƒ /teacher/classes/[classId]/practice/[practiceId]/edit                                     138 B         143 kB
+├ ƒ /teacher/classes/[classId]/tutor                                                          138 B         143 kB
+├ ○ /teacher/library                                                                          138 B         143 kB
+└ ƒ /teacher/library/[documentId]                                                             138 B         143 kB
++ First Load JS shared by all                                                                103 kB
+  ├ chunks/1255-a390e12b70b4a9fb.js                                                           46 kB
+  ├ chunks/4bd1b696-f785427dddbba9fb.js                                                     54.2 kB
+  └ other shared chunks (total)                                                             2.88 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> rag-course-web@0.1.0 check:release
+> node scripts/check-release.mjs
+
+Release output contains no preview fixture marker.

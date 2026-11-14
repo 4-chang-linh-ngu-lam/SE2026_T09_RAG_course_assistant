@@ -1,0 +1,29 @@
+{
+  "baseline": "9ee864c3404f8057b394592791404f6db8692826",
+  "local_plan": "bc8c71d",
+  "local_red": "6d4f94f",
+  "local_patch": "783ee5b",
+  "remote_plan": "b735a4d0cb4dcbad21b33a69ace1ddc7dd73ca97",
+  "remote_red": "f044b8f6681879c1810d97805d731a4513807a8d",
+  "remote_patch": "35171c1efb27b8207ade8b9e4bc6677d66ad2b63",
+  "source_blobs": {
+    "services/core/app/modules/social/feed/service.py": "ab94418cfb39465f8063b26cd2736760cfbdf003",
+    "services/core/app/modules/notification/events.py": "7054a4e4949ff6cbbfd8a277a2c63530e2d862b8",
+    "services/core/app/modules/notification/worker.py": "72df338428c0e42f7d9c3bf9c88905333c070d48",
+    "apps/web/src/lib/data/live-core.ts": "e5611e880009e5d78d6c039ad422bea5daf35fb1"
+  },
+  "versions": {
+    "pytest": "9.2.0",
+    "pytest-cov": "7.1.0",
+    "coverage": "7.17.3",
+    "fastapi": "0.141.1",
+    "starlette": "1.6.0",
+    "sqlalchemy": "2.0.57",
+    "psycopg": "3.3.9",
+    "pydantic": "2.13.4",
+    "uvicorn": "0.52.1",
+    "httpx": "0.28.1",
+    "pgserver": "0.1.4"
+  },
+  "execution_scope": "Local Linux, PostgreSQL 16.2, synthetic data. No production or browser E2E claim."
+}
