@@ -1,0 +1,17 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_data_request_manual_resolution_requires_verification_and_audit[EXPORT] _
+tests\administration\test_postgres.py:764: in test_data_request_manual_resolution_requires_verification_and_audit
+    assert (
+E   AssertionError: assert 200 == 409
+E    +  where 200 = <Response [200 OK]>.status_code
+E    +    where <Response [200 OK]> = patch('/api/v1/admin/data-requests/187588b6-f5fd-4580-9bf3-4272576a7553', json={'status': 'COMPLETED', 'resolution_note': 'MANUAL_FULFILLMENT_CONFIRMED', 'manual_fulfillment_confirmed': True}, headers={'Authorization': 'Bearer <redacted>', 'X-Admin-Reason': 'ADMIN_INTERVENTION'})
+E    +      where patch = <starlette.testclient.TestClient object at 0x00000146F7E4D070>.patch
+E    +        where <starlette.testclient.TestClient object at 0x00000146F7E4D070> = namespace(engine=Engine(postgresql+psycopg://postgres@127.0.0.1:55432/administration_test_6be5aab0768b442baae383feb8db....conftest.system.<locals>.Sender object at 0x00000146F7E4CFB0>, school_id=UUID('8e91cb94-ba02-417a-a3a3-cb3c15d66bcf')).client
+E    +      and   {'Authorization': 'Bearer <redacted>', 'X-Admin-Reason': 'ADMIN_INTERVENTION'} = <function system.<locals>.headers at 0x00000146F7DFDBC0>()
+E    +        where <function system.<locals>.headers at 0x00000146F7DFDBC0> = namespace(engine=Engine(postgresql+psycopg://postgres@127.0.0.1:55432/administration_test_6be5aab0768b442baae383feb8db....conftest.system.<locals>.Sender object at 0x00000146F7E4CFB0>, school_id=UUID('8e91cb94-ba02-417a-a3a3-cb3c15d66bcf')).headers
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+=========================== short test summary info ===========================
+FAILED tests/administration/test_postgres.py::test_data_request_manual_resolution_requires_verification_and_audit[EXPORT]
+1 failed in 1.19s

@@ -1,0 +1,17 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_data_request_manual_resolution_requires_verification_and_audit[EXPORT] _
+tests\administration\test_postgres.py:777: in test_data_request_manual_resolution_requires_verification_and_audit
+    assert (
+E   AssertionError: assert 200 == 409
+E    +  where 200 = <Response [200 OK]>.status_code
+E    +    where <Response [200 OK]> = patch('/api/v1/admin/data-requests/63386ed7-cba8-4926-a6b0-03c69307e283', json={'status': 'COMPLETED', 'resolution_note': 'POLICY_PENDING', 'manual_fulfillment_confirmed': False, 'identity_verified': True}, headers={'Authorization': 'Bearer <redacted>', 'X-Admin-Reason': 'ADMIN_INTERVENTION'})
+E    +      where patch = <starlette.testclient.TestClient object at 0x000001C4F7268FE0>.patch
+E    +        where <starlette.testclient.TestClient object at 0x000001C4F7268FE0> = namespace(engine=Engine(postgresql+psycopg://postgres@127.0.0.1:55432/administration_test_ffe90e223697496894509446493b....conftest.system.<locals>.Sender object at 0x000001C4F7268F20>, school_id=UUID('23999b81-0a85-4192-adff-1f5b97280921')).client
+E    +      and   {'Authorization': 'Bearer <redacted>', 'X-Admin-Reason': 'ADMIN_INTERVENTION'} = <function system.<locals>.headers at 0x000001C4F721A840>()
+E    +        where <function system.<locals>.headers at 0x000001C4F721A840> = namespace(engine=Engine(postgresql+psycopg://postgres@127.0.0.1:55432/administration_test_ffe90e223697496894509446493b....conftest.system.<locals>.Sender object at 0x000001C4F7268F20>, school_id=UUID('23999b81-0a85-4192-adff-1f5b97280921')).headers
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+=========================== short test summary info ===========================
+FAILED tests/administration/test_postgres.py::test_data_request_manual_resolution_requires_verification_and_audit[EXPORT]
+1 failed in 0.96s

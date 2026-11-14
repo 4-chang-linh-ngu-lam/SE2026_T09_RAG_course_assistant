@@ -1,0 +1,11 @@
+diff --git a/services/core/app/modules/identity/admin_public.py b/services/core/app/modules/identity/admin_public.py
+--- a/services/core/app/modules/identity/admin_public.py
++++ b/services/core/app/modules/identity/admin_public.py
+@@ -503,6 +503,2 @@
+         elif command.status == "COMPLETED":
+-            if not command.manual_fulfillment_confirmed or (
+-                command.resolution_note != "MANUAL_FULFILLMENT_CONFIRMED"
+-            ):
+-                raise AppError(409, "Manual fulfillment confirmation required")
+             # Admin attests that ACCESS/EXPORT used the approved secure handoff, or that
+

@@ -97,6 +97,32 @@ Core CI always runs backend tests/coverage/traceability. The optional
 PostgreSQL 16 and uploads its raw aggregate JSON. Remote runs are not implied by
 the workflow file existing.
 
+## VT-035 export-request characterization
+
+The current approved flow records an `EXPORT` data request as `PENDING`; an Admin
+must verify the requester and confirm the school-approved manual handoff before
+marking it complete. Core does not create or deliver an export file. The
+characterization tests protect that request-only boundary, owner scope, and the
+Admin verification/attestation checks.
+
+From `services/core`, with `TEST_DATABASE_URL` set to a disposable PostgreSQL
+server/account with `CREATEDB`:
+
+```sh
+python -m pytest tests/identity/test_router.py -k 'personal_data_export_request or concurrent_personal_data_export_requests' -q -W error
+python -m pytest tests/identity/test_schemas.py -k export_request_response -q -W error
+python -m pytest tests/identity/test_openapi.py tests/administration/test_postgres.py -k 'openapi_auth_contract_shapes or data_request_manual_resolution_requires_verification_and_audit' -q -W error
+python tests/performance/data_export_request_load.py --users 150 --rounds 10 --output test-evidence/vt035-export-request-load.json
+```
+
+The load probe creates and drops a sibling test database, sends one authenticated
+request per synthetic user in each synchronized round, and checks response owner,
+request state, payload shape, and persisted rows. Its p95 applies only to Core
+request intake, not file generation, out-of-band delivery, or full-service export.
+It uses one Uvicorn worker on loopback and omits `Idempotency-Key` because each POST
+is a distinct user intent; retry-cache behavior is a separate test concern. Local
+results do not certify production capacity.
+
 ## Corrections discovered by this suite
 
 - Classroom cached mutation replay used to check only current Admin role. After a

@@ -1,0 +1,8 @@
+diff --git a/services/core/app/modules/identity/admin_public.py b/services/core/app/modules/identity/admin_public.py
+--- a/services/core/app/modules/identity/admin_public.py
++++ b/services/core/app/modules/identity/admin_public.py
+@@ -494,4 +494,2 @@
+             raise AppError(409, "Data request is already final")
+-        if command.status in ("COMPLETED", "REJECTED") and not command.identity_verified:
+-            raise AppError(409, "Administrator identity verification required")
+         action = "DATA_REQUEST_REVIEWED"

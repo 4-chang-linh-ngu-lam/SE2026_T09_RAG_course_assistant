@@ -1,0 +1,14 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_personal_data_export_request_creates_pending_request_for_current_user __
+tests\identity\test_router.py:583: in test_personal_data_export_request_creates_pending_request_for_current_user
+    assert client.get("/api/v1/users/me/data-export", headers=own_headers).status_code == 404
+E   AssertionError: assert 200 == 404
+E    +  where 200 = <Response [200 OK]>.status_code
+E    +    where <Response [200 OK]> = get('/api/v1/users/me/data-export', headers={'Authorization': 'Bearer <redacted>'})
+E    +      where get = <starlette.testclient.TestClient object at 0x0000021DCA1ECF50>.get
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+=========================== short test summary info ===========================
+FAILED tests/identity/test_router.py::test_personal_data_export_request_creates_pending_request_for_current_user
+1 failed in 2.96s
