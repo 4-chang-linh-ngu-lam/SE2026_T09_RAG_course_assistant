@@ -28,6 +28,7 @@ from app.modules.identity import public
 from app.modules.identity.models import (
     AuthSession,
     CredentialDelivery,
+    DataRequestType,
     OneTimeToken,
     Role,
     RoleAssignment,
@@ -40,6 +41,7 @@ from app.modules.identity.repository import IdentityRepository
 from app.modules.identity.schemas import (
     ActivateStudentRequest,
     AdminCreateUserRequest,
+    CreateDataRequest,
     ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
@@ -167,6 +169,19 @@ def test_locked_account_and_wrong_password(identity):
     expect_error(401, lambda: service.refresh(raw(initial)))
     user = session.get(User, result.response.user_id)
     assert user.session_version == 3
+
+
+def test_create_export_request_rejects_locked_account(identity):
+    _, service, register = identity
+    _, result = register()
+    service.set_user_status(result.response.user_id, UserStatus.LOCKED)
+    expect_error(
+        401,
+        lambda: service.create_data_request(
+            result.response.user_id,
+            CreateDataRequest(type=DataRequestType.EXPORT, reason="locked actor"),
+        ),
+    )
 
 
 def test_pending_account_cannot_be_unlocked_without_verification(identity):

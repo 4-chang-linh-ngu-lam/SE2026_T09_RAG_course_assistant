@@ -739,11 +739,18 @@ def test_audit_tenant_filter_pagination_and_redaction_do_not_leak(system):
 
 @pytest.mark.parametrize("request_type", ["ACCESS", "EXPORT", "CORRECTION", "DELETE"])
 def test_data_request_manual_resolution_requires_verification_and_audit(system, request_type):
-    created = system.client.post(
-        "/api/v1/users/me/data-requests",
-        json={"type": request_type, "reason": "Synthetic request context"},
-        headers=system.headers("student"),
-    )
+    if request_type == "EXPORT":
+        created = system.client.post(
+            "/api/v1/users/me/data-export",
+            json={"reason": "Synthetic request context"},
+            headers=system.headers("student"),
+        )
+    else:
+        created = system.client.post(
+            "/api/v1/users/me/data-requests",
+            json={"type": request_type, "reason": "Synthetic request context"},
+            headers=system.headers("student"),
+        )
     assert created.status_code == 201
     id = created.json()["id"]
     assert (

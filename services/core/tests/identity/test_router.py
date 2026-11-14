@@ -552,10 +552,10 @@ def test_personal_data_export_request_creates_pending_request_for_current_user(h
     assert other_request.status_code == 201
 
     pending = client.post(
-        "/api/v1/users/me/data-requests",
+        "/api/v1/users/me/data-export",
         headers=own_headers,
         params={"user_id": other_user.json()["user_id"]},
-        json={"type": "EXPORT", "reason": "VT-035-own-export-request"},
+        json={"reason": "VT-035-own-export-request"},
     )
 
     assert pending.status_code == 201
@@ -580,13 +580,13 @@ def test_personal_data_export_request_creates_pending_request_for_current_user(h
     own_history = client.get("/api/v1/users/me/data-requests", headers=own_headers)
     assert [row["id"] for row in own_history.json()["items"]] == [request["id"]]
     assert "foreign marker" not in own_history.text
-    assert client.get("/api/v1/users/me/data-export", headers=own_headers).status_code == 404
+    assert client.get("/api/v1/users/me/data-export", headers=own_headers).status_code == 405
 
 
 def test_personal_data_export_request_requires_authentication(http):
     client, _, _, _ = http
 
-    response = client.post("/api/v1/users/me/data-requests", json={"type": "EXPORT"})
+    response = client.post("/api/v1/users/me/data-export", json={"reason": "no bearer"})
 
     assert response.status_code == 401
 
@@ -597,9 +597,9 @@ def test_personal_data_export_request_rejects_client_selected_owner(http):
     headers = bearer(login(client, email))
 
     response = client.post(
-        "/api/v1/users/me/data-requests",
+        "/api/v1/users/me/data-export",
         headers=headers,
-        json={"type": "EXPORT", "reason": "request only", "user_id": str(uuid4())},
+        json={"reason": "request only", "user_id": str(uuid4())},
     )
 
     assert response.status_code == 422
@@ -644,9 +644,9 @@ def test_concurrent_personal_data_export_requests_preserve_each_owner_scope(http
             return await asyncio.gather(
                 *(
                     async_client.post(
-                        "/api/v1/users/me/data-requests",
+                        "/api/v1/users/me/data-export",
                         headers={**headers, "Idempotency-Key": key},
-                        json={"type": "EXPORT", "reason": "concurrency scope fixture"},
+                        json={"reason": "concurrency scope fixture"},
                     )
                     for _, headers, keys in actors
                     for key in keys

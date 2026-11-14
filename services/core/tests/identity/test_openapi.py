@@ -44,9 +44,17 @@ def test_identity_openapi_snapshot():
 
 def test_openapi_auth_contract_shapes():
     contract = identity_contract()
-    assert len(contract["paths"]) == 13
+    assert len(contract["paths"]) == 14
     assert set(contract["paths"]["/api/v1/users/me/data-requests"]) == {"get", "post"}
-    assert "/api/v1/users/me/data-export" not in contract["paths"]
+    export_request = contract["paths"]["/api/v1/users/me/data-export"]
+    assert set(export_request) == {"post"}
+    assert export_request["post"]["security"] == [{"HTTPBearer": []}]
+    assert export_request["post"]["requestBody"]["content"]["application/json"]["schema"][
+        "$ref"
+    ].endswith("/CreateDataExportRequest")
+    assert export_request["post"]["responses"]["201"]["content"]["application/json"]["schema"][
+        "$ref"
+    ].endswith("/DataRequestResponse")
     assert set(contract["paths"]["/api/v1/users/me"]) == {"get", "patch"}
     paths = contract["paths"]
     registration = paths["/api/v1/auth/register"]["post"]
