@@ -883,10 +883,13 @@ def _pdf_blocks_open(path: Path, assets: Path, tables: str, table_engine: str, p
             ext = info.get("ext", "png")
             target = assets / f"p{page_index + 1:04d}_img{xref}.{ext}"
             target.write_bytes(info["image"])
-            entries.append({
-                "kind": "image", "bbox": list(rects[0]),
-                "asset": str(target), "caption": "",
-            })
+            # One image resource can be placed multiple times on a page;
+            # emit an entry per placement while reusing the extracted asset.
+            for rect in rects:
+                entries.append({
+                    "kind": "image", "bbox": list(rect),
+                    "asset": str(target), "caption": "",
+                })
 
         entries.sort(key=lambda e: (float(e["bbox"][1]), float(e["bbox"][0])))
         entries = _column_reading_order(entries, float(page.rect.width))
@@ -2394,6 +2397,10 @@ def process(
             "tables": max(0, int(source_audit.get("tables", 0)) - int(out_audit.get("table_elements", out_audit["tables"]))),
             "equations": max(0, int(source_audit.get("equations", 0)) - int(out_audit["equations"])),
             "media": max(0, int(source_audit.get("media", 0)) - int(out_audit["images"])),
+            "unsupported_parts": sum(
+                int(part.get("count", 0))
+                for part in source_audit.get("unsupported_parts", [])
+            ),
         }
     output_errors = validate_outputs(
         out, pages, require_bbox=source_type == "pdf_text"

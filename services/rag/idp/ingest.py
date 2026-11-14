@@ -181,6 +181,17 @@ def ingest_file(
                 "INCOMPLETE_OCR_MARKERS",
                 "OCR markers must cover every PDF page when provided",
             )
+    digital_route = kind not in ("pdf", "image") or (
+        kind == "pdf"
+        and marker_json_by_page is None
+        and page_images_by_page is None
+    )
+    if digital_route and (chart_cmd or figure_cmd):
+        raise InputError(
+            "CHART_FIGURE_UNSUPPORTED_ON_DIGITAL_ROUTE",
+            "chart_cmd/figure_cmd are only applied on the OCR-marker PDF route and "
+            "the image route; the digital text route does not run them",
+        )
     parser_name = f"{kind}:{resolved.name}"
     if registry_path and region_enricher and not region_enricher.cacheable:
         raise InputError("STRUCTURED_IDENTITY_REQUIRED", "all structured readers need stable identities for registry caching")

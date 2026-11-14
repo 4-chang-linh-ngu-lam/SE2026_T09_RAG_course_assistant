@@ -13,11 +13,19 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-REGISTRY_VERSION = 1
+REGISTRY_VERSION = 2
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _sha256_file(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _fingerprint(**fields: str) -> str:
@@ -62,6 +70,9 @@ class DocumentRegistry:
                     ON documents(doc_id, updated_at);
                 """
             )
+            columns = {r[1] for r in connection.execute("PRAGMA table_info(documents)")}
+            if "canonical_sha256" not in columns:
+                connection.execute("ALTER TABLE documents ADD COLUMN canonical_sha256 TEXT")
             connection.execute(f"PRAGMA user_version={REGISTRY_VERSION}")
 
     def lookup(
@@ -104,13 +115,21 @@ class DocumentRegistry:
         canonical_path = Path(canonical)
         if not canonical_path.exists():
             return False
+        stored_sha = row.get("canonical_sha256")
+        if stored_sha:
+            # Bind the registry hit to the exact artifact bytes: another run
+            # with a different scope/config sharing this output directory may
+            # have overwritten the canonical file.
+            try:
+                return _sha256_file(canonical_path) == stored_sha
+            except OSError:
+                return False
+        # Legacy rows without a stored hash: fall back to the identity embedded
+        # in the canonical artifact.
         try:
             artifact = json.loads(canonical_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return False
-        # Another document sharing this output directory may have overwritten
-        # the canonical file; only reuse it when its embedded identity matches
-        # this registry entry.
         return (
             artifact.get("doc_id") == row.get("source_sha256")
             and artifact.get("source_sha256") == row.get("source_sha256")
@@ -138,24 +157,32 @@ class DocumentRegistry:
             scope=scope,
         )
         now = _utc_now()
+        canonical_sha256 = None
+        if canonical_path and Path(canonical_path).exists():
+            try:
+                canonical_sha256 = _sha256_file(canonical_path)
+            except OSError:
+                canonical_sha256 = None
         with self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO documents (
                     doc_id, source_path, source_sha256, parser_name,
                     parser_version, pipeline_version, scope, fingerprint,
-                    status, canonical_path, pages, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    status, canonical_path, canonical_sha256, pages,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(fingerprint) DO UPDATE SET
                     status=excluded.status,
                     canonical_path=excluded.canonical_path,
+                    canonical_sha256=excluded.canonical_sha256,
                     pages=excluded.pages,
                     updated_at=excluded.updated_at
                 """,
                 (
                     doc_id, source_path, source_sha256, parser_name,
                     parser_version, pipeline_version, scope, fingerprint,
-                    status, canonical_path, pages, now, now,
+                    status, canonical_path, canonical_sha256, pages, now, now,
                 ),
             )
         return self.lookup(
