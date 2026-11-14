@@ -2,7 +2,7 @@
 
 Tool: Codex, GPT-6 family (exact deployed model build not exposed). The student is
 Mai Huy Hoàng,23001878. No student/owner approval is inferred from AI verification.
-The complete real user prompt is preserved in [ai-main-prompt.md](ai-main-prompt.md).
+The complete real user prompt is preserved locally in `ai-main-prompt.md`, excluded from Git.
 Initial proposals are preserved in [spec-and-plan.md](spec-and-plan.md); the separate
 read-only Codex agent's findings are recorded in [plan-review.md](plan-review.md).
 User explicitly chose “Dùng một agent chỉ đọc để review kế hoạch” before it spawned.

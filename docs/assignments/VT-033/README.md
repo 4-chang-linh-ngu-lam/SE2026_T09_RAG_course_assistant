@@ -225,7 +225,7 @@ page count. Final PDF is root `BT3_23001878_VT-033.pdf`; main8 pages plus append
 See `evidence/09-pdf-qa.json` for the actual page/text/link/font checks. The student
 must review the final report and responsibility statement before Classroom submission.
 
-[Submission PDF](../../../BT3_23001878_VT-033.pdf):8main pages+2appendices, embedded
+Submission PDF (local only, excluded from Git):8main pages+2appendices, embedded
 Vietnamese font,8clickable links,346-word reflection. CI verification snapshot
 `359b667c0e5b03929e526b1d64755a8b298f2045` passed
 [Core CI](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/43587143297),

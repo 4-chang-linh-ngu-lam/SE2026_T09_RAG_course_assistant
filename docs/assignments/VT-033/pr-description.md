@@ -73,7 +73,8 @@ consumers** for shared Settings, config deployment/restart and API documentation
 Student must read/review the report/reflection/responsibility statement. No human
 approval is asserted. Codex/AI assistance and the separate user-requested read-only
 plan reviewer are disclosed in `ai-usage.md`; full prompt and346-word reflection
-are saved. The [submission PDF](https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/blob/assignment/23001878-vt033-notification-config/BT3_23001878_VT-033.pdf)
+are saved; the full prompt and submission PDF remain local and are excluded from Git.
+The local submission PDF
 has8main pages+2appendices, embedded Vietnamese font,8clickable links and346-word
 reflection; render/text/link/font/bounds QA passed. Student/owner review is pending.
 
