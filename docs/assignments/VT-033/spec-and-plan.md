@@ -7,11 +7,14 @@ This document is created before production changes. Student review is pending.
 
 ## Problem statement
 
-Notification currently inherits a hardcoded default of 20 from shared pagination.
-An operator should be able to change the Notification default in one process setting
-without editing call sites or changing pagination for Classroom, Identity, Social or
-Administration. This is an implementation configuration of an existing API, not a
-new business permission or endpoint.
+The Notification default page size is a configurable, business-facing behavior: it
+determines how many notifications appear on the first inbox page when the user omits
+`limit`. Operators can adjust this default through centralized Settings without
+changing multiple call sites. This affects the notification browsing experience and
+is proposed as a narrowly scoped extension of the existing Notification functionality
+under Business Rule G4. G4 establishes in-app notifications; the repository does not
+define this page-size default as a previously approved business rule. The change adds
+no permission or endpoint and does not change notification ownership.
 
 ## Acceptance criteria
 

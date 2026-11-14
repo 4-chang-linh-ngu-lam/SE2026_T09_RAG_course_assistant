@@ -109,9 +109,12 @@ def main():
 
     new_page()
     heading("1. Specification và invariant")
-    p("<b>Problem statement.</b> Default 20 nằm trong pagination dùng chung. Cho phép vận hành thay đổi "
-      "default của riêng Notification tại một Settings field, tránh sửa nhiều call site và tránh làm "
-      "thay đổi Classroom, Identity, Social hoặc Administration.")
+    p("<b>Problem statement.</b> Số thông báo mặc định trên mỗi trang của Notification là hành vi hướng đến người dùng: "
+      "nó quyết định có tối đa bao nhiêu thông báo xuất hiện ở trang đầu khi người dùng bỏ trống limit. "
+      "Người vận hành có thể chỉnh giá trị này trong Settings tập trung, không phải sửa nhiều call site. "
+      "Thay đổi ảnh hưởng trải nghiệm xem thông báo và được đề xuất như phần mở rộng có giới hạn của chức "
+      "năng Notification theo G4. G4 xác định có thông báo trong ứng dụng; repo chưa quy định số trang mặc "
+      "định này thành business rule đã được phê duyệt. Không thêm quyền hoặc endpoint, không đổi quyền sở hữu.")
     for ac, text in [
         ("AC1", "Env vắng mặt:20. NOTIFICATION_PAGE_SIZE_DEFAULT nhận số nguyên1..100; Settings validate khi process khởi tạo. Env sai chặn startup; đổi env cần restart."),
         ("AC2", "Query limit hợp lệ1..100 ghi đè default. 0,101,noninteger bị từ chối; cursor lỗi/ngoài inbox vẫn bị từ chối; list không ghi dữ liệu."),
@@ -132,8 +135,13 @@ def main():
 
     new_page()
     heading("2. Kế hoạch AI và chiến lược theo rủi ro")
-    p("Plan được lưu trước code; agent chỉ đọc khác review theo yêu cầu người dùng. RED commit "
+    p("Kế hoạch được lưu trước khi sửa code; một agent chỉ đọc review theo yêu cầu người dùng. RED commit "
       + summary["red_sha"][:12] + " có trước implementation " + summary["implementation_sha"][:12] + ".")
+    p("<b>Phạm vi hành vi:</b> Cấu hình số thông báo mặc định trên mỗi trang quyết định số mục ở trang đầu hộp thư khi "
+      "không truyền limit. Người vận hành chỉnh qua Settings tập trung, với giá trị nguyên 1..100; ví dụ "
+      "50 sẽ trả tối đa 50 thông báo mặc định nếu không truyền limit. Đây là đề xuất mở rộng chức năng "
+      "Notification hiện có theo G4, không phải chính sách số lượng đã được duyệt riêng. Không thêm "
+      "endpoint/quyền và không đổi quyền sở hữu thông báo.")
     table(["Đề xuất AI thật", "Quyết định sau review repository"], [
         ["P1 sửa get_pagination chung", "Sửa kế hoạch: dependency riêng Notification. pagination.py:39 và nhiều consumer dùng chung."],
         ["P2 nạp env mỗi request", "Bác bỏ: Settings singleton config.py:76 ở baseline; dùng field đã load, cần restart."],

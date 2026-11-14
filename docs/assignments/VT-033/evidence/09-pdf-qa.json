@@ -1,7 +1,7 @@
 {
-  "recorded_at_utc": "2026-11-14T11:04:54.489215+00:00",
+  "recorded_at_utc": "2026-11-14T11:57:43.310937+00:00",
   "pdf": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\BT3_23001878_VT-033.pdf",
-  "sha256": "91783792f25c44daf82d51e3202fb0dada926c13c94982a4b6821ffe7ed144df",
+  "sha256": "9b2541241dcba2531bec8eb6a483a1694073ae7276261a7337b115dd9a6294c3",
   "main_pages": 8,
   "appendix_pages": 2,
   "total_pages": 10,
@@ -16,7 +16,7 @@
     "https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant/actions/runs/43587143297"
   ],
   "embedded_arial_font_bytes": {
-    "AAAAAA+ArialMT": 75460,
+    "AAAAAA+ArialMT": 75516,
     "AAAAAA+Arial-BoldMT": 54332
   },
   "out_of_page_text": [],
