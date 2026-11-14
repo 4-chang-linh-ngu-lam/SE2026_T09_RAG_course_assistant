@@ -1,0 +1,80 @@
+/home/agent/.local/lib/python3.12/site-packages/platformdirs/api.py:467: RuntimeDirWarning: XDG_RUNTIME_DIR /home/agent/.local/run has mode 0755, not 0700, falling back to /tmp/runtime-1000
+  return Path(self.user_runtime_dir)
+......FFFFFFF..FF                                                        [100%]
+=================================== FAILURES ===================================
+_____________________ test_tc04_update_event_is_consumable _____________________
+tests/vt034/test_contract.py:35: in test_tc04_update_event_is_consumable
+    assert "SOCIAL_POST_UPDATED" in EVENT_SCHEMAS
+E   AssertionError: assert 'SOCIAL_POST_UPDATED' in {'CLASS_ENROLLMENT_CHANGED': <class 'app.modules.notification.events.ClassChanged'>, 'CLASS_ENROLLMENT_MODE_CHANGED': ...otification.events.ClassChanged'>, 'CLASS_STATUS_CHANGED': <class 'app.modules.notification.events.ClassChanged'>, ...}
+_____________ test_tc05_invalid_batch_rejected_before_database[0] ______________
+tests/vt034/test_contract.py:41: in test_tc05_invalid_batch_rejected_before_database
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_____________ test_tc05_invalid_batch_rejected_before_database[-1] _____________
+tests/vt034/test_contract.py:41: in test_tc05_invalid_batch_rejected_before_database
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____________ test_tc05_invalid_batch_rejected_before_database[1001] ____________
+tests/vt034/test_contract.py:41: in test_tc05_invalid_batch_rejected_before_database
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+------------------------------ Captured log call -------------------------------
+WARNING  app.modules.notification.worker:worker.py:69 Chưa thể gửi một thông báo; hệ thống sẽ tự thử lại. Hệ thống chưa thể lưu thông báo cho người nhận. Mã theo dõi None.
+__________ test_tc05_invalid_batch_rejected_before_database[1000000] ___________
+tests/vt034/test_contract.py:41: in test_tc05_invalid_batch_rejected_before_database
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+------------------------------ Captured log call -------------------------------
+WARNING  app.modules.notification.worker:worker.py:69 Chưa thể gửi một thông báo; hệ thống sẽ tự thử lại. Hệ thống chưa thể lưu thông báo cho người nhận. Mã theo dõi None.
+____________ test_tc05_invalid_batch_rejected_before_database[1.5] _____________
+tests/vt034/test_contract.py:42: in test_tc05_invalid_batch_rejected_before_database
+    drain_outbox(session_factory=factory, batch_size=size)
+app/modules/notification/worker.py:28: in drain_outbox
+    for _ in range(batch_size):
+             ^^^^^^^^^^^^^^^^^
+E   TypeError: 'float' object cannot be interpreted as an integer
+____________ test_tc05_invalid_batch_rejected_before_database[True] ____________
+tests/vt034/test_contract.py:41: in test_tc05_invalid_batch_rejected_before_database
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+------------------------------ Captured log call -------------------------------
+WARNING  app.modules.notification.worker:worker.py:69 Chưa thể gửi một thông báo; hệ thống sẽ tự thử lại. Hệ thống chưa thể lưu thông báo cho người nhận. Mã theo dõi None.
+_____________________ test_tc07_commit_and_minimal_payload _____________________
+tests/vt034/test_postgres.py:76: in test_tc07_commit_and_minimal_payload
+    assert len(events) == 1
+E   assert 0 == 1
+E    +  where 0 = len([])
+---------------------------- Captured stdout setup -----------------------------
+No new upgrade operations detected.
+__________________ test_tc09_enqueue_failure_rolls_back_edit ___________________
+tests/vt034/test_postgres.py:100: in test_tc09_enqueue_failure_rolls_back_edit
+    with pytest.raises(RuntimeError, match="synthetic outbox failure"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE RuntimeError
+---------------------------- Captured stdout setup -----------------------------
+No new upgrade operations detected.
+=============================== warnings summary ===============================
+../../../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/vt034/test_contract.py::test_tc04_update_event_is_consumable - A...
+FAILED tests/vt034/test_contract.py::test_tc05_invalid_batch_rejected_before_database[0]
+FAILED tests/vt034/test_contract.py::test_tc05_invalid_batch_rejected_before_database[-1]
+FAILED tests/vt034/test_contract.py::test_tc05_invalid_batch_rejected_before_database[1001]
+FAILED tests/vt034/test_contract.py::test_tc05_invalid_batch_rejected_before_database[1000000]
+FAILED tests/vt034/test_contract.py::test_tc05_invalid_batch_rejected_before_database[1.5]
+FAILED tests/vt034/test_contract.py::test_tc05_invalid_batch_rejected_before_database[True]
+FAILED tests/vt034/test_postgres.py::test_tc07_commit_and_minimal_payload - a...
+FAILED tests/vt034/test_postgres.py::test_tc09_enqueue_failure_rolls_back_edit
+9 failed, 8 passed, 1 warning in 0.73s
