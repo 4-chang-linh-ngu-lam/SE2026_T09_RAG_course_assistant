@@ -8,6 +8,7 @@ retrieval; it records whether a canonical parsed document already exists.
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -98,7 +99,23 @@ class DocumentRegistry:
         if not row or row.get("status") != "succeeded":
             return False
         canonical = row.get("canonical_path")
-        return bool(canonical and Path(canonical).exists())
+        if not canonical:
+            return False
+        canonical_path = Path(canonical)
+        if not canonical_path.exists():
+            return False
+        try:
+            artifact = json.loads(canonical_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        # Another document sharing this output directory may have overwritten
+        # the canonical file; only reuse it when its embedded identity matches
+        # this registry entry.
+        return (
+            artifact.get("doc_id") == row.get("source_sha256")
+            and artifact.get("source_sha256") == row.get("source_sha256")
+            and artifact.get("pipeline_version") == row.get("pipeline_version")
+        )
 
     def record(
         self,

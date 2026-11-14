@@ -283,6 +283,8 @@ def main() -> int:
     parser.add_argument("--chart-timeout", type=int, default=120)
     parser.add_argument("--figure-cmd", default=os.environ.get("IDP_FIGURE_CMD"))
     parser.add_argument("--figure-timeout", type=int, default=120)
+    parser.add_argument("--figure-revision", default=os.environ.get("IDP_FIGURE_REVISION"),
+                        help="immutable figure runner revision; defaults to a hash of --figure-cmd")
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--llama-bin", default=os.environ.get("LLAMA_CPP_BINARY"))
     parser.add_argument("--resume", action="store_true")
@@ -304,6 +306,12 @@ def main() -> int:
     args = parser.parse_args()
     if args.gold:
         parser.error("--gold evaluation was moved out of ingestion")
+
+    figure_revision = args.figure_revision
+    if figure_revision is None and args.figure_cmd:
+        # Pin an immutable revision for the figure runner so resume can trust
+        # the extraction cache; pass --figure-revision to bust the cache.
+        figure_revision = hashlib.sha256(args.figure_cmd.encode("utf-8")).hexdigest()[:16]
     if args.preprocess and args.marker_dir:
         parser.error("--preprocess requires --run-marker; cached marker bboxes refer to original images")
 
@@ -442,6 +450,7 @@ def main() -> int:
         chart_timeout=args.chart_timeout,
         figure_cmd=args.figure_cmd,
         figure_timeout=args.figure_timeout,
+        figure_revision=figure_revision,
         workers=args.workers,
     )
     repaired = []
@@ -485,6 +494,7 @@ def main() -> int:
                 chart_timeout=args.chart_timeout,
                 figure_cmd=args.figure_cmd,
                 figure_timeout=args.figure_timeout,
+                figure_revision=figure_revision,
                 workers=args.workers,
             )
     corrections_applied = []
@@ -520,6 +530,7 @@ def main() -> int:
                 chart_timeout=args.chart_timeout,
                 figure_cmd=args.figure_cmd,
                 figure_timeout=args.figure_timeout,
+                figure_revision=figure_revision,
                 workers=args.workers,
             )
     if fast_pages:
@@ -563,6 +574,7 @@ def main() -> int:
                 chart_timeout=args.chart_timeout,
                 figure_cmd=args.figure_cmd,
                 figure_timeout=args.figure_timeout,
+                figure_revision=figure_revision,
                 workers=args.workers,
             )
     print(json.dumps({
