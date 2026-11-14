@@ -1,12 +1,14 @@
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
-from app.modules.identity.models import UserStatus
+from app.modules.identity.models import DataRequestStatus, DataRequestType, UserStatus
 from app.modules.identity.schemas import (
     ActivateStudentRequest,
     AdminCreateStudentRequest,
+    DataRequestResponse,
     LoginRequest,
     RegisterRequest,
     RegisterResponse,
@@ -48,6 +50,31 @@ def test_responses_never_serialize_storage_hashes():
         "access_token",
         "token_type",
         "expires_in",
+    }
+
+
+def test_export_request_response_is_metadata_not_an_export_payload():
+    now = datetime.now(UTC)
+    response = DataRequestResponse(
+        id=uuid4(),
+        user_id=uuid4(),
+        request_type=DataRequestType.EXPORT,
+        reason="User-requested export",
+        status=DataRequestStatus.PENDING,
+        resolution_note=None,
+        created_at=now,
+        updated_at=now,
+    )
+
+    assert set(response.model_dump()) == {
+        "id",
+        "user_id",
+        "type",
+        "reason",
+        "status",
+        "resolution_note",
+        "created_at",
+        "updated_at",
     }
 
 

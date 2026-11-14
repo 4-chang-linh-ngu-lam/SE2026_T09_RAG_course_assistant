@@ -357,6 +357,13 @@ def test_email_delivery_retries_same_token_and_admin_reissue_rotates_it(identity
         session.commit()
         assert reissued.token_id != invitation.token_id
         assert reissued.token.get_secret_value() != invitation.token.get_secret_value()
+        with Session(engine) as independent:
+            delivery = independent.scalar(
+                select(CredentialDelivery).where(CredentialDelivery.token_id == reissued.token_id)
+            )
+            assert delivery is not None
+            delivery.available_at = datetime.now(UTC) - timedelta(seconds=1)
+            independent.commit()
         assert service.attempt_token_delivery(reissued.token_id, sender.send) == "DELIVERED"
         expect_error(
             400,

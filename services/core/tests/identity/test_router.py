@@ -1,8 +1,10 @@
+import asyncio
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -18,11 +20,21 @@ from app.common.audit import AuditEvent
 from app.common.config import settings
 from app.common.db import get_db
 from app.common.errors import AppError, register_error_handlers
+from app.common.security import create_access_token
 from app.modules.classroom.models import School
 from app.modules.identity.email_delivery import get_token_sender
 from app.modules.identity.http_security import REFRESH_COOKIE
 from app.modules.identity.idempotency import IdempotencyStore, get_idempotency_store
-from app.modules.identity.models import DataRequest, Role, RoleAssignment, User, UserStatus
+from app.modules.identity.models import (
+    CredentialDelivery,
+    DataRequest,
+    OneTimeToken,
+    Role,
+    RoleAssignment,
+    TokenPurpose,
+    User,
+    UserStatus,
+)
 from app.modules.identity.rate_limit import RateLimiter, get_rate_limiter
 from app.modules.identity.router import _tokens
 from app.modules.identity.schemas import RegisterRequest, TokenResponse
@@ -256,14 +268,36 @@ def test_forgot_is_generic_and_rate_limited(http):
     assert client.post("/api/v1/auth/password/forgot", json={"email": email}).status_code == 429
 
 
-def test_reset_password_http_revokes_access_and_refresh(http):
+def test_reset_password_http_revokes_access_and_refresh(http, engine):
     client, sender, register, _ = http
-    email, _ = register()
+    email, registered = register()
     authenticated = login(client, email)
     headers = bearer(authenticated)
     assert client.post("/api/v1/auth/password/forgot", json={"email": email}).status_code == 200
+    if not any(item.purpose == TokenPurpose.PASSWORD_RESET for item in sender.deliveries):
+        with Session(engine) as session:
+            token = session.scalar(
+                select(OneTimeToken)
+                .where(
+                    OneTimeToken.user_id == UUID(registered.json()["user_id"]),
+                    OneTimeToken.purpose == TokenPurpose.PASSWORD_RESET,
+                )
+                .order_by(OneTimeToken.created_at.desc())
+                .limit(1)
+            )
+            assert token is not None
+            delivery = session.get(CredentialDelivery, token.id)
+            assert delivery is not None
+            delivery.available_at = datetime.now(UTC) - timedelta(seconds=1)
+            session.commit()
+            assert IdentityService(session).attempt_token_delivery(token.id, sender.send) == (
+                "DELIVERED"
+            )
+    reset_email = next(
+        item for item in reversed(sender.deliveries) if item.purpose == TokenPurpose.PASSWORD_RESET
+    )
     payload = {
-        "token": sender.deliveries[-1].token.get_secret_value(),
+        "token": reset_email.token.get_secret_value(),
         "new_password": "new test-only password long enough",
     }
     reset = client.post("/api/v1/auth/password/reset", json=payload)
@@ -502,6 +536,154 @@ def test_data_requests_pagination_and_cross_user_access(http):
         json={"type": "DELETE", "user_id": second_user.json()["user_id"]},
     )
     assert forged.status_code == 422
+
+
+def test_personal_data_export_request_creates_pending_request_for_current_user(http):
+    client, _, register, _ = http
+    own_email, own_user = register()
+    other_email, other_user = register()
+    own_headers = bearer(login(client, own_email))
+    other_headers = bearer(login(client, other_email))
+    other_request = client.post(
+        "/api/v1/users/me/data-requests",
+        headers=other_headers,
+        json={"type": "EXPORT", "reason": "foreign marker"},
+    )
+    assert other_request.status_code == 201
+
+    pending = client.post(
+        "/api/v1/users/me/data-requests",
+        headers=own_headers,
+        params={"user_id": other_user.json()["user_id"]},
+        json={"type": "EXPORT", "reason": "VT-035-own-export-request"},
+    )
+
+    assert pending.status_code == 201
+    assert pending.headers["content-type"].startswith("application/json")
+    assert pending.headers["cache-control"] == "no-store"
+    request = pending.json()
+    assert request["type"] == "EXPORT" and request["status"] == "PENDING"
+    assert request["user_id"] == own_user.json()["user_id"]
+    assert request["reason"] == "VT-035-own-export-request"
+    assert set(request) == {
+        "id",
+        "user_id",
+        "type",
+        "reason",
+        "status",
+        "resolution_note",
+        "created_at",
+        "updated_at",
+    }
+    assert "content-disposition" not in pending.headers
+
+    own_history = client.get("/api/v1/users/me/data-requests", headers=own_headers)
+    assert [row["id"] for row in own_history.json()["items"]] == [request["id"]]
+    assert "foreign marker" not in own_history.text
+    assert client.get("/api/v1/users/me/data-export", headers=own_headers).status_code == 404
+
+
+def test_personal_data_export_request_requires_authentication(http):
+    client, _, _, _ = http
+
+    response = client.post("/api/v1/users/me/data-requests", json={"type": "EXPORT"})
+
+    assert response.status_code == 401
+
+
+def test_personal_data_export_request_rejects_client_selected_owner(http):
+    client, _, register, _ = http
+    email, _ = register()
+    headers = bearer(login(client, email))
+
+    response = client.post(
+        "/api/v1/users/me/data-requests",
+        headers=headers,
+        json={"type": "EXPORT", "reason": "request only", "user_id": str(uuid4())},
+    )
+
+    assert response.status_code == 422
+
+
+def test_concurrent_personal_data_export_requests_preserve_each_owner_scope(http, engine):
+    _, _, _, app = http
+    actors = []
+    now = datetime.now(UTC)
+    with Session(engine, autoflush=False, expire_on_commit=False) as db:
+        school_id = uuid4()
+        db.add(School(id=school_id, name="Concurrent export request fixture"))
+        db.flush()
+        for index in range(12):
+            user_id = uuid4()
+            db.add(
+                User(
+                    id=user_id,
+                    school_id=school_id,
+                    email=None,
+                    username=f"export.concurrent.{index}.{user_id.hex[:8]}",
+                    display_name=f"Concurrent requester {index}",
+                    status=UserStatus.ACTIVE,
+                    activated_at=now,
+                    password_hash="unusable-concurrent-fixture",
+                )
+            )
+            db.flush()
+            db.add(RoleAssignment(user_id=user_id, role=Role.STUDENT))
+            token = create_access_token(user_id, ["STUDENT"], 1)
+            actors.append(
+                (str(user_id), {"Authorization": f"Bearer {token}"}, [str(uuid4()), str(uuid4())])
+            )
+        db.commit()
+
+    async def export_all():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="https://core.example.com",
+            limits=httpx.Limits(max_connections=len(actors), max_keepalive_connections=len(actors)),
+        ) as async_client:
+            return await asyncio.gather(
+                *(
+                    async_client.post(
+                        "/api/v1/users/me/data-requests",
+                        headers={**headers, "Idempotency-Key": key},
+                        json={"type": "EXPORT", "reason": "concurrency scope fixture"},
+                    )
+                    for _, headers, keys in actors
+                    for key in keys
+                )
+            )
+
+    responses = asyncio.run(export_all())
+    assert len(responses) == 24
+    results_by_user = {user_id: set() for user_id, _, _ in actors}
+    for response in responses:
+        assert response.status_code == 201
+        request = response.json()
+        assert request["type"] == "EXPORT" and request["status"] == "PENDING"
+        assert "content-disposition" not in response.headers
+        results_by_user[request["user_id"]].add(request["id"])
+
+    assert set(results_by_user) == {user_id for user_id, _, _ in actors}
+    assert all(len(request_ids) == 2 for request_ids in results_by_user.values())
+
+    async def list_all():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="https://core.example.com",
+        ) as async_client:
+            return await asyncio.gather(
+                *(
+                    async_client.get("/api/v1/users/me/data-requests", headers=headers)
+                    for _, headers, _ in actors
+                )
+            )
+
+    histories = asyncio.run(list_all())
+    for response, (user_id, _, _) in zip(histories, actors, strict=True):
+        assert response.status_code == 200
+        requests = response.json()["items"]
+        assert {row["id"] for row in requests} == results_by_user[user_id]
+        assert all(row["user_id"] == user_id for row in requests)
 
 
 def test_data_request_alias_idempotency_and_validation(http, engine):

@@ -46,6 +46,7 @@ def test_openapi_auth_contract_shapes():
     contract = identity_contract()
     assert len(contract["paths"]) == 13
     assert set(contract["paths"]["/api/v1/users/me/data-requests"]) == {"get", "post"}
+    assert "/api/v1/users/me/data-export" not in contract["paths"]
     assert set(contract["paths"]["/api/v1/users/me"]) == {"get", "patch"}
     paths = contract["paths"]
     registration = paths["/api/v1/auth/register"]["post"]
