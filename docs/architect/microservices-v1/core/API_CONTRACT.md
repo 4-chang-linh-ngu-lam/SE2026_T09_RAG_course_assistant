@@ -28,6 +28,7 @@ Health không dùng prefix `/api/v1`: `GET /health/live` → 200 `{status:"live"
 | POST | /auth/password/reset | Public; {token,new_password} → 204 |
 | GET/PATCH | /users/me | Bearer; GET profile, PATCH {display_name?} |
 | GET/POST | /users/me/data-requests | Bearer; GET list, POST {type:ACCESS/EXPORT/CORRECTION/DELETE,reason?} → 201 PENDING |
+| POST | /users/me/data-export | Bearer; {reason?} → 201 DataRequestResponse(type=EXPORT,status=PENDING); request only, no payload |
 
 Refresh cookie tên `refresh_token`, path `/api/v1/auth`, HttpOnly/Secure/SameSite=Lax. Refresh/logout kiểm tra Origin hoặc fallback Referer khi Origin vắng mặt, đối chiếu `CORS_ORIGINS`; sai/thiếu origin trả 403. Login cũng chặn Origin sai nếu được gửi. Responses auth/profile dùng `Cache-Control: no-store`; logout/logout-all/reset xóa cookie cùng path.
 
@@ -36,6 +37,8 @@ Profile trả `{id,email,username,school_id,display_name,roles,status}`, không 
 Password/reset nhận PASSWORD_RESET/ADMIN_INVITATION cho staff hoặc STUDENT_PASSWORD_RESET do Admin đã xác minh cấp cho Student ACTIVE. Lời mời staff chỉ đặt mật khẩu/xác minh tài khoản PENDING, không mở LOCKED. Activation token chỉ dùng tại /auth/activate, reset token không thay activation; token email cũ không được dùng cho Student. Token một lần, đúng purpose/hạn; reset không trả token qua response. Forgot-password giữ body generic dù SMTP đang retry; resend khi delivery còn PENDING không đổi token.
 
 Data requests POST dùng `type` chuẩn (alias `request_type` được chấp nhận), reason tùy chọn tối đa 10000 ký tự; trả `{id,user_id,type,reason,status:PENDING,resolution_note:null,created_at,updated_at}`. GET trả `{items,next_cursor}` theo limit/cursor và UUID tăng dần, chỉ của người dùng xác thực. Không nhận user_id/status/resolution_note do người dùng đặt. DELETE là loại yêu cầu xử lý thủ công, không tự xóa dữ liệu hoặc khóa tài khoản.
+
+**VT-035 coursework proposal:** `POST /users/me/data-export` là route request-only dùng cho intent EXPORT. Nó lấy owner từ Bearer hiện hành và trả cùng DataRequestResponse PENDING; không tạo, lưu hoặc giao file. Admin vẫn phải xác minh danh tính và attestation bàn giao thủ công như quy trình ACCESS/EXPORT hiện hành. Route proposal cần owner review trước khi merge và không thay đổi F4/K4.
 
 Rate limit mặc định: login 5 lần sai/60 giây theo IP và identifier chuẩn hóa (namespace username/email); forgot 3 request/3600 giây theo IP; activate/verify/reset 5/60 giây theo IP. 429 có `Retry-After`. Register bị chặn mọi lần gọi, không replay response 201 từ cache.
 

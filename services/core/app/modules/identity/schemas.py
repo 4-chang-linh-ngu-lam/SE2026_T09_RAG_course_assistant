@@ -203,6 +203,10 @@ class CreateDataRequest(RequestModel):
     reason: str | None = Field(default=None, max_length=10000)
 
 
+class CreateDataExportRequest(RequestModel):
+    reason: str | None = Field(default=None, max_length=10000)
+
+
 class DataRequestResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

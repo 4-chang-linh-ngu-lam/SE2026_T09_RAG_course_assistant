@@ -28,6 +28,7 @@ from app.modules.identity.rate_limit import RateLimiter, get_rate_limiter
 from app.modules.identity.schemas import (
     ActivateStudentRequest,
     AdminCreateStudentRequest,
+    CreateDataExportRequest,
     CreateDataRequest,
     DataRequestResponse,
     ForgotPasswordRequest,
@@ -368,4 +369,19 @@ def create_data_request(
         "user:" + str(user.id),
         body.model_dump(mode="json"),
         lambda: _json(service.create_data_request(user.id, body), 201),
+    )
+
+
+@router.post("/users/me/data-export", response_model=DataRequestResponse, status_code=201)
+def create_personal_data_export_request(
+    body: CreateDataExportRequest,
+    user: User,
+    service: Service,
+    mutation: Mutator,
+) -> Response:
+    request = CreateDataRequest(type="EXPORT", reason=body.reason)
+    return mutation.run(
+        "user:" + str(user.id),
+        request.model_dump(mode="json"),
+        lambda: _json(service.create_data_request(user.id, request), 201),
     )
