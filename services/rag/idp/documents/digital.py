@@ -2391,9 +2391,18 @@ def process(
     )
 
     out_audit = _text_output_audit(pages)
-    content_loss = {}
+    # CSV/XLSX readers cap rows/columns and flag the table TABLE_TRUNCATED;
+    # count those flags for every source type so strict mode cannot pass on a
+    # known-incomplete canonical document.
+    truncated_tables = sum(
+        1
+        for p in pages
+        for b in p["blocks"]
+        if any(f.get("code") == "TABLE_TRUNCATED" for f in b.get("review_flags") or [])
+    )
+    content_loss = {"truncated_tables": truncated_tables}
     if source_type == "docx":
-        content_loss = {
+        content_loss.update({
             "tables": max(0, int(source_audit.get("tables", 0)) - int(out_audit.get("table_elements", out_audit["tables"]))),
             "equations": max(0, int(source_audit.get("equations", 0)) - int(out_audit["equations"])),
             "media": max(0, int(source_audit.get("media", 0)) - int(out_audit["images"])),
@@ -2401,7 +2410,7 @@ def process(
                 int(part.get("count", 0))
                 for part in source_audit.get("unsupported_parts", [])
             ),
-        }
+        })
     output_errors = validate_outputs(
         out, pages, require_bbox=source_type == "pdf_text"
     )
