@@ -1,0 +1,28 @@
+{
+  "started_at_utc": "2026-11-14T10:15:50.026044+00:00",
+  "finished_at_utc": "2026-11-14T10:29:21.396194+00:00",
+  "sha": "d9870162e79e93d01c873096cc886925ecda9665",
+  "branch": "assignment/23001878-vt033-notification-config",
+  "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "-W",
+    "error",
+    "-p",
+    "no:cacheprovider",
+    "--tb=short",
+    "--cov=app",
+    "--cov-branch",
+    "--cov-report=term-missing",
+    "--cov-report=xml:../../docs/assignments/VT-033/evidence/05-coverage.xml",
+    "--cov-report=json:../../docs/assignments/VT-033/evidence/05-coverage.json",
+    "--junitxml=../../docs/assignments/VT-033/evidence/02-green-full-junit.xml"
+  ],
+  "exit_code": 0,
+  "application_sha256": "f86c69a4d62db853a7fb69c2496115b4dc368088cb2016d6ef275b54d0183907",
+  "test_database_configured": true,
+  "log": "05-coverage-full.log"
+}

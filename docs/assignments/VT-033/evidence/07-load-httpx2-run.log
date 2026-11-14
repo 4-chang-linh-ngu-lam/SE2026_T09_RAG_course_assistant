@@ -1,0 +1,3 @@
+warmup: 120 actors / 30s
+measure: 120 actors / 180s
+{"requests": 7016, "errors": 526, "content_or_ownership_errors": 0, "client_p95_ms": 3472.5805999987642, "peak_client_in_flight": 120, "passed_vt033": false}

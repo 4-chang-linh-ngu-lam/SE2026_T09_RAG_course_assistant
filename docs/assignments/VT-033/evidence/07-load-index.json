@@ -1,0 +1,25 @@
+{
+  "recorded_at_utc": "2026-11-14T10:47:32.788390+00:00",
+  "profiles": [
+    {
+      "label": "HTTPX0.28.1 / pool5+10",
+      "report": "07-load-httpx.json",
+      "sha256": "3084ae7b93d2a5454a35e935463d20b9aa1cd84a04ac64d247479a24b787a7ab",
+      "verdict": "FAIL"
+    },
+    {
+      "label": "HTTPX2 / pool5+10",
+      "report": "07-load-httpx2-default-pool.json",
+      "sha256": "2560431cf8ec03c902c7fc323ee5545d6c26d8cd488f207b9eba0ed787219921",
+      "verdict": "FAIL"
+    },
+    {
+      "label": "HTTPX2 / pool15+0",
+      "report": "07-load.json",
+      "sha256": "5cc8b4b444b25801ea7fb8873dcc87c21f7d23332f6a85df2667c8e4cc2e60c4",
+      "verdict": "FAIL"
+    }
+  ],
+  "historical_output_path": "07-load.json",
+  "notes": "Earlier report bytes archived unchanged; historical run metadata/commands retained. No failed profile relabeled passed."
+}

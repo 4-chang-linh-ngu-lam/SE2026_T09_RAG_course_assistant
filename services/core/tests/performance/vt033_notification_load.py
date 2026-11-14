@@ -8,6 +8,7 @@ are written to the aggregate report. Existing application data is never touched.
 import argparse
 import asyncio
 import hashlib
+import importlib
 import json
 import os
 import platform
@@ -91,7 +92,7 @@ def fixture(engine, count, page_size):
     return actors, total
 
 
-async def exercise(client, actors, duration):
+async def exercise(client, actors, duration, http_library=httpx):
     go = asyncio.Event()
     timings, statuses = [], {}
     in_flight = peak = mismatches = timeouts = transport_errors = 0
@@ -123,10 +124,10 @@ async def exercise(client, actors, duration):
                     )
                     if not valid:
                         mismatches += 1
-            except httpx.TimeoutException:
+            except http_library.TimeoutException:
                 timeouts += 1
                 status = "timeout"
-            except httpx.HTTPError:
+            except http_library.HTTPError:
                 transport_errors += 1
                 status = "transport_error"
             except (KeyError, TypeError, ValueError):
@@ -161,8 +162,10 @@ def main():
     parser.add_argument("--page-size", type=int, default=2)
     parser.add_argument("--warmup-seconds", type=int, default=30)
     parser.add_argument("--duration-seconds", type=int, default=180)
+    parser.add_argument("--client-library", choices=("httpx", "httpx2"), default="httpx")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    http_library = importlib.import_module(args.client_library)
     if not (1 <= args.users <= 120 and 1 <= args.page_size <= 100):
         parser.error("users must be 1..120 and page-size 1..100")
     if args.duration_seconds < 1 or args.warmup_seconds < 0:
@@ -231,21 +234,21 @@ def main():
 
             async def measure():
                 nonlocal collecting
-                async with httpx.AsyncClient(
+                async with http_library.AsyncClient(
                     base_url=f"http://127.0.0.1:{port}",
                     trust_env=False,
                     timeout=15,
-                    limits=httpx.Limits(
+                    limits=http_library.Limits(
                         max_connections=args.users, max_keepalive_connections=args.users
                     ),
                 ) as client:
                     print(f"warmup: {args.users} actors / {args.warmup_seconds}s", flush=True)
-                    warmup = await exercise(client, actors, args.warmup_seconds)
+                    warmup = await exercise(client, actors, args.warmup_seconds, http_library)
                     collecting = True
                     print(f"measure: {args.users} actors / {args.duration_seconds}s", flush=True)
                     cpu_start = time.process_time()
                     try:
-                        result = await exercise(client, actors, args.duration_seconds)
+                        result = await exercise(client, actors, args.duration_seconds, http_library)
                     finally:
                         collecting = False
                     result["process_cpu_seconds"] = time.process_time() - cpu_start
@@ -284,6 +287,7 @@ def main():
                 "logical_cpus": os.cpu_count(),
                 "ram_bytes": ram_bytes(),
                 "python": platform.python_version(),
+                "client_library": f"{http_library.__name__} {http_library.__version__}",
                 "postgresql": version,
                 "pool_size": settings.database_pool_size,
                 "max_overflow": settings.database_max_overflow,

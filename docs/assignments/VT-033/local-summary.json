@@ -1,0 +1,197 @@
+{
+  "baseline_sha": "9ee864c3404f8057b394592791404f6db8692826",
+  "red_sha": "6dd9ebfea7ae8617a04fb3ff5b570f93c23322bb",
+  "implementation_sha": "d9870162e79e93d01c873096cc886925ecda9665",
+  "repository": "https://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant",
+  "full_result": "439 passed,0 failed,0 skipped (local PostgreSQL16)",
+  "coverage": {
+    "covered_lines": 4604,
+    "num_statements": 5038,
+    "percent_covered": 88.20709491850431,
+    "percent_covered_display": "88",
+    "missing_lines": 434,
+    "excluded_lines": 3,
+    "percent_statements_covered": 91.38547042477174,
+    "percent_statements_covered_display": "91",
+    "num_branches": 1220,
+    "num_partial_branches": 226,
+    "covered_branches": 916,
+    "missing_branches": 304,
+    "percent_branches_covered": 75.08196721311475,
+    "percent_branches_covered_display": "75",
+    "line_percent": 91.38547042477174,
+    "branch_percent": 75.08196721311475
+  },
+  "notification_coverage": "router/service/repository line100%; repository branch7/8=87.5% (empty-inbox read-all branch missing); router/service0 counted branches",
+  "flaky_summary": "F1: normal order covered by full439-pass run (38 new cases), reversed file order38passed. F2: ownership/cursor/read/read-all-delivery synchronization group repeated3times,4passed per round (12passes). No failures/skips observed; finite shared-machine experiments, not proof of no flakes.",
+  "test_cases": [
+    [
+      "T01",
+      "R3/AC1",
+      "Unit",
+      "Env absent",
+      "Settings default exactly 20",
+      "P1",
+      "test_vt033_config.py::test_settings_default"
+    ],
+    [
+      "T02",
+      "R3/AC1",
+      "Unit BVA",
+      "Config 0,101",
+      "ValidationError, no fallback",
+      "P1",
+      "test_settings_boundaries"
+    ],
+    [
+      "T03",
+      "R3/AC1",
+      "Unit BVA",
+      "Config 1,2,99,100",
+      "Exact parsed int preserved",
+      "P1",
+      "test_settings_boundaries"
+    ],
+    [
+      "T04",
+      "R3/AC1",
+      "Process",
+      "Env invalid/noninteger",
+      "Import Settings exits nonzero before startup",
+      "P1",
+      "test_invalid_env_prevents_startup"
+    ],
+    [
+      "T05",
+      "R1/AC1",
+      "API",
+      "New default 1,2,100",
+      "Service receives configured limit with actor ID",
+      "P1",
+      "test_route_resolves_default"
+    ],
+    [
+      "T06",
+      "R1/AC2",
+      "API BVA",
+      "Query 1,2,99,100; default 2",
+      "Exact explicit limit passed; no-store",
+      "P1",
+      "test_explicit_limit_overrides_default"
+    ],
+    [
+      "T07",
+      "R1/AC2",
+      "API negative",
+      "Query 0,101,noninteger",
+      "422 error envelope, service not called",
+      "P1",
+      "test_invalid_query_never_calls_service"
+    ],
+    [
+      "T08",
+      "R2/AC5",
+      "API regression",
+      "Classroom list omits limit, Notification default 2",
+      "Classroom still receives limit20",
+      "P1",
+      "test_other_endpoint_keeps_twenty"
+    ],
+    [
+      "T09",
+      "R1/AC1,3",
+      "PG API",
+      "Default 1,2,100; 103 own/3 other rows",
+      "Exact own descending IDs, payloads, read flags, count102, valid continuation",
+      "P1",
+      "test_vt033_postgres.py::test_configured_inbox_business_outcome"
+    ],
+    [
+      "T10",
+      "R1/AC2,3",
+      "PG API BVA",
+      "Explicit 1,2,99,100; default2",
+      "Exact own page size and IDs, cursor, unread count",
+      "P1",
+      "test_explicit_limit_business_outcome"
+    ],
+    [
+      "T11",
+      "R1/AC2,4",
+      "PG API negative",
+      "Foreign cursor",
+      "400, own and other read state unchanged",
+      "P1",
+      "test_foreign_cursor_does_not_change_state"
+    ],
+    [
+      "T12",
+      "R1,R4/AC4",
+      "PG API security",
+      "A marks B's unread notification",
+      "B.read_at stays None; own inbox unchanged; 404",
+      "P0",
+      "test_cross_recipient_mark_read_preserves_business_state"
+    ],
+    [
+      "T13",
+      "R4/AC4",
+      "PG API",
+      "Own mark twice then read-all",
+      "First read_at preserved; own unread0; B unread3",
+      "P1",
+      "test_own_read_and_read_all_preserve_other_inbox"
+    ],
+    [
+      "T14",
+      "R1/AC4",
+      "PG API negative",
+      "Lock actor after token creation",
+      "401 and unchanged persisted rows",
+      "P0",
+      "test_locked_user_cannot_read_inbox"
+    ],
+    [
+      "T15",
+      "R4/AC3",
+      "PG failure path",
+      "Inject unread-count DB operation failure",
+      "500 safe envelope; transaction exits cleanly; next real list succeeds and data unchanged",
+      "P1",
+      "test_list_failure_rolls_back_and_recovers"
+    ],
+    [
+      "T16",
+      "R1/AC1,3",
+      "PG API regression",
+      "Default20 env absent; empty inbox",
+      "20 own rows normally; empty other actor returns [],0,None",
+      "P1",
+      "test_baseline_default_and_empty_inbox"
+    ],
+    [
+      "T17",
+      "R1/AC2",
+      "API negative",
+      "malformed/too-long cursor",
+      "Existing 400/422; no call/write",
+      "P2",
+      "test_invalid_query_never_calls_service"
+    ],
+    [
+      "T18",
+      "R5/NFR",
+      "Loopback HTTP + PG",
+      "120 distinct actors, simultaneous barrier, 30s warmup + sustained measurement",
+      "Exact own IDs/read/count/cursor; max in-flight120 recorded; client p95<=3500ms, errors0",
+      "P1",
+      "performance/vt033_notification_load.py"
+    ]
+  ],
+  "performance_passed": false,
+  "performance_note": "All3profiles FAIL. Final profile120actual/peak,7310requests,p953360.44ms but248errors.",
+  "remaining_blockers": [
+    "120-actor operational load gate failed; investigate admission/client/server/resource bottlenecks",
+    "Student and Notification/Common/Identity owner review pending"
+  ]
+}
