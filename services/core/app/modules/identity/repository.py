@@ -75,6 +75,10 @@ class IdentityRepository:
             query = query.where(DataRequest.id > cursor)
         return list(self.session.scalars(query.order_by(DataRequest.id).limit(limit + 1)))
 
+    def data_requests_for_export(self, user_id: UUID) -> list[DataRequest]:
+        query = select(DataRequest).where(DataRequest.user_id == user_id)
+        return list(self.session.scalars(query.order_by(DataRequest.id)))
+
     def get_profile(self, user_id: UUID) -> UserProfile | None:
         rows = self.session.execute(
             select(

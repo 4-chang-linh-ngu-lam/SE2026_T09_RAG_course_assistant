@@ -214,3 +214,12 @@ class DataRequestResponse(BaseModel):
     resolution_note: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class PersonalDataExport(BaseModel):
+    """VT-035 proposal: the authenticated user's Identity-owned Core records only."""
+
+    schema_version: Literal[1] = 1
+    exported_at: datetime
+    profile: UserProfile
+    data_requests: list[DataRequestResponse]

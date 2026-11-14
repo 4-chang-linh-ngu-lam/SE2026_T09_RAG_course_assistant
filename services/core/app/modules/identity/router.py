@@ -34,6 +34,7 @@ from app.modules.identity.schemas import (
     ForgotPasswordResponse,
     IssueStudentCodeRequest,
     LoginRequest,
+    PersonalDataExport,
     RegisterRequest,
     ResetPasswordRequest,
     StudentCodeResponse,
@@ -346,6 +347,13 @@ def update_profile(
         body.model_dump(exclude_unset=True),
         lambda: _json(service.update_profile(user.id, body)),
     )
+
+
+@router.get("/users/me/data-export", response_model=PersonalDataExport)
+def export_personal_data(user: User, service: Service, request: Request) -> Response:
+    response = _json(service.export_personal_data(user.id, UUID(str(request.state.correlation_id))))
+    response.headers["Content-Disposition"] = 'attachment; filename="lumi-data-export.json"'
+    return response
 
 
 @router.get("/users/me/data-requests", response_model=Page[DataRequestResponse])

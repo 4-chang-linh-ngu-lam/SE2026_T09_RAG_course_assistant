@@ -47,6 +47,7 @@ from app.modules.identity.schemas import (
     DataRequestResponse,
     ForgotPasswordRequest,
     LoginRequest,
+    PersonalDataExport,
     RegisterRequest,
     RegisterResponse,
     ResetPasswordRequest,
@@ -307,6 +308,26 @@ class IdentityService:
         if profile is None or profile.status != UserStatus.ACTIVE:
             raise AppError(401)
         return profile
+
+    def export_personal_data(self, user_id: UUID, correlation_id: UUID) -> PersonalDataExport:
+        with transaction(self.session):
+            profile = self.get_profile(user_id)
+            requests = self.repository.data_requests_for_export(user_id)
+            record_audit(
+                self.session,
+                actor_id=user_id,
+                school_id=profile.school_id,
+                action="USER_DATA_EXPORT",
+                target_type="USER",
+                target_id=user_id,
+                correlation_id=correlation_id,
+                metadata_json=AuditMetadata(reason_code="USER_REQUEST"),
+            )
+            return PersonalDataExport(
+                exported_at=datetime.now(UTC),
+                profile=profile,
+                data_requests=[DataRequestResponse.model_validate(item) for item in requests],
+            )
 
     def update_profile(self, user_id: UUID, request: UpdateProfileRequest) -> UserProfile:
         with transaction(self.session):

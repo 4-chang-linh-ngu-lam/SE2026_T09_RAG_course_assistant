@@ -122,3 +122,24 @@ not poll timing; tests for available_at/retry/backoff remain separate and unchan
 Their failure diagnostics contain only event type/attempt count/database timestamps.
 This avoids treating an event that is not yet due at the instant of a poll as a
 recipient/atomicity failure. No production clock or worker schedule was changed.
+
+## BT3 VT-035 data export proposal
+
+This branch adds an assignment-only proposal for the authenticated user's Core
+Identity profile and own data-request history. It does not export other services'
+data or replace the currently approved manual ACCESS/EXPORT process. Use only a
+disposable PostgreSQL server with `CREATEDB`; never point `TEST_DATABASE_URL` at
+operational data.
+
+From `services/core`:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql+psycopg://<test-user>:<password>@127.0.0.1:5432/postgres"
+python -m pytest tests/identity/test_router.py tests/identity/test_openapi.py -q -W error
+python tests/performance/data_export_load.py --users 150 --rounds 10 --output test-evidence/vt035-data-export-load.json
+```
+
+The load harness creates and drops a sibling test database, seeds synthetic
+accounts with two Core data requests each, launches 150 simultaneous HTTP tasks per
+round, validates each response's owner scope and records client/backend p95. Its
+report describes local synthetic Core-only load, not production capacity.

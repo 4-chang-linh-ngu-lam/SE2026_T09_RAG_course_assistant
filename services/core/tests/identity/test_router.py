@@ -504,6 +504,81 @@ def test_data_requests_pagination_and_cross_user_access(http):
     assert forged.status_code == 422
 
 
+def test_personal_data_export_is_downloadable_and_current_user_scoped(http, engine):
+    client, _, register, _ = http
+    own_email, own_user = register()
+    other_email, other_user = register()
+    own_headers = bearer(login(client, own_email))
+    other_headers = bearer(login(client, other_email))
+    own_request = client.post(
+        "/api/v1/users/me/data-requests",
+        headers=own_headers,
+        json={"type": "EXPORT", "reason": "Only the signed-in user's request"},
+    )
+    other_request = client.post(
+        "/api/v1/users/me/data-requests",
+        headers=other_headers,
+        json={"type": "ACCESS", "reason": "Foreign request must not leak"},
+    )
+    assert own_request.status_code == other_request.status_code == 201
+
+    response = client.get(
+        "/api/v1/users/me/data-export",
+        headers=own_headers,
+        params={"user_id": other_user.json()["user_id"]},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.headers["content-disposition"] == 'attachment; filename="lumi-data-export.json"'
+    assert response.headers["cache-control"] == "no-store"
+    payload = response.json()
+    assert payload["schema_version"] == 1
+    assert payload["profile"]["id"] == own_user.json()["user_id"]
+    assert {item["id"] for item in payload["data_requests"]} == {own_request.json()["id"]}
+    assert all(item["user_id"] == own_user.json()["user_id"] for item in payload["data_requests"])
+    assert "Foreign request must not leak" not in response.text
+    assert "password_hash" not in payload["profile"]
+    assert "token" not in response.text.lower()
+    with Session(engine) as db:
+        events = list(
+            db.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.action == "USER_DATA_EXPORT",
+                    AuditEvent.target_id == UUID(own_user.json()["user_id"]),
+                )
+            )
+        )
+    assert len(events) == 1
+    assert events[0].metadata_json == {
+        "changed_fields": [],
+        "reason_code": "USER_REQUEST",
+    }
+
+
+def test_personal_data_export_requires_authentication(http):
+    client, _, _, _ = http
+
+    response = client.get("/api/v1/users/me/data-export")
+
+    assert response.status_code == 401
+
+
+def test_locked_account_cannot_export_with_an_existing_token(http, engine):
+    client, _, register, _ = http
+    email, user = register()
+    headers = bearer(login(client, email))
+    with Session(engine, autoflush=False, expire_on_commit=False) as db:
+        account = db.get(User, UUID(user.json()["user_id"]))
+        account.status = UserStatus.LOCKED
+        db.commit()
+
+    response = client.get("/api/v1/users/me/data-export", headers=headers)
+
+    assert response.status_code == 401
+    assert "Content-Disposition" not in response.headers
+
+
 def test_data_request_alias_idempotency_and_validation(http, engine):
     client, _, register, _ = http
     email, registered = register()

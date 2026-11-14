@@ -44,10 +44,15 @@ def test_identity_openapi_snapshot():
 
 def test_openapi_auth_contract_shapes():
     contract = identity_contract()
-    assert len(contract["paths"]) == 13
+    assert len(contract["paths"]) == 14
     assert set(contract["paths"]["/api/v1/users/me/data-requests"]) == {"get", "post"}
     assert set(contract["paths"]["/api/v1/users/me"]) == {"get", "patch"}
     paths = contract["paths"]
+    export = paths["/api/v1/users/me/data-export"]["get"]
+    assert export["security"] == [{"HTTPBearer": []}]
+    assert export["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/PersonalDataExport"
+    )
     registration = paths["/api/v1/auth/register"]["post"]
     assert registration["deprecated"] is True
     assert "201" not in registration["responses"] and "200" not in registration["responses"]

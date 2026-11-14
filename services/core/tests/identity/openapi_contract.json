@@ -1651,6 +1651,112 @@
         ]
       }
     },
+    "/api/v1/users/me/data-export": {
+      "get": {
+        "operationId": "export_personal_data_api_v1_users_me_data_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalDataExport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error envelope with code, message and correlation_id"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Personal Data",
+        "tags": [
+          "Identity"
+        ]
+      }
+    },
     "/api/v1/users/me/data-requests": {
       "get": {
         "operationId": "list_data_requests_api_v1_users_me_data_requests_get",
@@ -2265,6 +2371,39 @@
         "items"
       ],
       "title": "Page[DataRequestResponse]",
+      "type": "object"
+    },
+    "PersonalDataExport": {
+      "description": "VT-035 proposal: the authenticated user's Identity-owned Core records only.",
+      "properties": {
+        "data_requests": {
+          "items": {
+            "$ref": "#/components/schemas/DataRequestResponse"
+          },
+          "title": "Data Requests",
+          "type": "array"
+        },
+        "exported_at": {
+          "format": "date-time",
+          "title": "Exported At",
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/components/schemas/UserProfile"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "exported_at",
+        "profile",
+        "data_requests"
+      ],
+      "title": "PersonalDataExport",
       "type": "object"
     },
     "RegisterRequest": {

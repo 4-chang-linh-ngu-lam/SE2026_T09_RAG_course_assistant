@@ -1,0 +1,30 @@
+{
+  "scope": "Core Identity profile and current user's own data-request history only; synthetic local HTTP load",
+  "assumption": "VT-035 branch proposal; not a full cross-service Lumi export or approved production policy",
+  "recorded_at_utc": "2026-11-14T03:40:56.731660+00:00",
+  "users": 150,
+  "rounds": 10,
+  "concurrent_requests_per_round": 150,
+  "requests": 1500,
+  "synthetic_data_requests_per_user": 2,
+  "postgresql_version": "18.3",
+  "migration": "0014",
+  "python": "3.12.14",
+  "status_counts": {
+    "200": 1500
+  },
+  "success_ratio": 1.0,
+  "scope_or_contract_mismatches": 0,
+  "contract_errors": 0,
+  "transport_errors": 0,
+  "non_200_responses": {},
+  "client_p95_ms": 2757.857100000365,
+  "backend_p95_ms": 16.617399999631743,
+  "target_p95_ms": 4000,
+  "passed": true,
+  "limitations": [
+    "Core-only small synthetic payload; no Document/Learning/AI records",
+    "Local loopback and PostgreSQL version above; not production or CI capacity evidence",
+    "150 concurrent tasks are launched in synchronized rounds; no external network delay"
+  ]
+}
