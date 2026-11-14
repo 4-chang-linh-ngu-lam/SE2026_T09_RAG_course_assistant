@@ -1,0 +1,65 @@
+{
+  "03-before": {
+    "started_at_utc": "2026-11-14T10:14:37.421541+00:00",
+    "finished_at_utc": "2026-11-14T10:14:52.709833+00:00",
+    "command": [
+      "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/notification/test_vt033_postgres.py::test_cross_recipient_mark_read_preserves_business_state",
+      "-q",
+      "-W",
+      "error",
+      "-p",
+      "no:cacheprovider",
+      "--tb=short"
+    ],
+    "sha": "d9870162e79e93d01c873096cc886925ecda9665",
+    "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core\\.venv\\vt033-mutation\\services\\core",
+    "exit_code": 0
+  },
+  "03-killed": {
+    "started_at_utc": "2026-11-14T10:14:52.785975+00:00",
+    "finished_at_utc": "2026-11-14T10:15:06.202368+00:00",
+    "command": [
+      "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/notification/test_vt033_postgres.py::test_cross_recipient_mark_read_preserves_business_state",
+      "-q",
+      "-W",
+      "error",
+      "-p",
+      "no:cacheprovider",
+      "--tb=short"
+    ],
+    "sha": "d9870162e79e93d01c873096cc886925ecda9665",
+    "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core\\.venv\\vt033-mutation\\services\\core",
+    "exit_code": 1
+  },
+  "verdict": "KILLED by persisted business state assertion, all 3 defaults",
+  "original_source_sha256": "22bea0f8e7c340f1fd095349a523b2aa197763dd69fbbea9433e1be184e78ba7",
+  "restored_source_sha256": "22bea0f8e7c340f1fd095349a523b2aa197763dd69fbbea9433e1be184e78ba7",
+  "main_source_unchanged": true,
+  "04-restored": {
+    "started_at_utc": "2026-11-14T10:15:06.204504+00:00",
+    "finished_at_utc": "2026-11-14T10:15:19.049873+00:00",
+    "command": [
+      "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/notification/test_vt033_postgres.py::test_cross_recipient_mark_read_preserves_business_state",
+      "-q",
+      "-W",
+      "error",
+      "-p",
+      "no:cacheprovider",
+      "--tb=short"
+    ],
+    "sha": "d9870162e79e93d01c873096cc886925ecda9665",
+    "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core\\.venv\\vt033-mutation\\services\\core",
+    "exit_code": 0
+  },
+  "restored_passed": true,
+  "worktree_diff_after_restore": ""
+}
