@@ -289,7 +289,7 @@ def main():
       "file:line/SHA, minimal implementation, hidden test/load risks and business-rule conflicts. "
       "Do not claim human approval; review required before production patch.", "SmallVI")
     p("AI không thay người học chịu trách nhiệm. Đọc AI trust issues ở trang7, reflection trang8, "
-      "và AI usage log đầy đủ trong repository. Không có tuyên bố owner đã duyệt.")
+      "và phần khai báo AI ngay trong PDF. Không có tuyên bố owner đã duyệt.")
 
     new_page()
     heading("Phụ lục B. Evidence và GitHub")
