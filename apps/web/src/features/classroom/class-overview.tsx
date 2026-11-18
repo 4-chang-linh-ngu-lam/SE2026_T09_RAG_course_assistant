@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import Link from '@/components/available-link';
 import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { WorkspaceData } from '@/lib/domain';
@@ -55,11 +55,12 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
 
   return (
     <div className="class-overview-container">
+      {summary.teacherName && <p className="muted">Giáo viên chính: {summary.teacherName}</p>}
       {/* Latest Class Announcement */}
       {announcement && (
         <section className="card announcement-hero-card">
           <div className="announcement-badge-row">
-            <span className="tag primary">Thông báo mới nhất</span>
+            <span className="tag primary">Bài viết mới nhất</span>
             <span className="muted text-sm">{announcement.timeAgo}</span>
           </div>
 
@@ -98,7 +99,7 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
       {/* Two Column Layout: Activities & Materials */}
       <div className="overview-two-col">
         {/* Upcoming Activities */}
-        <section className="overview-col-main">
+        {!data.pendingCapabilities?.includes('Learning') && (<section className="overview-col-main">
           <div className="section-header">
             <div>
               <h2>Hoạt động & Bài tập sắp tới</h2>
@@ -113,7 +114,7 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
               </div>
             ) : (
               activities.map(act => (
-                <article key={act.id} className="card activity-item-card">
+                <article key={act.id} className={`card activity-item-card activity-type-${act.type.toLowerCase()}`}>
                   <div className="activity-item-main">
                     <div className="activity-header">
                       <span className={`tag ${act.type === 'EXAM' ? 'danger' : 'info'}`}>
@@ -133,12 +134,12 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
               ))
             )}
           </div>
-        </section>
+        </section>)}
 
         {/* Recent Materials & Lumi Class Assistant */}
         <div className="overview-col-side">
           {/* Recent Materials */}
-          <section className="overview-section">
+          {!data.pendingCapabilities?.includes('Document') && (<section className="overview-section">
             <div className="section-header">
               <div>
                 <h2>Tài liệu gần đây</h2>
@@ -178,10 +179,10 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
                 ))
               )}
             </div>
-          </section>
+          </section>)}
 
           {/* Ask Lumi About This Class */}
-          <section className="overview-section">
+          {!data.pendingCapabilities?.includes('AI Tutor') && (<section className="overview-section">
             <article className="card lumi-tutor-box">
               <div className="lumi-box-header">
                 <span className="lumi-badge">✨ Hỏi Lumi trong lớp này</span>
@@ -196,7 +197,7 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
                 Đặt câu hỏi cho Lumi <Icon name="chevronRight" />
               </Link>
             </article>
-          </section>
+          </section>)}
         </div>
       </div>
     </div>

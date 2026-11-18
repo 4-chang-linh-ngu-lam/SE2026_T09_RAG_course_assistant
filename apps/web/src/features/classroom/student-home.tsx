@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import Link from '@/components/available-link';
 import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { WorkspaceData } from '@/lib/domain';
@@ -67,7 +67,12 @@ export function StudentHomeFeature({ route: _route, data, reload }: Props) {
             {activeClasses.map(cls => (
               <article key={cls.id} className="card class-card student-class-card">
                 <div className="class-card-top">
-                  {cls.code && <span className="tag primary">{cls.code}</span>}
+                  <div className="class-card-ident">
+                    <span className="class-card-emblem" aria-hidden="true">
+                      <Icon name="book" />
+                    </span>
+                    {cls.code && <span className="tag primary">{cls.code}</span>}
+                  </div>
                   {typeof cls.studentCount === 'number' && (
                     <span className="muted small">{cls.studentCount} học sinh</span>
                   )}
@@ -89,7 +94,7 @@ export function StudentHomeFeature({ route: _route, data, reload }: Props) {
       </section>
 
       {/* Two Column Layout: Upcoming Tasks & Recent Studies */}
-      <div className="home-two-col">
+      {(!data.pendingCapabilities?.includes('Learning') || !data.pendingCapabilities?.includes('Document')) && (      <div className="home-two-col">
         {/* Upcoming Tasks */}
         <section className="home-section">
           <div className="section-header">
@@ -109,7 +114,7 @@ export function StudentHomeFeature({ route: _route, data, reload }: Props) {
               </div>
             ) : (
               upcomingTasks.map(task => (
-                <article key={task.id} className="card task-item-card">
+                <article key={task.id} className={`card task-item-card task-type-${task.type.toLowerCase()}`}>
                   <div className="task-item-main">
                     <div className="task-item-header">
                       <span className={`tag ${task.type === 'EXAM' ? 'danger' : 'info'}`}>
@@ -201,7 +206,7 @@ export function StudentHomeFeature({ route: _route, data, reload }: Props) {
             </article>
           </section>
         </div>
-      </div>
+      </div>)}
     </div>
   );
 }

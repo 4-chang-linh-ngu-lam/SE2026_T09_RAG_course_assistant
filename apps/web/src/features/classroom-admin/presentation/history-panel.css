@@ -1,26 +1,28 @@
 /* Scoped styles for Administration History Panel (A06, A07 administration history view) */
 
 .lumi-admin-history-panel {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
   padding: 24px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.04));
   display: flex;
   flex-direction: column;
   gap: 20px;
-  color: #0f172a;
+  color: var(--ink, #0f172a);
+  width: 100%;
   min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
 }
 
 .lumi-admin-history-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px 16px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border, #e2e8f0);
   flex-wrap: wrap;
   min-width: 0;
 }
@@ -29,7 +31,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  flex: 1;
+  flex: 1 1 240px;
   min-width: 0;
 }
 
@@ -38,16 +40,16 @@
   line-height: 1.4;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #0f172a;
+  color: var(--ink, #0f172a);
   margin: 0;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
 .lumi-admin-history-description {
-  font-size: 13px;
-  line-height: 1.5;
-  color: #64748b;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--muted, #5b6b82);
   margin: 0;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -56,25 +58,25 @@
 .lumi-admin-history-count-badge {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  padding: 4px 10px;
+  background: var(--surface-subtle, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 9999px;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: #475569;
+  color: var(--ink-secondary, #334155);
   white-space: nowrap;
 }
 
 /* Empty State */
 .lumi-admin-history-empty {
-  padding: 40px 24px;
+  padding: 36px 24px;
   text-align: center;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 10px;
-  color: #64748b;
-  font-size: 13px;
+  background: var(--bg, #f8fafc);
+  border: 1px dashed var(--border-strong, #cbd5e1);
+  border-radius: var(--radius-md, 10px);
+  color: var(--muted, #5b6b82);
+  font-size: 13.5px;
   line-height: 1.6;
 }
 
@@ -82,8 +84,9 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--primary-tint, #eff6ff);
+  border: 1px solid var(--primary-border, #bfdbfe);
+  color: var(--primary, #2563eb);
   display: grid;
   place-items: center;
   margin: 0 auto 12px;
@@ -110,9 +113,9 @@
 .lumi-admin-history-item {
   position: relative;
   padding: 16px 20px 16px 44px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -122,8 +125,8 @@
 }
 
 .lumi-admin-history-item:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  border-color: var(--border-strong, #cbd5e1);
+  box-shadow: var(--shadow-xs, 0 2px 6px rgba(15, 23, 42, 0.04));
 }
 
 /* Timeline marker node */
@@ -134,8 +137,8 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #2563eb;
-  box-shadow: 0 0 0 3px #eff6ff, 0 0 0 4px #bfdbfe;
+  background: var(--primary, #2563eb);
+  box-shadow: 0 0 0 3px var(--primary-tint, #eff6ff), 0 0 0 4px var(--primary-border, #bfdbfe);
   flex-shrink: 0;
 }
 
@@ -143,18 +146,18 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   flex-wrap: wrap;
   min-width: 0;
 }
 
 .lumi-admin-history-item-title {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--ink, #0f172a);
   margin: 0;
-  line-height: 1.4;
-  flex: 1;
+  line-height: 1.45;
+  flex: 1 1 200px;
   min-width: 0;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -169,28 +172,28 @@
 }
 
 .lumi-admin-history-time {
-  font-size: 12px;
-  color: #64748b;
+  font-size: 12.5px;
+  color: var(--muted, #5b6b82);
   white-space: nowrap;
 }
 
 .lumi-admin-history-status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 12px;
   font-weight: 600;
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
+  background: var(--primary-tint, #eff6ff);
+  color: var(--primary-hover, #1d4ed8);
+  border: 1px solid var(--primary-border, #bfdbfe);
   white-space: nowrap;
 }
 
 .lumi-admin-history-detail {
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.6;
-  color: #334155;
+  color: var(--ink-secondary, #334155);
   margin: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -202,26 +205,26 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  color: #64748b;
-  padding-top: 6px;
-  border-top: 1px solid #f1f5f9;
+  font-size: 12.5px;
+  color: var(--muted, #5b6b82);
+  padding-top: 8px;
+  border-top: 1px solid var(--surface-subtle, #f1f5f9);
   flex-wrap: wrap;
   min-width: 0;
 }
 
 .lumi-admin-history-actor-label {
-  color: #64748b;
+  color: var(--muted, #5b6b82);
 }
 
 .lumi-admin-history-actor-name {
   font-weight: 500;
-  color: #475569;
+  color: var(--ink-secondary, #334155);
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
-/* Responsive adjustments (390px, 1024px, 1440px) */
+/* Responsive adjustments (320 / 390 / 768 / 1024 / 1440px) */
 @media (max-width: 1024px) {
   .lumi-admin-history-panel {
     padding: 20px;
@@ -240,12 +243,12 @@
 @media (max-width: 640px) {
   .lumi-admin-history-panel {
     padding: 16px;
-    border-radius: 10px;
+    border-radius: var(--radius-md, 10px);
     gap: 16px;
   }
 
   .lumi-admin-history-title {
-    font-size: 16px;
+    font-size: 16.5px;
   }
 
   .lumi-admin-history-header {
@@ -258,6 +261,7 @@
 
   .lumi-admin-history-header-text {
     width: 100%;
+    flex: none;
     min-width: 0;
   }
 
@@ -275,13 +279,14 @@
 
   .lumi-admin-history-item-top {
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     width: 100%;
     min-width: 0;
   }
 
   .lumi-admin-history-item-title {
     width: 100%;
+    flex: none;
     min-width: 0;
   }
 
@@ -292,6 +297,18 @@
   }
 }
 
-@media(max-width:480px){
- .lumi-admin-history-time,.lumi-admin-history-status-badge{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+@media (max-width: 480px) {
+  .lumi-admin-history-time,
+  .lumi-admin-history-status-badge,
+  .lumi-admin-history-count-badge {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumi-admin-history-panel * {
+    transition-duration: 0.01ms;
+  }
 }

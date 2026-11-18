@@ -2,9 +2,9 @@
 import { useEffect, useState } from 'react';
 import type { FeedComment, FeedPost, Role, RouteParams, User, WorkspaceData } from '@/lib/domain';
 import { mergeFeedComments } from '@/lib/feed-comments';
-import { updateFeedPosts } from '@/lib/feed-post-state';
+import { canParticipateInFeed, updateFeedPosts } from '@/lib/feed-post-state';
 import { adapter, dataMode } from '@/lib/data';
-import { Dialog, ErrorNotice, Icon, StatePanel } from '@/components/ui';
+import { Dialog, ErrorNotice, Icon, StatePanel, useUnsavedChanges } from '@/components/ui';
 
 type Props = {
   data: WorkspaceData | null;
@@ -13,6 +13,7 @@ type Props = {
   params: RouteParams;
   reload(): void;
 };
+type FeedErrorTarget = { kind: 'feed' | 'composer' | 'delete' } | { kind: 'post'; postId: string };
 
 export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   const [localPosts, setLocalPosts] = useState<FeedPost[] | null>(null);
@@ -22,6 +23,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadingCommentsId, setLoadingCommentsId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorTarget, setErrorTarget] = useState<FeedErrorTarget>({ kind: 'feed' });
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
 
@@ -32,6 +34,8 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
     | null
   >(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const editingBaseline = (localPosts ?? (data?.kind === 'ready' ? data.feedPosts : undefined))?.find(post => post.id === editingPostId)?.content;
+  useUnsavedChanges(Boolean(newPostContent.trim() || (editingPostId && editContent !== editingBaseline) || Object.values(commentInputs).some(text => text.trim())));
 
   useEffect(() => {
     setLocalPosts(null);
@@ -79,16 +83,19 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   const readyData = data;
   const posts = localPosts ?? readyData.feedPosts ?? [];
   const isTeacher = role === 'LECTURER';
+  const canWrite = canParticipateInFeed(data.classSummary, role, params.classId);
 
   async function handleLoadMorePosts() {
     if (!nextCursor || !params.classId || loadingMore) return;
     setLoadingMore(true);
+    setErrorTarget({ kind: 'feed' });
     setError(null);
     try {
       const page = await adapter.social.listPosts(params.classId, nextCursor);
       setLocalPosts(current => updateFeedPosts(current, readyData.feedPosts, existing => [...existing, ...page.items]));
       setNextCursor(page.next_cursor);
     } catch (err: unknown) {
+      setErrorTarget({ kind: 'feed' });
       setError(err instanceof Error ? err.message : 'Chưa thể tải thêm bài viết.');
     } finally {
       setLoadingMore(false);
@@ -98,6 +105,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   async function handleLoadMoreComments(postId: string, cursor: string) {
     if (!params.classId || loadingCommentsId) return;
     setLoadingCommentsId(postId);
+    setErrorTarget({ kind: 'post', postId });
     setError(null);
     try {
       const page = await adapter.social.listComments(params.classId, postId, cursor);
@@ -105,6 +113,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
         ? { ...post, comments: mergeFeedComments(post.comments, page.items), commentsNextCursor: page.next_cursor }
         : post));
     } catch (err: unknown) {
+      setErrorTarget({ kind: 'post', postId });
       setError(err instanceof Error ? err.message : 'Chưa thể tải thêm bình luận.');
     } finally {
       setLoadingCommentsId(null);
@@ -112,8 +121,9 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   }
 
   async function handleUpdatePost(postId: string) {
-    if (!editContent.trim()) return;
+    if (!canWrite || busy || !editContent.trim()) return;
     setBusy(true);
+    setErrorTarget({ kind: 'post', postId });
     setError(null);
     try {
       const updated = await adapter.social.updatePost(params.classId, postId, editContent.trim());
@@ -123,6 +133,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
       setEditingPostId(null);
       setEditContent('');
     } catch (err: unknown) {
+      setErrorTarget({ kind: 'post', postId });
       setError(err instanceof Error ? err.message : 'Chưa thể cập nhật bài viết.');
     } finally {
       setBusy(false);
@@ -131,14 +142,16 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
 
   async function handleCreatePost(event: React.FormEvent) {
     event.preventDefault();
-    if (!newPostContent.trim()) return;
+    if (!canWrite || busy || !newPostContent.trim()) return;
     setBusy(true);
+    setErrorTarget({ kind: 'composer' });
     setError(null);
     try {
       const created = await adapter.social.createPost(params.classId, newPostContent.trim());
       setLocalPosts(current => updateFeedPosts(current, readyData.feedPosts, existing => [created, ...existing]));
       setNewPostContent('');
     } catch (err: unknown) {
+      setErrorTarget({ kind: 'composer' });
       setError(err instanceof Error ? err.message : 'Chưa thể đăng bài.');
     } finally {
       setBusy(false);
@@ -147,8 +160,9 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
 
   async function handleCreateComment(postId: string) {
     const text = commentInputs[postId]?.trim();
-    if (!text) return;
+    if (!canWrite || busy || !text) return;
     setBusy(true);
+    setErrorTarget({ kind: 'post', postId });
     setError(null);
     try {
       const created = await adapter.social.createComment(params.classId, postId, text);
@@ -157,6 +171,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
         : post)));
       setCommentInputs(prev => ({ ...prev, [postId]: '' }));
     } catch (err: unknown) {
+      setErrorTarget({ kind: 'post', postId });
       setError(err instanceof Error ? err.message : 'Chưa thể gửi phản hồi.');
     } finally {
       setBusy(false);
@@ -164,8 +179,9 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
   }
 
   async function handleConfirmDelete() {
-    if (!deleteTarget) return;
+    if (!canWrite || busy || !deleteTarget) return;
     setBusy(true);
+    setErrorTarget({ kind: 'delete' });
     setError(null);
     try {
       if (deleteTarget.type === 'post') {
@@ -179,6 +195,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
       }
       setDeleteTarget(null);
     } catch (err: unknown) {
+      setErrorTarget({ kind: 'delete' });
       setError(err instanceof Error ? err.message : 'Chưa thể xóa nội dung.');
     } finally {
       setBusy(false);
@@ -187,8 +204,10 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
 
   return (
     <div className="feed-container">
+      {!canWrite && <p className="notice" role="status">{data.classSummary?.status === 'ARCHIVED' ? 'Lớp đã lưu trữ. Bảng tin ở chế độ chỉ đọc.' : 'Chưa xác minh được quyền tham gia hiện tại. Bảng tin ở chế độ chỉ đọc.'}</p>}
+      {errorTarget.kind === 'feed' && <ErrorNotice message={error}/>}
       {/* Composer Card */}
-      <section className="card padded feed-composer-card">
+      {canWrite && <section className="card padded feed-composer-card">
         <div className="feed-composer-header">
           <div className="avatar" aria-hidden="true">
             {(user.display_name ?? 'MA').split(' ').slice(-2).map(x => x[0]).join('')}
@@ -215,7 +234,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
             onChange={e => setNewPostContent(e.target.value)}
           />
 
-          <ErrorNotice message={error}/>
+          {errorTarget.kind === 'composer' && <ErrorNotice message={error}/>}
 
           <div className="actions" style={{ justifyContent: 'flex-end' }}>
             <button
@@ -227,7 +246,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
             </button>
           </div>
         </form>
-      </section>
+      </section>}
 
       {/* Posts Stream */}
       <div className="feed-posts-stream">
@@ -237,8 +256,8 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
           </div>
         ) : (
           posts.map(post => {
-            const canEditPost = post.canEdit ?? post.authorId === user.id;
-            const canDeletePost = post.canDelete ?? (isTeacher || post.authorId === user.id);
+            const canEditPost = canWrite && (post.canEdit ?? post.authorId === user.id);
+            const canDeletePost = canWrite && (post.canDelete ?? (isTeacher || post.authorId === user.id));
             return (
               <article key={post.id} className={`card padded feed-post-card ${post.isAnnouncement ? 'announcement-post' : ''}`}>
                 <div className="feed-post-top">
@@ -264,6 +283,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                         type="button"
                         aria-label="Sửa bài viết"
                         title="Sửa bài viết"
+                        disabled={busy}
                         onClick={() => {
                           setEditingPostId(post.id);
                           setEditContent(post.content);
@@ -278,6 +298,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                         type="button"
                         aria-label="Xóa bài viết"
                         title="Xóa bài viết"
+                        disabled={busy}
                         onClick={() => setDeleteTarget({ type: 'post', postId: post.id })}
                       >
                         <Icon name="trash"/>
@@ -287,7 +308,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                 </div>
 
                 <div className="feed-post-content">
-                  {editingPostId === post.id ? (
+                  {canWrite && editingPostId === post.id ? (
                     <form
                       onSubmit={e => {
                         e.preventDefault();
@@ -305,6 +326,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                         <button
                           type="button"
                           className="button small"
+                          disabled={busy}
                           onClick={() => {
                             setEditingPostId(null);
                             setEditContent('');
@@ -352,13 +374,13 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                             <p className="feed-comment-text">{comment.content}</p>
                           </div>
 
-                          {(comment.canDelete ?? canDeleteComment) && (
+                          {canWrite && (comment.canDelete ?? canDeleteComment) && (
                             <button
                               className="icon-button"
                               type="button"
                               aria-label="Xóa bình luận"
                               title="Xóa bình luận"
-                              style={{ minWidth: '32px', height: '32px' }}
+                              disabled={busy}
                               onClick={() =>
                                 setDeleteTarget({
                                   type: 'comment',
@@ -377,7 +399,7 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                   </div>
 
                   {/* Inline Reply Field */}
-                  <div className="feed-reply-box">
+                  {canWrite && <div className="feed-reply-box">
                     <label htmlFor={`reply-input-${post.id}`} className="sr-only">Viết phản hồi</label>
                     <input
                       id={`reply-input-${post.id}`}
@@ -401,7 +423,8 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
                     >
                       Gửi
                     </button>
-                  </div>
+                  </div>}
+                  {errorTarget.kind === 'post' && errorTarget.postId === post.id && <ErrorNotice message={error}/>}
                 </div>
               </article>
             );
@@ -419,14 +442,15 @@ export function ClassFeedFeature({ data, role, user, params, reload }: Props) {
       >
         <p>
           {deleteTarget?.type === 'post'
-            ? 'Bài viết và toàn bộ phản hồi liên quan sẽ bị gỡ khỏi bảng tin khỏi bảng tin lớp.'
+            ? 'Bài viết và toàn bộ phản hồi liên quan sẽ bị gỡ khỏi bảng tin lớp.'
             : 'Bình luận này sẽ bị xóa khỏi bài viết.'}
         </p>
+        {errorTarget.kind === 'delete' && <ErrorNotice message={error}/>}
         <div className="actions" style={{ justifyContent: 'flex-end', marginTop: '20px' }}>
           <button className="button" type="button" disabled={busy} onClick={() => setDeleteTarget(null)}>
             Hủy
           </button>
-          <button className="button danger" type="button" disabled={busy} onClick={() => void handleConfirmDelete()}>
+          <button className="button danger" type="button" disabled={busy || !canWrite} onClick={() => void handleConfirmDelete()}>
             {busy ? 'Đang xóa…' : 'Xác nhận xóa'}
           </button>
         </div>

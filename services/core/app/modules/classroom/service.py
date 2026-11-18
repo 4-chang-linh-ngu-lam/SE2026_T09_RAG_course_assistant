@@ -43,7 +43,7 @@ from app.modules.classroom.schemas import (
     TeachingAssignmentResponse,
     TeachingAssignmentsRequest,
 )
-from app.modules.identity.public import get_user_roles, get_user_summary
+from app.modules.identity.public import get_user_roles, get_user_summary, get_users_summaries
 
 
 def _now() -> datetime:
@@ -441,10 +441,11 @@ class ClassroomService:
             if "LECTURER" in actor.roles
             else {}
         )
+        responses = self._display_classes(
+            items, teaching_roles, actor.id if "STUDENT" in actor.roles else None
+        )
         return Page[ClassResponse](
-            items=[
-                self._class_response(row, teaching_role=teaching_roles.get(row.id)) for row in items
-            ],
+            items=responses,
             next_cursor=encode_cursor(items[-1].id) if len(rows) > pagination.limit else None,
         )
 
@@ -456,23 +457,66 @@ class ClassroomService:
             if "LECTURER" in actor.roles
             else None
         )
-        return self._class_response(
-            klass, teaching_role=assignment.role if assignment is not None else None
-        )
+        roles = {class_id: assignment.role} if assignment is not None else {}
+        return self._display_classes(
+            [klass], roles, actor.id if "STUDENT" in actor.roles else None
+        )[0]
 
-    @staticmethod
-    def _class_response(
-        klass: SubjectClass, *, teaching_role: TeachingRole | None = None
-    ) -> ClassResponse:
-        response = ClassResponse.model_validate(klass)
-        return response.model_copy(update={"teaching_role": teaching_role})
+    def _class_response(self, klass, *, teaching_role=None):
+        return self._display_classes([klass], {klass.id: teaching_role})[0]
+
+    def _display_classes(self, classes, roles, student_id=None):
+        counts, primary = self.repository.display_summaries([row.id for row in classes])
+        enrolled = (
+            self.repository.active_student_class_ids([row.id for row in classes], student_id)
+            if student_id
+            else set()
+        )
+        users = get_users_summaries(list(set(primary.values())), session=self.session)
+        return [
+            ClassResponse.model_validate(row).model_copy(
+                update={
+                    "teaching_role": roles.get(row.id),
+                    "membership_status": MembershipStatus.ACTIVE if row.id in enrolled else None,
+                    "student_count": counts.get(row.id, 0),
+                    "primary_teacher_name": (
+                        users[primary[row.id]].display_name
+                        if row.id in primary
+                        and primary[row.id] in users
+                        and users[primary[row.id]].school_id == row.school_id
+                        else None
+                    ),
+                }
+            )
+            for row in classes
+        ]
 
     def list_members(self, class_id: UUID, actor: CurrentUser) -> list[MembershipResponse]:
         require_class_read(self.session, class_id, actor)
-        return [
-            MembershipResponse.model_validate(row)
-            for row in self.repository.active_memberships(class_id)
+        klass = self.repository.get_class(class_id)
+        rows = self.repository.active_memberships(class_id)
+        users = get_users_summaries([row.student_id for row in rows], session=self.session)
+        responses = [
+            MembershipResponse.model_validate(row).model_copy(
+                update={
+                    "student_display_name": (
+                        users[row.student_id].display_name
+                        if row.student_id in users
+                        and users[row.student_id].school_id == klass.school_id
+                        else None
+                    ),
+                }
+            )
+            for row in rows
         ]
+        return sorted(
+            responses,
+            key=lambda row: (
+                (row.student_display_name or "").casefold(),
+                str(row.student_id),
+                str(row.id),
+            ),
+        )
 
     def set_teachers(
         self,

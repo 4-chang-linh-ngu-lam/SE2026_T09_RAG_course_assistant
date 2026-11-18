@@ -7,7 +7,7 @@ const actorId = '00000000-0000-4000-8000-000000000001';
 const classId = '00000000-0000-4000-8000-000000000002';
 const postId = '00000000-0000-4000-8000-000000000003';
 
-function harness() {
+function harness(role: 'STUDENT' | 'LECTURER' = 'STUDENT') {
   const calls: { path: string; method: string; authorization: string | null }[] = [];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'https://web.example');
@@ -15,9 +15,11 @@ function harness() {
     const headers = new Headers(init?.headers);
     calls.push({ path: `${url.pathname}${url.search}`, method, authorization: headers.get('Authorization') });
     if (url.pathname === '/api/v1/auth/login') return Response.json({ token_type: 'bearer', access_token: 'access-test', expires_in: 900 });
-    if (url.pathname === '/api/v1/users/me') return Response.json({ id: actorId, email: 'student@example.com', username: null, school_id: '00000000-0000-4000-8000-000000000004', display_name: 'Học sinh', roles: ['STUDENT'], status: 'ACTIVE' });
-    if (url.pathname === '/api/v1/classes') return Response.json({ items: [{ id: classId, school_id: '00000000-0000-4000-8000-000000000004', academic_year_id: '00000000-0000-4000-8000-000000000005', semester_id: '00000000-0000-4000-8000-000000000006', course_id: '00000000-0000-4000-8000-000000000007', homeroom_class_id: null, name: 'Toán 9A', grade_level: 9, enrollment_mode: 'AUTO', status: 'ACTIVE', version: 1 }], next_cursor: null });
-    if (url.pathname === `/api/v1/classes/${classId}`) return Response.json({ id: classId, school_id: '00000000-0000-4000-8000-000000000004', academic_year_id: '00000000-0000-4000-8000-000000000005', semester_id: '00000000-0000-4000-8000-000000000006', course_id: '00000000-0000-4000-8000-000000000007', homeroom_class_id: null, name: 'Toán 9A', grade_level: 9, enrollment_mode: 'AUTO', status: 'ACTIVE', version: 1 });
+    if (url.pathname === '/api/v1/users/me') return Response.json({ id: actorId, email: 'student@example.com', username: null, school_id: '00000000-0000-4000-8000-000000000004', display_name: 'Học sinh', roles: [role], status: 'ACTIVE' });
+    if (url.pathname === '/api/v1/classes') return Response.json({ items: [{ id: classId, school_id: '00000000-0000-4000-8000-000000000004', academic_year_id: '00000000-0000-4000-8000-000000000005', semester_id: '00000000-0000-4000-8000-000000000006', course_id: '00000000-0000-4000-8000-000000000007', homeroom_class_id: null, name: 'Toán 9A', grade_level: 9, enrollment_mode: 'AUTO', status: 'ACTIVE', version: 1, teaching_role: role === 'LECTURER' ? 'PRIMARY' : null }], next_cursor: null });
+    if (url.pathname === `/api/v1/classes/${classId}`) return Response.json({ id: classId, school_id: '00000000-0000-4000-8000-000000000004', academic_year_id: '00000000-0000-4000-8000-000000000005', semester_id: '00000000-0000-4000-8000-000000000006', course_id: '00000000-0000-4000-8000-000000000007', homeroom_class_id: null, name: 'Toán 9A', grade_level: 9, enrollment_mode: 'AUTO', status: 'ACTIVE', version: 1, teaching_role: role === 'LECTURER' ? 'PRIMARY' : null, student_count: 20, primary_teacher_name: 'Teacher A' });
+    if (url.pathname.endsWith('/members')) return Response.json([{student_id: actorId, student_display_name: 'Student A'}]);
+    if (url.pathname.endsWith('/calendar')) return Response.json({items: [], next_cursor: null});
     if (url.pathname === `/api/v1/classes/${classId}/posts`) return Response.json({ items: [{ id: postId, class_id: classId, author: { id: actorId, display_name: 'Học sinh' }, body: 'Bài viết thật từ Core', created_at: '2026-10-28T10:00:00Z', updated_at: '2026-10-28T10:00:00Z' }], next_cursor: null });
     if (url.pathname === `/api/v1/classes/${classId}/posts/${postId}/comments`) return Response.json({ items: [{ id: '00000000-0000-4000-8000-000000000008', post_id: postId, author: { id: actorId, display_name: 'Học sinh' }, body: 'Bình luận Core', created_at: '2026-10-28T10:01:00Z', updated_at: '2026-10-28T10:01:00Z' }], next_cursor: null });
     if (url.pathname === '/api/v1/notifications') return Response.json({ items: [], unread_count: 7, next_cursor: null });
@@ -55,6 +57,7 @@ test('teacher workspaces limit mixed Admin/Lecturer accounts to currently assign
     if (url.pathname === '/api/v1/auth/login') return Response.json({ token_type: 'bearer', access_token: 'access-test', expires_in: 900 });
     if (url.pathname === '/api/v1/users/me') return Response.json(actor);
     if (url.pathname === '/api/v1/classes') return Response.json({ items: [classRow(assignedClassId, 'Toán 9A', 'PRIMARY'), classRow(unassignedClassId, 'Văn 9B', null)], next_cursor: null });
+    if (url.pathname.endsWith('/members')) return Response.json([]);
     if (url.pathname.endsWith('/calendar') || url.pathname.endsWith('/posts')) {
       const pathClassId = url.pathname.split('/')[4];
       socialClassIds.push(pathClassId);
@@ -77,6 +80,26 @@ test('teacher workspaces limit mixed Admin/Lecturer accounts to currently assign
   const list = await core.workspace.load('t.classes', {});
   assert.equal(list.kind, 'ready');
   if (list.kind === 'ready') assert.deepEqual(list.classes?.map(klass => klass.id), [assignedClassId]);
+});
+
+test('teacher dashboard includes own posts instead of claiming there are no recent posts', async () => {
+  const { session, core } = harness('LECTURER');
+  await session.identity.login({ email: 'teacher@example.com', password: 'test-password' });
+  const result = await core.workspace.load('t.home', {});
+  assert.equal(result.kind, 'ready');
+  if (result.kind === 'ready') assert.equal(result.teacherHome?.recentDiscussions[0]?.id, postId);
+});
+
+test('class overview reads the same latest post as feed and exposes teacher roster', async () => {
+  const { session, core } = harness('LECTURER');
+  await session.identity.login({ email: 'teacher@example.com', password: 'test-password' });
+  const result = await core.workspace.load('t.overview', { classId });
+  assert.equal(result.kind, 'ready');
+  if (result.kind !== 'ready') return;
+  assert.equal(result.classOverview?.announcement?.id, postId);
+  assert.equal(result.classSummary?.studentCount, 20);
+  assert.equal(result.classSummary?.teacherName, 'Teacher A');
+  assert.deepEqual(result.classMembers, [{ id: actorId, displayName: 'Student A' }]);
 });
 
 test('live notification workspace preserves Core unread count and read-all uses the real endpoint', async () => {

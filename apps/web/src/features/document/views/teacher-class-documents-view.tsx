@@ -55,7 +55,7 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
   };
 
   return (
-    <div className="teacher-class-docs-container space-y-6">
+    <div className="teacher-class-docs-container">
       {!revokeDoc && (
         <GrantMutationNotice
           busy={isPending}
@@ -67,7 +67,7 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
       )}
       {/* Role Banner under Rule O1 */}
       {isAssisting && (
-        <div className="card p-3.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl flex items-center gap-3 text-xs">
+        <div className="class-docs-role-banner">
           <Icon name="info" />
           <span>
             Bạn đang tham gia với vai trò <strong>Giáo viên phối hợp</strong> tại lớp này. Bạn có thể gỡ chia sẻ tài liệu
@@ -77,10 +77,10 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
       )}
 
       {/* Toolbar */}
-      <div className="card p-4 flex justify-between items-center">
-        <div>
-          <h2 className="text-base font-bold text-on-surface">Tài liệu đã chia sẻ trong lớp</h2>
-          <p className="text-xs muted">
+      <div className="card class-docs-toolbar">
+        <div className="class-docs-toolbar-copy">
+          <h2 className="class-docs-title">Tài liệu đã chia sẻ trong lớp</h2>
+          <p className="class-docs-subtitle">
             {classDocuments.length} tài liệu đang phục vụ học sinh lớp {classSummary?.name ?? ''}
           </p>
         </div>
@@ -89,7 +89,7 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
           <Link
             id="ux-class-add-doc"
             href="/teacher/library"
-            className="button primary small flex items-center gap-1.5 lumi-class-btn-add"
+            className="button primary small lumi-class-btn-add"
           >
             <Icon name="plus" />
             <span>Thêm tài liệu từ thư viện</span>
@@ -99,7 +99,7 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
             id="ux-class-add-doc"
             type="button"
             disabled
-            className="button primary small flex items-center gap-1.5 lumi-class-btn-add"
+            className="button primary small lumi-class-btn-add"
             title="Lớp học đã lưu trữ, không thể thêm tài liệu"
           >
             <Icon name="plus" />
@@ -110,83 +110,102 @@ export function TeacherClassDocumentsView({ data, params, reload }: Props) {
 
       {/* Class Documents Table */}
       {classDocuments.length === 0 ? (
-        <div className="card p-8 text-center lumi-class-docs-empty">
-          <p className="muted text-sm">Lớp học này chưa có tài liệu nào được chia sẻ.</p>
+        <div className="card lumi-class-docs-empty">
+          <p>Lớp học này chưa có tài liệu nào được chia sẻ.</p>
           {classSummary?.status === 'ACTIVE' && (
-            <Link href="/teacher/library" className="button secondary small mt-3 inline-block">
+            <Link href="/teacher/library" className="button secondary small">
               Mở thư viện tài liệu để chia sẻ
             </Link>
           )}
         </div>
       ) : (
-        <div className="card table-container overflow-x-auto">
-          <table className="table w-full text-left text-sm" aria-label="Danh sách tài liệu trong lớp">
-            <thead>
-              <tr className="border-b text-xs text-muted uppercase">
-                <th className="p-3">Tên tài liệu</th>
-                <th className="p-3">Định dạng</th>
-                <th className="p-3">Phiên bản phục vụ</th>
-                <th className="p-3">Chủ sở hữu</th>
-                <th className="p-3">Trạng thái</th>
-                <th className="p-3 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/30">
-              {classDocuments.map(doc => {
-                const libraryHref = routeHref('t.libraryDocument', { documentId: doc.id }) ?? `/teacher/library/${doc.id}`;
-                return (
-                  <tr key={doc.id} className="hover:bg-surface-container-low">
-                    <td className="p-3 font-medium">
-                      <div className="flex items-center gap-2">
-                        <Icon name="file" />
-                        <span>{doc.title}</span>
-                      </div>
-                      {doc.locatorCountLabel && <span className="text-xs muted">{doc.locatorCountLabel}</span>}
-                    </td>
-                    <td className="p-3">
-                      <span className="badge primary text-xs">{doc.format}</span>
-                    </td>
-                    <td className="p-3 text-xs">v{doc.currentVersion}</td>
-                    <td className="p-3 text-xs">
-                      {doc.ownerName}
-                      {doc.canManageSource && <span className="badge info text-xs ml-1.5">Của bạn</span>}
-                    </td>
-                    <td className="p-3">
-                      <span className="badge success text-xs">Đang phục vụ</span>
-                    </td>
-                    <td className="p-3 text-right space-x-2">
-                      {doc.canManageSource ? (
-                        <Link href={libraryHref} className="button small secondary">
-                          Quản lý nguồn
-                        </Link>
-                      ) : (
-                        <button className="button small" onClick={() => setSourcePreview({classId: params.classId, documentId: doc.id, version: doc.currentVersion})}>Đọc nguồn</button>
-                      )}
+        <div className="card class-docs-table-card">
+          <div
+            className="class-docs-table-scroll"
+            tabIndex={0}
+            role="region"
+            aria-label="Danh sách tài liệu trong lớp"
+          >
+            <table className="class-docs-table" aria-label="Danh sách tài liệu trong lớp">
+              <thead>
+                <tr>
+                  <th>Tên tài liệu</th>
+                  <th>Định dạng</th>
+                  <th>Phiên bản phục vụ</th>
+                  <th>Chủ sở hữu</th>
+                  <th>Trạng thái</th>
+                  <th className="class-docs-actions-col">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classDocuments.map(doc => {
+                  const libraryHref = routeHref('t.libraryDocument', { documentId: doc.id }) ?? `/teacher/library/${doc.id}`;
+                  return (
+                    <tr key={doc.id}>
+                      <td className="class-docs-title-cell">
+                        <div className="class-docs-doc-name">
+                          <Icon name="file" />
+                          <span>{doc.title}</span>
+                        </div>
+                        {doc.locatorCountLabel && <span className="class-docs-doc-meta">{doc.locatorCountLabel}</span>}
+                      </td>
+                      <td>
+                        <span className="doc-format-pill" data-format={doc.format.toLowerCase()}>
+                          {doc.format}
+                        </span>
+                      </td>
+                      <td className="class-docs-version">v{doc.currentVersion}</td>
+                      <td>
+                        <div className="class-docs-owner-cell">
+                          <span>{doc.ownerName}</span>
+                          {doc.canManageSource && <span className="class-docs-owner-badge">Của bạn</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="class-docs-status-pill">Đang phục vụ</span>
+                      </td>
+                      <td className="class-docs-actions-col">
+                        <div className="class-docs-row-actions">
+                          {doc.canManageSource ? (
+                            <Link href={libraryHref} className="button small secondary">
+                              Quản lý nguồn
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              className="button small secondary"
+                              onClick={() => setSourcePreview({classId: params.classId, documentId: doc.id, version: doc.currentVersion})}
+                            >
+                              Đọc nguồn
+                            </button>
+                          )}
 
-                      <button
-                        type="button"
-                        className="button small danger"
-                        disabled={mutationBlocked || !doc.canRevokeGrant || classSummary?.status !== 'ACTIVE'}
-                        onClick={() => {
-                          setRevokeDoc(doc);
-                          setActionError(null);
-                        }}
-                        title={
-                          classSummary?.status !== 'ACTIVE'
-                            ? 'Lớp học đã lưu trữ, không thể gỡ tài liệu'
-                            : !doc.canRevokeGrant
-                            ? 'Bạn không có quyền gỡ tài liệu này khỏi lớp'
-                            : undefined
-                        }
-                      >
-                        Gỡ khỏi lớp
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          <button
+                            type="button"
+                            className="button small danger"
+                            disabled={mutationBlocked || !doc.canRevokeGrant || classSummary?.status !== 'ACTIVE'}
+                            onClick={() => {
+                              setRevokeDoc(doc);
+                              setActionError(null);
+                            }}
+                            title={
+                              classSummary?.status !== 'ACTIVE'
+                                ? 'Lớp học đã lưu trữ, không thể gỡ tài liệu'
+                                : !doc.canRevokeGrant
+                                ? 'Bạn không có quyền gỡ tài liệu này khỏi lớp'
+                                : undefined
+                            }
+                          >
+                            Gỡ khỏi lớp
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

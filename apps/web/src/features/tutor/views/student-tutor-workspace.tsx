@@ -319,7 +319,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
             <button
               id="ux-new-conversation-btn"
               type="button"
-              className="button small primary"
+              className="button small primary tutor-action-primary"
               onClick={handleOpenNewCompose}
               disabled={isAssessmentLocked || isPending}
               aria-label="Tạo cuộc trò chuyện mới"
@@ -331,7 +331,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
 
           <nav className="history-conv-list" aria-label="Danh sách cuộc trò chuyện">
             {conversations.length === 0 ? (
-              <p className="muted text-xs p-4 text-center">Chưa có cuộc trò chuyện nào.</p>
+              <p className="history-empty-note">Chưa có cuộc trò chuyện nào.</p>
             ) : (
               conversations.map(conv => (
                 <button
@@ -343,29 +343,30 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
                 >
                   <div className="conv-item-top">
                     <strong className="conv-title">{conv.title}</strong>
-                    <span className="text-xs muted">{conv.updatedAt}</span>
+                    <span className="conv-timestamp">{conv.updatedAt}</span>
                   </div>
-                  <p className="conv-preview text-xs muted line-clamp-1">{conv.preview}</p>
+                  <p className="conv-preview">{conv.preview}</p>
                 </button>
               ))
             )}
           </nav>
+          <p className="tutor-privacy-note">Hội thoại riêng tư mặc định</p>
         </aside>
 
         {/* Center Column: Transcript & Composer */}
         <section className="tutor-chat-col card" tabIndex={0} aria-label="Khu vực trò chuyện với Lumi">
           {/* AI05: Official Assessment Lock State (Rule D6) */}
           {isAssessmentLocked && (
-            <div className="tutor-lock-banner card p-4 mb-4" role="alert">
+            <div className="tutor-lock-banner card" role="alert">
               <div className="lock-banner-header">
                 <Icon name="lock" />
                 <strong>Khóa tương tác AI trong giờ kiểm tra chính thức</strong>
               </div>
-              <p className="text-xs mt-1">
+              <p>
                 Bạn đang có lượt kiểm tra chính thức chưa kết thúc ({tutorData.assessmentTitle ?? 'Đang diễn ra'}). Hỏi Lumi tích hợp tạm tắt cho đến khi hệ thống xác nhận lượt làm đã kết thúc.
               </p>
               {tutorData.assessmentHref && (
-                <Link href={tutorData.assessmentHref} className="button small primary mt-2 inline-flex">
+                <Link href={tutorData.assessmentHref} className="button small primary tutor-lock-action">
                   Đến bài kiểm tra
                 </Link>
               )}
@@ -374,7 +375,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
 
           {/* AI01: No Sources Grounding Banner */}
           {!hasSources && !isAssessmentLocked && (
-            <div className="notice-box info mb-3">
+            <div className="notice-box info">
               <Icon name="info" />
               <span>Lớp học chưa có tài liệu chia sẻ. Trợ lý Lumi sẽ giải đáp dựa trên kiến thức phổ thông chung.</span>
             </div>
@@ -385,10 +386,10 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
           {/* Messages Transcript */}
           <div className="tutor-messages-stream">
             {explicitUnknownId ? (
-              <div className="tutor-unknown-splash card p-6 text-center" role="alert">
+              <div className="tutor-unknown-splash card" role="alert">
                 <div className="tutor-state-icon"><Icon name="lock"/></div>
-                <h3 className="font-semibold text-base mb-1">Cuộc trò chuyện không tồn tại hoặc không có quyền truy cập</h3>
-                <p className="muted text-sm mb-4">
+                <h3 className="tutor-unknown-title">Cuộc trò chuyện không tồn tại hoặc không có quyền truy cập</h3>
+                <p className="tutor-unknown-desc">
                   Mã cuộc trò chuyện ({selectedConvId}) không thuộc quyền sở hữu của bạn hoặc đã bị xóa. Vui lòng chọn một cuộc trò chuyện từ danh sách hoặc bắt đầu cuộc trò chuyện mới.
                 </p>
                 <button
@@ -410,7 +411,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
               <div className="tutor-empty-splash">
                 <div className="tutor-sparkle-icon"><Icon name="sparkles"/></div>
                 <h3>Chào bạn, mình là Lumi!</h3>
-                <p className="muted text-sm">
+                <p>
                   Hãy nhập câu hỏi bên dưới để được hướng dẫn phương pháp giải từng bước dựa trên tài liệu bài học của lớp.
                 </p>
               </div>
@@ -424,7 +425,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
                   >
                     <div className="msg-header">
                       <strong>{isAssistant ? 'Trợ lý Lumi' : 'Bạn'}</strong>
-                      <span className="text-xs muted">{msg.timestamp}</span>
+                      <span className="msg-header-time">{msg.timestamp}</span>
                     </div>
 
                     <div className="msg-bubble">
@@ -438,7 +439,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
 
                       {/* AI04 Incomplete stopped indicator */}
                       {msg.isIncomplete && (
-                        <div className="incomplete-indicator text-xs muted mt-2">
+                        <div className="incomplete-indicator">
                           (Đã dừng phản hồi theo yêu cầu của học sinh)
                         </div>
                       )}
@@ -453,8 +454,8 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
 
                       {/* AI03: Retry failed message button */}
                       {msg.isFailed && (
-                        <div className="failed-retry-row mt-2">
-                          <span className="text-xs text-red-600">Gặp lỗi trong quá trình xử lý câu hỏi.</span>
+                        <div className="failed-retry-row">
+                          <span className="failed-retry-note">Gặp lỗi trong quá trình xử lý câu hỏi.</span>
                           <button
                             type="button"
                             className="button small secondary"
@@ -468,8 +469,8 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
 
                       {/* Citations badges within bubble */}
                       {msg.citations && msg.citations.length > 0 && (
-                        <div className="msg-citations-row mt-3">
-                          <span className="text-xs muted mr-2">Căn cứ trích dẫn:</span>
+                        <div className="msg-citations-row">
+                          <span className="citations-row-label">Căn cứ trích dẫn:</span>
                           {msg.citations.map(c => {
                             if (!c.isAccessible) {
                               return (
@@ -508,7 +509,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
               <div className="tutor-msg-wrapper assistant streaming">
                 <div className="msg-header">
                   <strong>Trợ lý Lumi</strong>
-                  <span className="badge info text-xs animate-pulse">Đang giải đáp…</span>
+                  <span className="badge info animate-pulse">Đang giải đáp…</span>
                 </div>
                 <div className="msg-bubble">
                   <div className="msg-content-text">{streamingContent || 'Đang tra cứu tài liệu học tập của lớp…'}</div>
@@ -521,9 +522,10 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
           <footer className="tutor-composer-area">
             {/* Mode selector */}
             <div className="composer-mode-bar">
-              <span className="text-xs muted mr-2">Chế độ giải đáp:</span>
+              <span className="composer-mode-label">Chế độ giải đáp:</span>
               <button
                 type="button"
+                aria-pressed={mode === 'STEP_BY_STEP'}
                 className={`tag cursor-pointer ${mode === 'STEP_BY_STEP' ? 'primary' : 'default'}`}
                 onClick={() => setMode('STEP_BY_STEP')}
                 disabled={isAssessmentLocked || isStreaming || explicitUnknownId}
@@ -532,6 +534,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
               </button>
               <button
                 type="button"
+                aria-pressed={mode === 'QUICK_QA'}
                 className={`tag cursor-pointer ${mode === 'QUICK_QA' ? 'primary' : 'default'}`}
                 onClick={() => setMode('QUICK_QA')}
                 disabled={isAssessmentLocked || isStreaming || explicitUnknownId}
@@ -544,7 +547,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
                 <button
                   id="ux-stop-streaming-btn"
                   type="button"
-                  className="button small danger ml-auto"
+                  className="button small danger tutor-stop-stream"
                   onClick={handleStopStreaming}
                 >
                   <Icon name="stop" />
@@ -577,11 +580,11 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
                 }}
               />
               <div className="composer-action-bar">
-                <span className="text-xs muted">Nhấn Enter để gửi, Shift+Enter để xuống dòng</span>
+                <span className="composer-hint-text">Nhấn Enter để gửi, Shift+Enter để xuống dòng</span>
                 <button
                   id="ux-send-message-btn"
                   type="submit"
-                  className="button primary"
+                  className="button primary tutor-action-primary"
                   disabled={isAssessmentLocked || isStreaming || !inputContent.trim() || explicitUnknownId}
                 >
                   <Icon name="send" />
@@ -602,28 +605,28 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
           <Link className="button tutor-documents-link" href={`/student/classes/${activeClassId}/documents`}><Icon name="folder"/>Xem tài liệu lớp</Link>
           <div className="citations-list">
             {activeCitations.length === 0 ? (
-              <p className="muted text-xs p-3">Chưa có trích dẫn tài liệu cụ thể trong đoạn hội thoại này.</p>
+              <p className="citations-empty-note">Chưa có trích dẫn tài liệu cụ thể trong đoạn hội thoại này.</p>
             ) : (
               activeCitations.map(cite => (
-                <div key={cite.id} className="citation-card card p-3 mb-2">
+                <div key={cite.id} className="citation-card card">
                   <div className="citation-card-top">
-                    <span className={`badge ${cite.isAccessible ? 'primary' : 'secondary'} text-xs`}>
+                    <span className={`badge ${cite.isAccessible ? 'primary' : 'secondary'}`}>
                       {cite.isAccessible ? 'Trích dẫn' : 'Trích dẫn cũ'}
                     </span>
-                    <span className="text-xs font-semibold">{cite.locator}</span>
+                    <span className="citation-locator-label">{cite.locator}</span>
                   </div>
-                  <strong className="citation-doc-name text-xs block mt-1">{cite.documentTitle}</strong>
+                  <strong className="citation-doc-name">{cite.documentTitle}</strong>
                   {cite.isAccessible ? (
                     <>
-                      <blockquote className="citation-quote text-xs muted mt-1">
+                      <blockquote className="citation-quote">
                         “{cite.excerpt}”
                       </blockquote>
-                      <Link href={cite.readerHref} className="link-button text-xs mt-2 block">
+                      <Link href={cite.readerHref} className="link-button">
                         Mở tài liệu đúng vị trí →
                       </Link>
                     </>
                   ) : (
-                    <p className="text-xs muted italic mt-1">
+                    <p className="citation-revoked-note">
                       Tài liệu gốc đã bị thu hồi hoặc bạn không còn quyền truy cập.
                     </p>
                   )}
@@ -632,19 +635,19 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
             )}
           </div>
 
-          <div className="quick-notes-section-header mt-4 pt-3 border-t">
+          <div className="quick-notes-section-header">
             <Icon name="edit" />
             <h3>Ghi chú bài học</h3>
           </div>
 
           <div className="quick-notes-list">
             {tutorData.quickNotes.length === 0 ? (
-              <p className="muted text-xs p-3">Chưa có ghi chú nào trong lớp này.</p>
+              <p className="quick-notes-empty-note">Chưa có ghi chú nào trong lớp này.</p>
             ) : (
               tutorData.quickNotes.map(n => (
-                <div key={n.id} className="quick-note-item card p-2 mb-2">
-                  <span className="badge info text-xs">{n.locator}</span>
-                  <p className="text-xs mt-1 line-clamp-2">{n.noteText}</p>
+                <div key={n.id} className="quick-note-item card">
+                  <span className="badge info">{n.locator}</span>
+                  <p className="quick-note-text line-clamp-2">{n.noteText}</p>
                 </div>
               ))
             )}
@@ -658,7 +661,7 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
         title="Lịch sử hỏi đáp"
         onClose={() => setIsDrawerHistoryOpen(false)}
       >
-        <div className="mobile-history-list"><button type="button" className="button primary" disabled={isAssessmentLocked || isStreaming} onClick={() => {handleOpenNewCompose(); setIsDrawerHistoryOpen(false);}}><Icon name="plus"/>Cuộc trò chuyện mới</button>
+        <div className="mobile-history-list"><button type="button" className="button primary tutor-new-dialog-btn" disabled={isAssessmentLocked || isStreaming} onClick={() => {handleOpenNewCompose(); setIsDrawerHistoryOpen(false);}}><Icon name="plus"/>Cuộc trò chuyện mới</button>
           {conversations.map(conv => (
             <button
               key={conv.id}
@@ -669,10 +672,11 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
                 setIsDrawerHistoryOpen(false);
               }}
             >
-              <strong>{conv.title}</strong>
-              <p className="text-xs muted">{conv.preview}</p>
+              <strong className="conv-title">{conv.title}</strong>
+              <p className="conv-preview">{conv.preview}</p>
             </button>
           ))}
+          <p className="tutor-privacy-note">Hội thoại riêng tư mặc định</p>
         </div>
       </Dialog>
 
@@ -682,23 +686,23 @@ export function StudentTutorWorkspace({ data, params, reload }: Props) {
         title="Căn cứ & Ghi chú"
         onClose={() => setIsDrawerCitationsOpen(false)}
       >
-        <div className="mobile-citations-list"><Link className="button tutor-documents-link" href={`/student/classes/${activeClassId}/documents`}><Icon name="folder"/>Xem tài liệu lớp</Link>{activeCitations.length === 0 && <p className="muted">Chưa có trích dẫn trong câu trả lời này.</p>}
+        <div className="mobile-citations-list"><Link className="button tutor-documents-link" href={`/student/classes/${activeClassId}/documents`}><Icon name="folder"/>Xem tài liệu lớp</Link>{activeCitations.length === 0 && <p className="citations-empty-note">Chưa có trích dẫn trong câu trả lời này.</p>}
           {activeCitations.map(cite => (
-            <div key={cite.id} className="citation-card card p-3 mb-2">
-              <strong>{cite.documentTitle} ({cite.locator})</strong>
+            <div key={cite.id} className="citation-card card">
+              <strong className="citation-doc-name">{cite.documentTitle} ({cite.locator})</strong>
               {cite.isAccessible ? (
                 <>
-                  <p className="text-xs muted mt-1">“{cite.excerpt}”</p>
-                  <Link href={cite.readerHref} className="link-button text-xs mt-1 block">
+                  <blockquote className="citation-quote">“{cite.excerpt}”</blockquote>
+                  <Link href={cite.readerHref} className="link-button">
                     Mở tài liệu đúng vị trí
                   </Link>
                 </>
               ) : (
-                <p className="text-xs muted italic mt-1">Tài liệu không còn khả dụng.</p>
+                <p className="citation-revoked-note">Tài liệu không còn khả dụng.</p>
               )}
             </div>
           ))}
-        <section className="mobile-quick-notes"><h3>Ghi chú bài học</h3>{tutorData.quickNotes.length === 0 ? <p className="muted">Chưa có ghi chú trong lớp này.</p> : tutorData.quickNotes.map(note => <article className="quick-note-item card" key={note.id}><span className="note-locator-badge">{note.locator}</span><p>{note.noteText}</p></article>)}</section></div>
+        <section className="mobile-quick-notes"><h3>Ghi chú bài học</h3>{tutorData.quickNotes.length === 0 ? <p className="quick-notes-empty-note">Chưa có ghi chú nào trong lớp này.</p> : tutorData.quickNotes.map(note => <article className="quick-note-item card" key={note.id}><span className="note-locator-badge">{note.locator}</span><p className="quick-note-text">{note.noteText}</p></article>)}</section></div>
       </Dialog>
     </div>
   );

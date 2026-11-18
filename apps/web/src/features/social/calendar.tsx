@@ -356,27 +356,24 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
           </div>
 
           {/* View switcher */}
-          <div className="segmented" role="tablist">
+          <div className="segmented" role="group" aria-label="Chế độ xem lịch">
             <button
               type="button"
-              role="tab"
-              aria-selected={viewMode === 'month'}
+              aria-pressed={viewMode === 'month'}
               onClick={() => setViewMode('month')}
             >
               Tháng
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={viewMode === 'week'}
+              aria-pressed={viewMode === 'week'}
               onClick={() => setViewMode('week')}
             >
               Tuần
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={viewMode === 'list'}
+              aria-pressed={viewMode === 'list'}
               onClick={() => setViewMode('list')}
             >
               Danh sách
@@ -401,7 +398,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
         {/* Left Column: Month / Week / List View */}
         <div className="cal-calendar-pane card">
           {viewMode === 'month' && (
-            <div className="cal-month-table">
+            <div className="cal-month-table" role="region" aria-label="Lịch tháng, cuộn ngang để xem đủ bảy ngày" tabIndex={0}>
               <div className="cal-weekdays-header">
                 <div>Thứ Hai (T2)</div>
                 <div>Thứ Ba (T3)</div>
@@ -419,14 +416,12 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
                     <div
                       key={idx}
                       className={`cal-day-cell ${cell.inMonth ? 'in-month' : 'other-month'} ${cell.isToday ? 'today' : ''} ${selectedDate === cell.dateString ? 'selected' : ''}`}
-                      onClick={() => {
-                        setSelectedDate(cell.dateString);
-                        const firstEvt = dayEvents[0];
-                        if (firstEvt) setSelectedEventId(firstEvt.id);
-                      }}
                     >
                       <div className="cal-day-header">
-                        <span className="cal-day-number">{cell.dayNumber}</span>
+                        <button type="button" className="cal-day-number" aria-label={`Chọn ngày ${cell.dateString}`} aria-pressed={selectedDate === cell.dateString} aria-current={cell.isToday ? 'date' : undefined} onClick={() => {
+                          setSelectedDate(cell.dateString);
+                          setSelectedEventId(dayEvents[0]?.id ?? null);
+                        }}>{cell.dayNumber}</button>
                         {cell.isToday && <span className="today-chip">Hôm nay</span>}
                       </div>
                       <div className="cal-day-events">
@@ -462,7 +457,7 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
           )}
 
           {viewMode === 'week' && (
-            <div className="cal-month-table">
+            <div className="cal-month-table" role="region" aria-label="Lịch tuần, cuộn ngang để xem đủ bảy ngày" tabIndex={0}>
               <div className="cal-weekdays-header">
                 <div>Thứ Hai (T2)</div>
                 <div>Thứ Ba (T3)</div>
@@ -481,14 +476,12 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
                       key={idx}
                       className={`cal-day-cell ${cell.inMonth ? 'in-month' : 'other-month'} ${cell.isToday ? 'today' : ''} ${selectedDate === cell.dateString ? 'selected' : ''}`}
                       style={{ minHeight: '320px' }}
-                      onClick={() => {
-                        setSelectedDate(cell.dateString);
-                        const firstEvt = dayEvents[0];
-                        if (firstEvt) setSelectedEventId(firstEvt.id);
-                      }}
                     >
                       <div className="cal-day-header">
-                        <span className="cal-day-number">{cell.dayNumber}</span>
+                        <button type="button" className="cal-day-number" aria-label={`Chọn ngày ${cell.dateString}`} aria-pressed={selectedDate === cell.dateString} aria-current={cell.isToday ? 'date' : undefined} onClick={() => {
+                          setSelectedDate(cell.dateString);
+                          setSelectedEventId(dayEvents[0]?.id ?? null);
+                        }}>{cell.dayNumber}</button>
                         {cell.isToday && <span className="today-chip">Hôm nay</span>}
                       </div>
                       <div className="cal-day-events">
@@ -538,10 +531,15 @@ export function CalendarFeature({ data, role, params, reload, isGlobal = false }
                     <div
                       key={evt.id}
                       tabIndex={0}
+                      role="button"
+                      aria-pressed={selectedEvent?.id === evt.id}
                       className={`cal-list-item ${selectedEvent?.id === evt.id ? 'selected' : ''}`}
                       onClick={() => setSelectedEventId(evt.id)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') setSelectedEventId(evt.id);
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedEventId(evt.id);
+                        }
                       }}
                     >
                       <div className="actions">
