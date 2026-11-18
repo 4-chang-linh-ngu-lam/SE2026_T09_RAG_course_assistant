@@ -15,6 +15,7 @@ __pycache__/
 # Next.js
 node_modules/
 .next/
+.next-preview/
 out/
 # Secrets
 .env
@@ -28,3 +29,21 @@ out/
 
 # Local UI demo; never publish with the product source.
 /demo-ui/
+
+# Windows/Drive folder metadata.
+desktop.ini
+
+# Local dotfiles and tools. Keep project configuration templates.
+.*
+!.gitignore
+!.gitattributes
+!.env.example
+!.dockerignore
+
+# Local runs and archival artifacts.
+/tmp/
+/services/rag/idp.zip
+/docs/deepdoc/benchmarks/
+/docs/deepdoc/**/evidence/
+/docs/deepdoc/**/*.log
+/docs/deepdoc/**/*.patch

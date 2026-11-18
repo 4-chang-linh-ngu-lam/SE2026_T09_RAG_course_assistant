@@ -8,6 +8,9 @@ Dự án trợ giảng học tập sử dụng **Microservices trong một GitHu
 
 ## Đọc tài liệu
 
+- [DeepDoc và RAG tài liệu](docs/deepdoc/README.md) mô tả pipeline, cách chạy kiểm thử, kết quả đã kiểm chứng và các phụ thuộc model local.
+- [Cải thiện UI/UX](apps/web/docs/UI_UX_REFINEMENT.md) và [sửa lỗi trải nghiệm live](apps/web/docs/UX_LIVE_FIXES.md) ghi phạm vi giao diện, dữ liệu Classroom và kiểm thử. Các mục chờ tích hợp được ẩn khỏi điều hướng live.
+
 **Bộ hồ sơ yêu cầu và thiết kế hệ thống Lumi (2.1, dự thảo):** [Mục lục hồ sơ](docs/architect/lumi-design/00_INDEX.md) — yêu cầu nghiệp vụ, đặc tả, kiến trúc phân tầng, triển khai, kiểm thử và các quyết định còn mở. Business Rules và hợp đồng Core hiện hành vẫn là nguồn chuẩn.
 
 **Bàn giao backend TV4 (2026-10-19):** [task 001–015, phần đã làm, kiểm thử và toàn bộ vấn đề còn mở](tasks/TV4_BACKEND_HANDOVER.md).
