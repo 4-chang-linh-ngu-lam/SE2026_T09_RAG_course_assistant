@@ -1,0 +1,13 @@
+diff --git a/services/core/app/modules/notification/repository.py b/services/core/app/modules/notification/repository.py
+index e5166ea..0b0fa80 100644
+--- a/services/core/app/modules/notification/repository.py
++++ b/services/core/app/modules/notification/repository.py
+@@ -59,7 +59,7 @@ class NotificationRepository:
+     def mark_read(self, notification_id: UUID, user_id: UUID) -> None:
+         found = self.session.scalar(
+             update(Notification)
+-            .where(Notification.id == notification_id, Notification.recipient_id == user_id)
++            .where(Notification.id == notification_id)
+             .values(read_at=func.coalesce(Notification.read_at, func.clock_timestamp()))
+             .returning(Notification.id)
+         )

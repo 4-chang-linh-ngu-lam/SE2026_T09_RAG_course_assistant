@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     database_pool_timeout_seconds: int = Field(default=3, gt=0)
     database_pool_size: int = Field(default=5, gt=0)
     database_max_overflow: int = Field(default=10, ge=0)
+    notification_page_size_default: int = Field(default=20, ge=1, le=100)
     # Health/migrations can start without keys; authentication fails closed until configured.
     secret_key: SecretStr | None = Field(default=None, min_length=32)
     algorithm: Literal["HS256"] = "HS256"

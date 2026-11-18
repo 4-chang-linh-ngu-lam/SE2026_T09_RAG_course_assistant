@@ -1,0 +1,26 @@
+{
+  "started_at_utc": "2026-11-14T10:29:45.359933+00:00",
+  "finished_at_utc": "2026-11-14T10:30:01.870637+00:00",
+  "sha": "c7f8ac2672a967aa6552a66949363a1a4dde3799",
+  "branch": "assignment/23001878-vt033-notification-config",
+  "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/notification/test_postgres.py::test_read_all_serializes_with_delivery_and_later_arrival_stays_unread",
+    "tests/notification/test_vt033_postgres.py::test_foreign_cursor_does_not_change_state",
+    "tests/notification/test_vt033_postgres.py::test_own_read_and_read_all_preserve_other_inbox",
+    "tests/notification/test_vt033_postgres.py::test_cross_recipient_mark_read_preserves_business_state[2]",
+    "-q",
+    "-W",
+    "error",
+    "-p",
+    "no:cacheprovider",
+    "--tb=short"
+  ],
+  "exit_code": 0,
+  "application_sha256": "f86c69a4d62db853a7fb69c2496115b4dc368088cb2016d6ef275b54d0183907",
+  "test_database_configured": true,
+  "log": "06-flaky-concurrency-2.log"
+}

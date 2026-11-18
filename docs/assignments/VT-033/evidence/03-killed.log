@@ -1,0 +1,43 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_________ test_cross_recipient_mark_read_preserves_business_state[1] __________
+tests\notification\test_vt033_postgres.py:191: in test_cross_recipient_mark_read_preserves_business_state
+    assert state(inbox) == before, "cross-recipient mark-read changed persisted read_at"
+E   AssertionError: cross-recipient mark-read changed persisted read_at
+E   assert {UUID('cb445c...'): None, ...} == {UUID('cb445c...'): None, ...}
+E
+E     Omitting 105 identical items, use -vv to show
+E     Differing items:
+E     {UUID('c3e9fee2-c875-495b-8504-f2a52678ab39'): datetime.datetime(2026, 11, 14, 10, 14, 59, 424325, tzinfo=datetime.timezone.utc)} != {UUID('c3e9fee2-c875-495b-8504-f2a52678ab39'): None}
+E     Use -v to get more diff
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+_________ test_cross_recipient_mark_read_preserves_business_state[2] __________
+tests\notification\test_vt033_postgres.py:191: in test_cross_recipient_mark_read_preserves_business_state
+    assert state(inbox) == before, "cross-recipient mark-read changed persisted read_at"
+E   AssertionError: cross-recipient mark-read changed persisted read_at
+E   assert {UUID('376922...'): None, ...} == {UUID('376922...'): None, ...}
+E
+E     Omitting 105 identical items, use -vv to show
+E     Differing items:
+E     {UUID('611986e1-9a08-4357-870d-92049e3f30a3'): datetime.datetime(2026, 11, 14, 10, 15, 2, 199861, tzinfo=datetime.timezone.utc)} != {UUID('611986e1-9a08-4357-870d-92049e3f30a3'): None}
+E     Use -v to get more diff
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+________ test_cross_recipient_mark_read_preserves_business_state[100] _________
+tests\notification\test_vt033_postgres.py:191: in test_cross_recipient_mark_read_preserves_business_state
+    assert state(inbox) == before, "cross-recipient mark-read changed persisted read_at"
+E   AssertionError: cross-recipient mark-read changed persisted read_at
+E   assert {UUID('2f5eea...'): None, ...} == {UUID('2f5eea...'): None, ...}
+E
+E     Omitting 105 identical items, use -vv to show
+E     Differing items:
+E     {UUID('838e065e-55ad-4dff-92ef-60c0d1e52abd'): datetime.datetime(2026, 11, 14, 10, 15, 4, 993357, tzinfo=datetime.timezone.utc)} != {UUID('838e065e-55ad-4dff-92ef-60c0d1e52abd'): None}
+E     Use -v to get more diff
+---------------------------- Captured stdout setup ----------------------------
+No new upgrade operations detected.
+=========================== short test summary info ===========================
+FAILED tests/notification/test_vt033_postgres.py::test_cross_recipient_mark_read_preserves_business_state[1]
+FAILED tests/notification/test_vt033_postgres.py::test_cross_recipient_mark_read_preserves_business_state[2]
+FAILED tests/notification/test_vt033_postgres.py::test_cross_recipient_mark_read_preserves_business_state[100]
+3 failed in 11.40s

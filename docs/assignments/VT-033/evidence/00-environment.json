@@ -1,0 +1,43 @@
+﻿{
+    "captured_at":  "2026-11-14T16:56:27.6940011+07:00",
+    "shell":  "Windows PowerShell 5.1.26100.9444",
+    "cwd":  "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant",
+    "baseline":  "9ee864c3404f8057b394592791404f6db8692826",
+    "branch":  "assignment/23001878-vt033-notification-config",
+    "status":  [
+                   "?? MASTER_PROMPT_VT033_LOCAL_FIRST_23001878.md"
+               ],
+    "remote":  [
+                   "origin\thttps://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant.git (fetch)",
+                   "origin\thttps://github.com/4-chang-linh-ngu-lam/SE2026_T09_RAG_course_assistant.git (push)"
+               ],
+    "python":  "Python 3.12.0",
+    "docker":  "Docker version 28.0.4, build b8034c0",
+    "docker_server":  "28.0.4",
+    "preexisting_container_inventory":  [
+                                            "ragflow-pdf12-tei-1 ghcr.io/huggingface/text-embeddings-inference:cpu-1.9 Exited (255) 50 seconds ago 127.0.0.1:16380-\u003e80/tcp",
+                                            "ragflow-pdf12-redis-1 valkey/valkey:8 Exited (255) 50 seconds ago 127.0.0.1:16379-\u003e6379/tcp",
+                                            "ragflow-pdf12-elasticsearch-1 docker.elastic.co/elasticsearch/elasticsearch:8.17.0 Exited (255) 50 seconds ago 9300/tcp, 127.0.0.1:19200-\u003e9200/tcp",
+                                            "ragflow-pdf12-minio-1 pgsty/minio:RELEASE.2026-03-25T00-00-00Z Exited (255) 50 seconds ago 127.0.0.1:19000-\u003e9000/tcp, 127.0.0.1:19001-\u003e9001/tcp",
+                                            "ragflow-pdf12-mysql-1 mysql:8.0.39 Exited (255) 50 seconds ago 33060/tcp, 127.0.0.1:13316-\u003e3306/tcp",
+                                            "se2026_t09_rag_course_assistant-core-1 rag-course-core:local Exited (255) 3 weeks ago 127.0.0.1:8000-\u003e8000/tcp",
+                                            "se2026_t09_rag_course_assistant-notification-worker-1 rag-course-core:local Up 47 seconds 8000/tcp",
+                                            "se2026_t09_rag_course_assistant-migrate-1 rag-course-core:local Exited (0) 3 weeks ago ",
+                                            "se2026_t09_rag_course_assistant-document-worker-1 rag-course-document:local Up 48 seconds 8200/tcp",
+                                            "se2026_t09_rag_course_assistant-document-1 rag-course-document:local Exited (255) 3 weeks ago 127.0.0.1:8200-\u003e8200/tcp",
+                                            "se2026_t09_rag_course_assistant-document-migrate-1 rag-course-document:local Exited (0) 3 weeks ago ",
+                                            "se2026_t09_rag_course_assistant-document-bootstrap-1 rag-course-document:local Exited (0) 3 weeks ago ",
+                                            "lumi-core-demo-web-1 lumi-core-demo-web Exited (255) 3 weeks ago 127.0.0.1:3100-\u003e3000/tcp",
+                                            "lumi-core-demo-core-1 lumi-core-demo:local Exited (255) 3 weeks ago 127.0.0.1:8100-\u003e8000/tcp",
+                                            "lumi-core-demo-notification-worker-1 lumi-core-demo:local Up 47 seconds 8000/tcp",
+                                            "lumi-core-demo-migrate-1 c25a53ce70ea Exited (0) 3 weeks ago ",
+                                            "lumi-core-demo-db-1 postgres:16-alpine Exited (255) 3 weeks ago 127.0.0.1:55433-\u003e5432/tcp",
+                                            "se2026_t09_rag_course_assistant-db-1 postgres:16-alpine Exited (255) 3 weeks ago 127.0.0.1:5432-\u003e5432/tcp",
+                                            "docker-es01-1 elasticsearch:8.11.3 Up 47 seconds (healthy) 9300/tcp, 0.0.0.0:1200-\u003e9200/tcp",
+                                            "ragflow-su-tei ghcr.io/huggingface/text-embeddings-inference:cpu-1.9 Exited (0) 2 weeks ago ",
+                                            "docker-redis-1 valkey/valkey:8 Up 48 seconds (healthy) 0.0.0.0:6379-\u003e6379/tcp",
+                                            "docker-minio-1 pgsty/minio:RELEASE.2026-03-25T00-00-00Z Up 47 seconds (healthy) 0.0.0.0:9000-9001-\u003e9000-9001/tcp",
+                                            "docker-mysql-1 mysql:8.0.39 Up 47 seconds (healthy) 0.0.0.0:3306-\u003e3306/tcp, 33060/tcp"
+                                        ],
+    "note":  "Initial sandbox could not access Python/Docker config; host checks use approved elevated execution. No pull/rebase."
+}

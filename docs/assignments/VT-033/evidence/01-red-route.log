@@ -1,0 +1,60 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_______________________ test_route_resolves_default[2] ________________________
+
+api = (<starlette.testclient.TestClient object at 0x00000280C63E2EA0>, CurrentUser(id=UUID('7c0fd377-e158-49f6-ab0b-82130b21... session_version=1, roles=['STUDENT'], school_id=None), <MagicMock id='2752104837776'>, <MagicMock id='2752105025792'>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000280C63B27B0>
+default = 2
+
+    @pytest.mark.parametrize("default", [1, 2, 100])
+    def test_route_resolves_default(api, monkeypatch, default):
+        # Set the loaded singleton in memory (including on baseline); this is not env reload.
+        monkeypatch.setitem(settings.__dict__, "notification_page_size_default", default)
+        client, actor, service, _ = api
+        response = client.get("/api/v1/notifications")
+        assert response.json() == {"items": [], "unread_count": 0, "next_cursor": None}
+        assert response.status_code == 200
+        assert response.headers["Cache-Control"] == "no-store"
+>       service.list_notifications.assert_called_once_with(
+            actor.id, Pagination(limit=default, cursor=None)
+        )
+
+tests\notification\test_vt033_config.py:82:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\maihu\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py:956: in assert_called_once_with
+    return self.assert_called_with(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock name='mock.list_notifications' id='2752105022000'>
+args = (UUID('7c0fd377-e158-49f6-ab0b-82130b21c4d0'), Pagination(limit=2, cursor=None))
+kwargs = {}
+
+    def assert_called_with(self, /, *args, **kwargs):
+        """assert that the last call was made with the specified arguments.
+
+        Raises an AssertionError if the args and keyword args passed in are
+        different to the last call to the mock."""
+        if self.call_args is None:
+            expected = self._format_mock_call_signature(args, kwargs)
+            actual = 'not called.'
+            error_message = ('expected call not found.\nExpected: %s\nActual: %s'
+                    % (expected, actual))
+            raise AssertionError(error_message)
+
+        def _error_message():
+            msg = self._format_mock_failure_message(args, kwargs)
+            return msg
+        expected = self._call_matcher(_Call((args, kwargs), two=True))
+        actual = self._call_matcher(self.call_args)
+        if actual != expected:
+            cause = expected if isinstance(expected, Exception) else None
+>           raise AssertionError(_error_message()) from cause
+E           AssertionError: expected call not found.
+E           Expected: list_notifications(UUID('7c0fd377-e158-49f6-ab0b-82130b21c4d0'), Pagination(limit=2, cursor=None))
+E           Actual: list_notifications(UUID('7c0fd377-e158-49f6-ab0b-82130b21c4d0'), Pagination(limit=20, cursor=None))
+
+C:\Users\maihu\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py:944: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/notification/test_vt033_config.py::test_route_resolves_default[2]
+1 failed in 4.38s

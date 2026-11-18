@@ -1,0 +1,26 @@
+{
+  "started_at_utc": "2026-11-14T10:15:23.139326+00:00",
+  "finished_at_utc": "2026-11-14T10:15:49.701378+00:00",
+  "sha": "d9870162e79e93d01c873096cc886925ecda9665",
+  "branch": "assignment/23001878-vt033-notification-config",
+  "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/identity/test_http_security.py",
+    "tests/maintenance/test_database.py",
+    "-k",
+    "smtp_delivery_uses_tls or staff_password_reset_email or actual_cli_seed_report",
+    "-q",
+    "-W",
+    "error",
+    "-p",
+    "no:cacheprovider",
+    "--tb=short"
+  ],
+  "exit_code": 0,
+  "application_sha256": "f86c69a4d62db853a7fb69c2496115b4dc368088cb2016d6ef275b54d0183907",
+  "test_database_configured": true,
+  "log": "02-green-recovered-baseline-cases.log"
+}

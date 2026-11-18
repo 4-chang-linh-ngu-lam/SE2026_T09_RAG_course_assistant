@@ -28,3 +28,8 @@ out/
 
 # Local UI demo; never publish with the product source.
 /demo-ui/
+
+# Personal assignment submission and prompts stay local.
+/BT3_23001878_VT-033.pdf
+/MASTER_PROMPT_VT033_LOCAL_FIRST_23001878.md
+/docs/assignments/VT-033/ai-main-prompt.md

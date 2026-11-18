@@ -1,0 +1,23 @@
+{
+  "started_at_utc": "2026-11-14T10:07:22.571494+00:00",
+  "finished_at_utc": "2026-11-14T10:07:34.581887+00:00",
+  "sha": "9ee864c3404f8057b394592791404f6db8692826",
+  "branch": "assignment/23001878-vt033-notification-config",
+  "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/notification/test_vt033_postgres.py::test_configured_inbox_business_outcome[2]",
+    "-q",
+    "-W",
+    "error",
+    "-p",
+    "no:cacheprovider",
+    "--tb=short"
+  ],
+  "exit_code": 1,
+  "application_sha256": "de95142f6a1ae8335cf65f9a16927b3c4e7aa27890135cabfd4478e56d19c4c3",
+  "test_database_configured": true,
+  "log": "01-red-postgres.log"
+}

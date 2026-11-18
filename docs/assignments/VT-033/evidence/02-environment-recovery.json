@@ -1,0 +1,11 @@
+﻿{
+    "timestamp":  "2026-11-14T17:15:22.6337501+07:00",
+    "initial_python":  "3.12.0",
+    "verification_python":  "Python 3.12.14",
+    "interpreter":  "Existing installed CPython 3.12.14, same project \u003e=3.12 requirement",
+    "dependency_changes":  [
+
+                           ],
+    "python_utf8":  "1",
+    "rationale":  "3.12.0 Windows strftime Unicode failure reproduced; existing3.12.14 handles literal Vietnamese. UTF8 mode required for subprocess text decoding. No application/dependency source change."
+}

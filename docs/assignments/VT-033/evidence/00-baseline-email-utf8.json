@@ -1,0 +1,25 @@
+{
+  "started_at_utc": "2026-11-14T10:09:27.465635+00:00",
+  "finished_at_utc": "2026-11-14T10:09:31.090597+00:00",
+  "sha": "9ee864c3404f8057b394592791404f6db8692826",
+  "branch": "assignment/23001878-vt033-notification-config",
+  "cwd": "D:\\app\\cnpm\\W3\\SE2026_T09_RAG_course_assistant\\services\\core",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/identity/test_http_security.py",
+    "-k",
+    "smtp_delivery_uses_tls or staff_password_reset_email",
+    "-q",
+    "-W",
+    "error",
+    "-p",
+    "no:cacheprovider",
+    "--tb=short"
+  ],
+  "exit_code": 1,
+  "application_sha256": "de95142f6a1ae8335cf65f9a16927b3c4e7aa27890135cabfd4478e56d19c4c3",
+  "test_database_configured": false,
+  "log": "00-baseline-email-utf8.log"
+}
