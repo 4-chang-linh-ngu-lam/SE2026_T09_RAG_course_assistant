@@ -47,3 +47,5 @@ desktop.ini
 /docs/deepdoc/**/evidence/
 /docs/deepdoc/**/*.log
 /docs/deepdoc/**/*.patch
+/services/rag/parser/
+/services/rag/colab/

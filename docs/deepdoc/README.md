@@ -4,14 +4,14 @@ Mã nguồn nằm trong [services/rag](../../services/rag/README.md). Pipeline n
 
 | Thành phần | Vai trò |
 | --- | --- |
-| `idp/`, `parser/` | Trích xuất tài liệu, OCR, Canonical v2 và parser tương thích |
+| `idp/` | Trích xuất tài liệu, OCR, Canonical v2 và parser tương thích |
 | `chunking/`, `indexing/`, `embedding/` | Chia đoạn, tạo bundle theo phiên bản và đọc embedding local |
 | `search/`, `retrieval/`, `packing/` | Tìm kiếm, rerank, lọc quyền và lắp context |
 | `citations/`, `generation/` | Trích dẫn theo span nguồn và đường ghép pipeline sinh câu trả lời |
 
 ## Chạy kiểm thử
 
-Dùng Python 3.12 và chạy từ `services/rag` trên Windows. Các test trích xuất thật cần Poppler trên `PATH`. Test OCR cần Tesseract và traineddata phù hợp. Colab có hướng dẫn riêng trong [colab/README.md](../../services/rag/colab/README.md).
+Dùng Python 3.12 và chạy từ `services/rag` trên Windows. Các test trích xuất thật cần Poppler trên `PATH`. Test OCR cần Tesseract và traineddata phù hợp. C?c ca ??i chi?u parser tham chi?u ???c b? qua khi th? m?c ngu?n ngo?i repo v?ng m?t.
 
 ```powershell
 py -3.12 -m venv .venv

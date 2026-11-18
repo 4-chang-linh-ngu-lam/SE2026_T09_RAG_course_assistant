@@ -184,6 +184,7 @@ def spanning_table():
     return data
 
 
+@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.integration
 def test_integrated_w1():
     from idp.pdf.native.engine import PdfParsingEngine

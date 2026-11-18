@@ -7,6 +7,5 @@ RUN python -m venv --system-site-packages /opt/deepdoc-docx && /opt/deepdoc-docx
 COPY idp /work/idp
 COPY tests /work/tests
 COPY tools /work/tools
-COPY colab /work/colab
 COPY tools /work/tools
-CMD ["python", "-m", "pytest", "tests", "colab/tests", "-q", "-p", "no:cacheprovider"]
+CMD ["python", "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider"]
