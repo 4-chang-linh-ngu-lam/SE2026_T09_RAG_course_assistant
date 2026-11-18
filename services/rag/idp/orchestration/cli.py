@@ -14,7 +14,7 @@ from idp.ocr.fallback import (
     resolve_engine,
     run_fallback,
 )
-from idp.orchestration.pipeline import ensure_page_image, run_pipeline
+from idp.orchestration.pipeline import ensure_page_image, run_pipeline, sha256_file
 from idp.documents.preprocess import PREPROCESS_VERSION, analyze_page, preprocess_image
 from idp.validation.repair import REPAIR_FLAGS, repair_page
 
@@ -325,12 +325,13 @@ def main() -> int:
     fallback_errors = []
     errors = []
 
+    source_sha256 = sha256_file(pdf) if not args.image_dir else None
     for page in pages:
         if args.image_dir:
             image = _find_page_image(Path(args.image_dir), page, args.dpi)
         else:
             image = work / "pages" / f"p{page:04d}.png"
-            ensure_page_image(pdf, page, image, dpi=args.dpi)
+            ensure_page_image(pdf, page, image, dpi=args.dpi, source_sha256=source_sha256)
         if not image.exists():
             errors.append({"page": page, "error": f"missing page image {image}"})
             continue
@@ -429,6 +430,8 @@ def main() -> int:
         }]
     skip_text_candidate_pages = set(page_review_by_page)
 
+    if source_sha256 is not None and sha256_file(pdf) != source_sha256:
+        raise ValueError('PDF source changed during page rendering')
     result = run_pipeline(
         pdf_path=pdf,
         page_ids=pages,

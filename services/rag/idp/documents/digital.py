@@ -14,6 +14,7 @@ import hashlib
 import html
 import io
 import json
+import math
 import re
 import subprocess
 import time
@@ -409,6 +410,8 @@ def _recover_bad_blocks(
     profile: str,
     language: str | None,
     work: Path,
+    *,
+    pdf_path: Path | None = None,
 ) -> int:
     """OCR only empty/garbled text blocks, preserving the good text layer.
 
@@ -432,10 +435,29 @@ def _recover_bad_blocks(
     chosen, _ = choose_ocr_language(language)
     image = Image.open(image_path).convert("RGB")
     width, height = image.size
+    page_width, page_height = page.get('page_size') or (width, height)
+    rotation = None
+    if pdf_path is not None:
+        import fitz
+        with fitz.open(pdf_path) as document:
+            source_page = document[page['page_id'] - 1]
+            page_width, page_height = source_page.rect.width, source_page.rect.height
+            rotation = source_page.rotation_matrix
     work.mkdir(parents=True, exist_ok=True)
     recovered_count = 0
     for block in bad:
-        x1, y1, x2, y2 = [int(round(float(v))) for v in block["bbox"]]
+        try:
+            box = [float(v) for v in block['bbox']]
+            if len(box) != 4 or not all(math.isfinite(v) for v in box) or box[2] <= box[0] or box[3] <= box[1]:
+                continue
+            if rotation is not None:
+                box = list(fitz.Rect(box) * rotation)
+            x1 = math.floor(box[0] * width / page_width)
+            y1 = math.floor(box[1] * height / page_height)
+            x2 = math.ceil(box[2] * width / page_width)
+            y2 = math.ceil(box[3] * height / page_height)
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
         pad = 6
         x1, y1 = max(0, x1 - pad), max(0, y1 - pad)
         x2, y2 = min(width, x2 + pad), min(height, y2 + pad)
@@ -2144,6 +2166,7 @@ def process(
                         recovered = _recover_bad_blocks(
                             page, recovery_image, resolved_profile.name,
                             language, out / "work" / "block_recovery" / "crops",
+                            pdf_path=source,
                         )
                         if recovered:
                             source_audit["block_ocr_recovered"] = (

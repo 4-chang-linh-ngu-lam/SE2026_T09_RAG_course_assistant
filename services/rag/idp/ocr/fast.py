@@ -213,7 +213,7 @@ def run_fast(
     for page_id in page_ids:
         image = out / "work" / "pages" / f"p{page_id:04d}.png"
         if prepared_pages is None:
-            ensure_page_image(pdf_path, page_id, image, dpi=dpi)
+            ensure_page_image(pdf_path, page_id, image, dpi=dpi, source_sha256=source_sha256)
         else:
             item = prepared_pages[page_id]
             original = Path(item["image"]).resolve()

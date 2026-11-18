@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import shlex
 import subprocess
 import uuid
@@ -234,8 +235,19 @@ def pdf_page_count(pdf_path: str | Path) -> int:
         return doc.page_count
 
 
-def ensure_page_image(pdf_path: str | Path, page_id: int, out_path: Path, dpi: int = 300) -> Path:
-    provenance = {"source_sha256": sha256_file(pdf_path), "page_id": page_id, "dpi": dpi}
+def ensure_page_image(
+    pdf_path: str | Path, page_id: int, out_path: Path, dpi: int = 300,
+    *, source_sha256: str | None = None,
+) -> Path:
+    if source_sha256 is not None and (
+        not isinstance(source_sha256, str)
+        or re.fullmatch(r'[0-9a-f]{64}', source_sha256) is None
+    ):
+        raise ValueError('source_sha256 must be a lowercase SHA-256 digest from the current job')
+    provenance = {
+        "source_sha256": source_sha256 if source_sha256 is not None else sha256_file(pdf_path),
+        "page_id": page_id, "dpi": dpi,
+    }
     sidecar = out_path.with_name(out_path.name + ".source.json")
     if out_path.exists() and sidecar.exists():
         try:

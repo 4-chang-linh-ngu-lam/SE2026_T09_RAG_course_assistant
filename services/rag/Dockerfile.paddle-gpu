@@ -1,0 +1,7 @@
+# Separate opt-in GPU runtime; the tested CPU image is unchanged.
+FROM lumi-rag-paddle:phase4
+RUN python -m pip uninstall -y paddlepaddle && python -m pip install --no-cache-dir paddlepaddle-gpu==3.3.1 --index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+ENV FLAGS_allocator_strategy=auto_growth
+COPY idp/ocr/backends/model_worker.py /runtime/model_worker.py
+COPY idp/ocr/backends/paddle_session_worker.py /runtime/paddle_session_worker.py
+ENTRYPOINT ["python", "/runtime/paddle_session_worker.py"]
