@@ -18,9 +18,27 @@ def normalized(text):
     return unicodedata.normalize("NFC", text).casefold()
 
 
+_LATEX_SCRIPT = re.compile(r"[_^]\{([^{}]*)\}")
+_LATEX_COMMAND = re.compile(r"\\[A-Za-z]+")
+
+
+def _flatten_latex(text):
+    """Search form of rebuilt math: y_{1} -> y1, \\frac{a}{b} -> a b.
+
+    IDP keeps structure in the source text (e^{kt}, not ekt); people type
+    "y1(x)". Lexical terms match the flat form; the stored text is unchanged.
+    """
+    if "{" not in text and "\\" not in text:
+        return text
+    previous = None
+    while previous != text:
+        previous, text = text, _LATEX_SCRIPT.sub(r"\1", text)
+    return _LATEX_COMMAND.sub(" ", text).replace("{", " ").replace("}", " ")
+
+
 def terms(text):
     # Preserve accents, chemical subscripts and unit expressions such as m/s².
-    return re.findall(r"[^\W_]+(?:[/·^−+\-][^\W_]+)*", normalized(text), re.UNICODE)
+    return re.findall(r"[^\W_]+(?:[/·^−+\-][^\W_]+)*", normalized(_flatten_latex(text)), re.UNICODE)
 
 
 def topic_terms(text):

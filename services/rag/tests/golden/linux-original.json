@@ -14462,10 +14462,10 @@
             "order": 0,
             "type": "Text",
             "bbox": [
+              497.3089904785156,
               20.0,
-              50.32500076293945,
-              266.10491943359375,
-              62.691001892089844
+              509.67498779296875,
+              266.10491943359375
             ],
             "excluded": false,
             "text": "Phase zero document. Native source evidence for regression.",
@@ -14508,10 +14508,10 @@
             "order": 1,
             "type": "Text",
             "bbox": [
+              467.3089904785156,
               20.0,
-              80.32499694824219,
-              195.11294555664062,
-              92.69100189208984
+              479.67498779296875,
+              195.11294555664062
             ],
             "excluded": false,
             "text": "Independent expected text. Page number 1.",
@@ -14618,10 +14618,10 @@
             "order": 0,
             "type": "Text",
             "bbox": [
+              497.3089904785156,
               20.0,
-              50.32500076293945,
-              266.10491943359375,
-              62.691001892089844
+              509.67498779296875,
+              266.10491943359375
             ],
             "excluded": false,
             "text": "Phase zero document. Native source evidence for regression.",
@@ -14664,10 +14664,10 @@
             "order": 1,
             "type": "Text",
             "bbox": [
+              467.3089904785156,
               20.0,
-              80.32499694824219,
-              195.11294555664062,
-              92.69100189208984
+              479.67498779296875,
+              195.11294555664062
             ],
             "excluded": false,
             "text": "Independent expected text. Page number 1.",

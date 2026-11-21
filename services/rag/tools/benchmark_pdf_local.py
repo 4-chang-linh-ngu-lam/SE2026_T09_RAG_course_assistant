@@ -1,4 +1,4 @@
-"""Local CPU PDF benchmark. Never starts Docker or downloads model weights."""
+"""Benchmark native PDF extraction on CPU, with OCR disabled."""
 
 import argparse
 import hashlib
@@ -6,61 +6,80 @@ import json
 import subprocess
 import sys
 import time
+from importlib.util import find_spec
 from pathlib import Path
 
 import psutil
 
 
 def child(args):
-    from dataclasses import replace
-
-    from idp.pdf.native.preflight import PdfAdmissionPolicy
-    from idp.pdf.service import DeepDocConfig, DeepDocService
-    from idp.publish import iter_retrievable_blocks, load_canonical
+    from retrieval.canonical_harness import (
+        LocalRagIndex,
+        iter_retrievable_blocks,
+        resolve_citation,
+    )
 
     start = time.perf_counter()
-    DeepDocService(
-        DeepDocConfig(
-            engine="unified",
-            canonical_version=2,
-            ocr_backend="tesseract",
-            formula_regions=False,
-            max_gpu_calls=0,
-            timeout_seconds=900,
-            max_calls=2500,
-            max_calls_per_page=100,
-            max_regions=5000,
-            max_total_pixels=2000000000,
-            admission=replace(PdfAdmissionPolicy(), max_total_render_pixels=2000000000),
-        )
-    ).process_pdf(args.pdf, args.out)
-    service_seconds = time.perf_counter() - start
-    doc = load_canonical(args.out / "canonical.json")
-    blocks = list(iter_retrievable_blocks(doc))
-    report = json.loads((args.out / "run_report.json").read_text(encoding="utf-8"))
+    trusted_parsers = ()
+    canonical_path = args.out / "canonical.json"
+    if find_spec("idp.publish") is None:
+        from idp.documents.digital import process
+
+        process(args.pdf, args.out, ocr_fallback=False, region_recovery=False)
+        service_seconds = time.perf_counter() - start
+        doc = json.loads(canonical_path.read_text(encoding="utf-8"))
+        report_path = args.out / "ingestion_report.json"
+        trusted_parsers = ("pymupdf",)
+    else:
+        from dataclasses import replace
+
+        from idp.pdf.native.preflight import PdfAdmissionPolicy
+        from idp.pdf.service import DeepDocConfig, DeepDocService
+        from idp.pdf.verify_runtime import BackendRegistry
+        from idp.publish import load_canonical
+
+        DeepDocService(
+            DeepDocConfig(
+                engine="unified",
+                canonical_version=2,
+                timeout_seconds=900,
+                max_calls=2500,
+                max_calls_per_page=100,
+                max_regions=5000,
+                max_total_pixels=2000000000,
+                admission=replace(PdfAdmissionPolicy(), max_total_render_pixels=2000000000),
+            ),
+            backend_registry=BackendRegistry(),
+        ).process_pdf(args.pdf, args.out)
+        service_seconds = time.perf_counter() - start
+        doc = load_canonical(canonical_path)
+        report_path = args.out / "run_report.json"
+    blocks = list(iter_retrievable_blocks(doc, trusted_parsers=trusted_parsers))
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    extraction_path = args.out / "extraction.json"
     result = {
         "service_seconds": service_seconds,
         "report": report,
         "eligible_blocks": len(blocks),
         "eligible_characters": sum(len(b["text"]) for b in blocks),
-        "canonical_bytes": (args.out / "canonical.json").stat().st_size,
-        "extraction_bytes": (args.out / "extraction.json").stat().st_size,
-        "quality": "NOT MEASURED: no independent ground truth",
+        "canonical_bytes": canonical_path.stat().st_size,
+        "extraction_bytes": extraction_path.stat().st_size if extraction_path.is_file() else None,
+        "quality": "NOT MEASURED: native extraction only, no OCR or ground truth",
         "docker_used": False,
         "gpu_used": False,
     }
     if blocks:
-        from retrieval.canonical_harness import LocalRagIndex, resolve_citation
-
         index = LocalRagIndex(args.out / "smoke-index.sqlite3")
-        index.index(doc)
+        index.index(doc, trusted_parsers=trusted_parsers)
         query = " ".join(blocks[0]["text"].split()[:8])
         hits = index.retrieve(
             query, actor="benchmark-local", access_check=lambda *a: True
         )
         result["retrieval_smoke"] = {
             "hits": len(hits),
-            "citations_valid": all(resolve_citation(h, doc) for h in hits),
+            "citations_valid": bool(hits) and all(
+                resolve_citation(h, doc, trusted_parsers=trusted_parsers) for h in hits
+            ),
             "note": "query from extracted text; pipeline smoke only, not retrieval accuracy",
         }
     (args.out / "measurement.json").write_text(
@@ -89,7 +108,8 @@ def main():
             proc = subprocess.Popen(
                 [
                     sys.executable,
-                    str(Path(__file__).resolve()),
+                    "-m",
+                    "tools.benchmark_pdf_local",
                     "--child",
                     "--pdf",
                     str(args.pdf.resolve()),
@@ -98,6 +118,7 @@ def main():
                 ],
                 stdout=log,
                 stderr=subprocess.STDOUT,
+                cwd=Path(__file__).resolve().parents[1],
             )
             root = psutil.Process(proc.pid)
             try:

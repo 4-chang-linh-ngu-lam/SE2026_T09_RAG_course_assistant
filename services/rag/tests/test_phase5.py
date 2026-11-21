@@ -90,11 +90,11 @@ def test_request_compatibility_and_profiles(tmp_path):
     assert old.pages == "1" and new.pdf_path == old.pdf_path
     # One resolution rule for every entry point (F8): v1 requests follow the
     # library default, v2 requests need the only engine that can produce v2.
-    assert configuration().engine == DeepDocConfig().engine == "legacy"
+    assert configuration().engine == DeepDocConfig().engine == "unified"
     assert configuration(canonical_version=2).engine == "unified"
     assert DeepDocConfig().canonical_version == 1
-    # An explicit engine always wins: legacy + v2 is the documented rollback.
-    assert configuration(canonical_version=2, engine="legacy").engine == "legacy"
+    with pytest.raises(ValueError, match="only the unified PDF engine"):
+        configuration(canonical_version=2, engine="legacy")
     for profile in ("FAST_PREVIEW", "QUALITY", "HYBRID"):
         assert configuration(profile).canonical_version == 1
     with pytest.raises(ValueError):
@@ -103,13 +103,12 @@ def test_request_compatibility_and_profiles(tmp_path):
         JobRequest.from_dict(minimal, [tmp_path])
 
 
-def test_worker_native_real_child_and_legacy_flag(tmp_path):
+def test_worker_native_real_child(tmp_path):
     worker = RuntimeWorker(
         tmp_path / "queue",
         tmp_path / "work",
         [FIX],
         "unused",
-        use_service=True,
         job_timeout=60,
     )
     worker.enqueue(
@@ -142,18 +141,12 @@ def test_worker_native_real_child_and_legacy_flag(tmp_path):
         index.retrieve("Independent", actor="denied", access_check=lambda *args: False)
         == []
     )
-    legacy = RuntimeWorker(
-        tmp_path / "q2", tmp_path / "w2", [FIX], "marker", use_service=False
-    )
-    assert not legacy.use_service
-    request = JobRequest.from_dict({"pdf_path": str(FIX / "native.pdf")}, [FIX])
-    assert legacy._command(request, tmp_path / "old")[2] == "idp.orchestration.batch"
-
-
-@OCR
 @pytest.mark.parametrize("name,expected", [("scan.pdf", [1]), ("mixed.pdf", [2])])
-def test_real_ocr_resume_skips_and_policy_reprojects(tmp_path, name, expected):
-    cfg = DeepDocConfig(engine="unified", canonical_version=2, language="eng", dpi=144)
+def test_injected_ocr_resume_skips_and_policy_reprojects(tmp_path, name, expected, monkeypatch):
+    from idp_test_backends import FixtureOcr, use_ocr_backend
+
+    use_ocr_backend(monkeypatch, FixtureOcr)
+    cfg = DeepDocConfig(engine="unified", canonical_version=2, dpi=144)
     root = tmp_path / "cache"
     cache = StageCache(root)
     first = DeepDocService(cfg, stage_cache=cache).process_pdf(
@@ -181,17 +174,19 @@ def test_real_ocr_resume_skips_and_policy_reprojects(tmp_path, name, expected):
     ).process_pdf(FIX / name, tmp_path / "policy")
     assert cache4.stats["backend_calls"] == 0
     cache5 = StageCache(root)
-    DeepDocService(replace(cfg, psm=6), stage_cache=cache5).process_pdf(
+    DeepDocService(replace(cfg, dpi=170), stage_cache=cache5).process_pdf(
         FIX / name, tmp_path / "changed"
     )
     assert cache5.stats["backend_calls"] == len(expected)
 
 
-@OCR
 def test_interrupted_after_cached_ocr_then_resume(tmp_path, monkeypatch):
+    from idp_test_backends import FixtureOcr, use_ocr_backend
+
+    use_ocr_backend(monkeypatch, FixtureOcr)
     from idp.pdf.native.engine import PdfParsingEngine
 
-    cfg = DeepDocConfig(engine="unified", canonical_version=2, language="eng")
+    cfg = DeepDocConfig(engine="unified", canonical_version=2)
     cache = StageCache(tmp_path / "cache")
     original = PdfParsingEngine.finalize
 
@@ -248,9 +243,11 @@ def test_selected_pages_keep_l1_but_exclude_publication(tmp_path):
     assert len(doc["pages"]) == 20
 
 
-@OCR
 @pytest.mark.parametrize("moment", ["after-ocr", "mid-page", "output"])
-def test_actual_kill_and_resume(tmp_path, moment):
+def test_actual_kill_and_resume(tmp_path, moment, monkeypatch):
+    from idp_test_backends import FixtureOcr, use_ocr_backend
+
+    use_ocr_backend(monkeypatch, FixtureOcr)
     import fitz
 
     source = tmp_path / "two-scans.pdf"
@@ -293,7 +290,7 @@ def test_actual_kill_and_resume(tmp_path, moment):
             if process.poll() is None:
                 process.kill()
                 process.wait()
-    cfg = DeepDocConfig(engine="unified", canonical_version=2, language="eng", dpi=144)
+    cfg = DeepDocConfig(engine="unified", canonical_version=2, dpi=144)
     cache = StageCache(tmp_path / "cache")
     started = time.perf_counter()
     resumed = DeepDocService(cfg, stage_cache=cache).process_pdf(
@@ -340,7 +337,6 @@ def test_invalid_pdf_worker_non_retryable(tmp_path):
         tmp_path / "w",
         [tmp_path],
         "unused",
-        use_service=True,
         max_attempts=3,
         job_timeout=30,
     )
@@ -379,32 +375,6 @@ def test_docx_dispatch_and_source_immutability(tmp_path):
         == "idp-canonical-1"
     )
     assert hashlib.sha256(source.read_bytes()).hexdigest() == before
-
-
-def test_shadow_and_rollback_flags(tmp_path):
-    for engine in ("shadow", "legacy", "unified"):
-        output = tmp_path / engine
-        assert (
-            execute(
-                {
-                    "job_id": engine,
-                    "pdf_path": str(FIX / "native.pdf"),
-                    "options": {
-                        "engine": engine,
-                        "profile": "HYBRID",
-                        "canonical_version": 2,
-                    },
-                },
-                output,
-                tmp_path / "cache",
-            )
-            == 0
-        )
-        doc = json.loads((output / "canonical.json").read_text())
-        assert doc["schema_version"] == (
-            "idp-canonical-2" if engine == "unified" else "idp-canonical-1"
-        )
-    assert (tmp_path / "shadow/shadow_diff.json").exists()
 
 
 @OCR
@@ -497,7 +467,6 @@ def test_supervisor_stops_real_process(tmp_path, reason):
         tmp_path / "w",
         [FIX],
         "unused",
-        use_service=True,
         job_timeout=1 if reason == "DEADLINE_EXCEEDED" else 30,
         max_worker_rss_mb=16 if reason == "RESOURCE_EXHAUSTED" else 512,
         max_attempts=3,
@@ -540,7 +509,6 @@ def test_transient_retry_backoff_and_real_recovery(tmp_path):
         tmp_path / "w",
         [FIX],
         "unused",
-        use_service=True,
         job_timeout=60,
     )
     real = worker._execute_batch
@@ -587,7 +555,6 @@ def test_two_workers_same_queue_no_duplicate_commit(tmp_path):
             tmp_path / "w",
             [FIX],
             "unused",
-            use_service=True,
             worker_id="worker-" + str(i),
             job_timeout=60,
         )
@@ -634,9 +601,9 @@ def test_other_worker_cannot_claim_before_retry_classification(tmp_path):
     source.write_bytes(b"invalid PDF")
     args = (tmp_path / "q", tmp_path / "w", [tmp_path, FIX], "unused")
     first = PausedFinalization(
-        *args, use_service=True, worker_id="first", job_timeout=30
+        *args, worker_id="first", job_timeout=30
     )
-    second = RuntimeWorker(*args, use_service=True, worker_id="second", job_timeout=30)
+    second = RuntimeWorker(*args, worker_id="second", job_timeout=30)
     first.enqueue({"job_id": "a-broken", "pdf_path": str(source), "pages": [1]})
     first.enqueue({"job_id": "b-valid", "pdf_path": str(FIX / "native.pdf")})
     with ThreadPoolExecutor(2) as pool:
@@ -660,7 +627,6 @@ def test_stale_queue_recovery_runs_real_service(tmp_path):
         tmp_path / "w",
         [FIX],
         "unused",
-        use_service=True,
         job_timeout=60,
         stale_seconds=1,
     )

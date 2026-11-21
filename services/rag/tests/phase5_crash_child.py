@@ -5,7 +5,7 @@ import json
 import time
 from pathlib import Path
 
-from idp.ocr.backends.tesseract import TesseractBackend
+from idp_test_backends import FixtureOcr, fixture_backend_registry
 from idp.pdf.native.engine import PdfParsingEngine
 from idp.pdf.service import DeepDocConfig, DeepDocService
 from idp.runtime.cache import StageCache
@@ -31,14 +31,14 @@ def main():
 
         PdfParsingEngine.finalize = finalize
     elif args.moment == "mid-page":
-        original = TesseractBackend.read
+        original = FixtureOcr.read
 
         def read(self, image, source, page, *a, **kw):
             if page == 2:
                 pause()
             return original(self, image, source, page, *a, **kw)
 
-        TesseractBackend.read = read
+        FixtureOcr.read = read
     elif args.moment == "output":
         import idp.pdf.service as module
 
@@ -54,10 +54,12 @@ def main():
     # Serial OCR: the test interrupts at a precise page boundary ("page 1
     # finished, page 2 in flight"), which concurrent pages would blur.
     cfg = DeepDocConfig(
-        engine="unified", canonical_version=2, language="eng", dpi=144, ocr_workers=1
+        engine="unified", canonical_version=2, dpi=144, ocr_workers=1
     )
     cache = StageCache(args.cache)
-    doc = DeepDocService(cfg, stage_cache=cache).process_pdf(args.input, args.out)
+    doc = DeepDocService(
+        cfg, stage_cache=cache, backend_registry=fixture_backend_registry(FixtureOcr)
+    ).process_pdf(args.input, args.out)
     print(json.dumps({"cache": cache.stats, "schema": doc["schema_version"]}))
 
 

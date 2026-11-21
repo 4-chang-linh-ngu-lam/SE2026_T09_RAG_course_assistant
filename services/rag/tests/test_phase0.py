@@ -106,15 +106,12 @@ def snapshot(path, out, kind):
 def test_frozen_output(case, tmp_path):
     expected = json.loads(GOLDEN.read_text(encoding="utf-8"))
     kind, filename = case.split(":")
-    if kind == "parser" and not (ROOT.parent / "parser" / "pdf" / "engine.py").is_file():
-        pytest.skip("External reference parser unavailable")
     assert (
         snapshot(ROOT / "fixtures/generated" / filename, tmp_path, kind)
         == expected[case]
     )
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.contract
 def test_public_signatures():
     assert GOLDEN.is_file(), 'Missing original-source baseline for this platform'
@@ -141,10 +138,12 @@ def test_public_signatures():
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "dpi,limit,rotation", [(144, 2000, 0), (600, 800, 0), (300, 2000, 90)]
+    "dpi,limit,rotation,displayed_boxes",
+    [(144, 2000, 0, False), (600, 800, 0, False),
+     (300, 2000, 90, False), (300, 2000, 90, True)]
 )
 def test_bad_block_crop_targets_actual_render(
-    tmp_path, monkeypatch, dpi, limit, rotation
+    tmp_path, monkeypatch, dpi, limit, rotation, displayed_boxes
 ):
     from idp.input import filetypes
     from idp.ocr import fallback
@@ -155,6 +154,7 @@ def test_bad_block_crop_targets_actual_render(
     box = fitz.Rect(100, 200, 200, 280)
     page.draw_rect(box, fill=(1, 0, 0), color=(1, 0, 0))
     page.set_rotation(rotation)
+    reported_box = box * page.rotation_matrix if displayed_boxes else box
     doc.save(path)
     doc.close()
     image = digital._render_pdf_page(
@@ -167,7 +167,7 @@ def test_bad_block_crop_targets_actual_render(
             {
                 "block_id": "bad",
                 "block_type": "Text",
-                "bbox": list(box),
+                "bbox": list(reported_box),
                 "text": "\ue001",
                 "review_flags": [],
             }
@@ -182,7 +182,7 @@ def test_bad_block_crop_targets_actual_render(
     monkeypatch.setattr(fallback, "crop_text_with_orientation", ocr)
     monkeypatch.setattr(filetypes, "choose_ocr_language", lambda value: ("eng", False))
     kwargs = (
-        {"pdf_path": path}
+        {"pdf_path": path, "displayed_boxes": displayed_boxes}
         if "pdf_path" in inspect.signature(digital._recover_bad_blocks).parameters
         else {}
     )
@@ -193,6 +193,47 @@ def test_bad_block_crop_targets_actual_render(
         == 1
     )
     assert seen and seen[0][0] > 240 and seen[0][1] < 20
+
+
+def test_verifier_resume_preserves_correction_and_page_review(tmp_path, monkeypatch):
+    from idp.validation.corrections import apply_corrections
+
+    source = ROOT / "fixtures/generated/native.pdf"
+    image = tmp_path / "page.png"
+    Image.new("RGB", (400, 400), "white").save(image)
+    marker = tmp_path / "source.json"
+    marker.write_text(json.dumps({"children": [{
+        "block_type": "Page", "bbox": [0, 0, 400, 400],
+        "children": [{"block_type": "Text", "bbox": [10, 10, 300, 50],
+                      "html": "<p>Independent expected text for the first reading.</p>"}],
+    }]}), encoding="utf-8")
+    calls = []
+
+    def verify(command, number, page_image, original, directory, *, timeout):
+        calls.append(number)
+        directory.mkdir(parents=True)
+        path = directory / f"p{number:04d}.json"
+        payload = json.loads(marker.read_text(encoding="utf-8"))
+        payload["metadata"] = {"engine": "test-verifier"}
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path, payload["metadata"]
+
+    monkeypatch.setattr(pipeline, "verify_page", verify)
+    out = tmp_path / "out"
+    options = dict(
+        verify_cmd="test-verifier", skip_text_candidate_pages={1},
+        page_review_by_page={1: [{"code": "FAST_MODE_REVIEW", "severity": "warning"}]},
+    )
+    first = pipeline.run_pipeline(source, [1], {1: marker}, {1: image}, out, **options)
+    assert calls == [1]
+    page_json = out / "pages/p0001.json"
+    block_id = first["pages"][0]["blocks"][0]["block_id"]
+    apply_corrections(page_json, [{"block_id": block_id, "text": "Human correction kept."}])
+    resumed = pipeline.run_pipeline(source, [1], {1: marker}, {1: image}, out, resume=True, **options)
+    page = resumed["pages"][0]
+    assert calls == [1]
+    assert page["blocks"][0]["text"] == "Human correction kept."
+    assert any(flag["code"] == "FAST_MODE_REVIEW" for flag in page["review"])
 
 
 @pytest.mark.unit
@@ -352,7 +393,6 @@ def test_optional_fast_ocr(tmp_path):
     assert 'Independent expected text' in recognized
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.integration
 @pytest.mark.xfail(
     strict=True,

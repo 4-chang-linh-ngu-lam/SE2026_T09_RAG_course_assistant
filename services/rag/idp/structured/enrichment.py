@@ -26,10 +26,11 @@ from idp.structured.structure import GridTableReader, parse_table_html, table_ht
 from idp.documents.text_quality import has_model_artifact_tokens
 from idp.validation.validate import validate_latex
 
-ENRICHMENT_VERSION = "idp-structured-7"
+ENRICHMENT_VERSION = "idp-structured-9"
 MAX_LABEL_EVIDENCE_BYTES = 262_144
 KINDS = {"table": "Table", "formula": "Equation", "display_formula": "Equation", "inline_formula": "Equation", "equation": "Equation", "image": "Picture", "figure": "Picture", "picture": "Picture", "diagram": "Diagram", "chart": "Chart"}
 VISUAL_TYPES = {"Table", "Equation", "Picture", "Diagram", "Chart", "PictureGroup"}
+FIGURE_TYPES = VISUAL_TYPES - {"Table", "Equation"}
 
 
 def file_hash(path):
@@ -63,19 +64,19 @@ class EnrichmentOptions:
 
 
 class PaddleFormulaReader:
-    def __init__(self, model_dir):
+    def __init__(self, model_dir, *, device="cpu"):
         directory = Path(model_dir).resolve()
         required = [directory / name for name in ("inference.pdiparams", "inference.json", "inference.yml")]
         if not all(path.is_file() for path in required):
             raise InputError("FORMULA_MODEL_UNAVAILABLE", "provide a complete local Paddle formula model directory")
         try:
             from paddleocr import FormulaRecognition
-            self.model = FormulaRecognition(model_name=directory.name, model_dir=str(directory), device="cpu", cpu_threads=2, enable_mkldnn=False)
+            self.model = FormulaRecognition(model_name=directory.name, model_dir=str(directory), device=device, cpu_threads=2, enable_mkldnn=False)
         except ImportError as exc:
             raise InputError("FORMULA_ENGINE_UNAVAILABLE", "PaddleOCR formula runtime is not installed") from exc
         except Exception as exc:
-            raise InputError("FORMULA_ENGINE_FAILED", "local CPU formula engine could not initialize") from exc
-        self.identity = {"name": directory.name, "device": "cpu", "files_sha256": {p.name: file_hash(p) for p in required}}
+            raise InputError("FORMULA_ENGINE_FAILED", f"local formula engine could not initialize on {device}") from exc
+        self.identity = {"name": directory.name, "device": device, "files_sha256": {p.name: file_hash(p) for p in required}}
 
     def __call__(self, crop, timeout):
         # Native inference cannot be preempted; the caller checks elapsed budget
@@ -87,7 +88,9 @@ class PaddleFormulaReader:
         return self
 
     def __exit__(self, *args):
-        self.model.close()
+        close = getattr(self.model, "close", None)
+        if close is not None:
+            close()
 
 
 class CommandRegionReader:
@@ -125,21 +128,24 @@ class CommandRegionReader:
 
 
 class RegionEnricher:
-    def __init__(self, detector=None, formula_reader=None, table_reader=None, *, language="vie", options=None, hard_reader=None, text_recognizer=None, recognition_options=None, typed_regions=True, label_reader=None):
+    def __init__(self, detector=None, formula_reader=None, table_reader=None, *, language="vie", options=None, hard_reader=None, text_recognizer=None, recognition_options=None, typed_regions=True, label_reader=None, table_detector=None):
         self.detector, self.formula_reader = detector, formula_reader
+        self.table_detector = table_detector
         self.recognition_options = recognition_options or RecognitionOptions()
         self.text_recognizer, self.typed_regions = text_recognizer, typed_regions
         self.table_reader = table_reader or GridTableReader(language, text_recognizer=text_recognizer, recognition_options=self.recognition_options)
         self.language, self.options, self.hard_reader = language, options or EnrichmentOptions(), hard_reader
         self.lock = threading.RLock()
         self.label_reader = label_reader
-        self.cacheable = all(reader is None or (bool(getattr(reader, "identity", None)) and getattr(reader, "cacheable", True)) for reader in (detector, formula_reader, self.table_reader, hard_reader, text_recognizer, label_reader))
+        self.cacheable = all(reader is None or (bool(getattr(reader, "identity", None)) and getattr(reader, "cacheable", True)) for reader in (detector, formula_reader, self.table_reader, hard_reader, text_recognizer, label_reader, table_detector))
         self.identity = {
             "version": ENRICHMENT_VERSION, "options": asdict(self.options), "language": language,
             "typed_regions": typed_regions, "recognition_options": asdict(self.recognition_options),
             "hard_supported_kinds": sorted(hard_reader.supported_kinds) if getattr(hard_reader,"supported_kinds",None) is not None else None,
             **{name: getattr(reader, "identity", None) for name, reader in (("detector", detector), ("formula", formula_reader), ("table", self.table_reader), ("hard", hard_reader), ("text_recognizer", text_recognizer), ("labels", label_reader))},
         }
+        if table_detector is not None:
+            self.identity["table_detector"] = getattr(table_detector, "identity", None)
 
     def enrich_page(self, page, out_dir, image_path=None):
         with self.lock:
@@ -191,6 +197,16 @@ class RegionEnricher:
             proposed = self.detector(image_path) if self.detector else []
             if not isinstance(proposed, (list, tuple)) or any(not isinstance(r, dict) for r in proposed):
                 raise ValueError("invalid layout output")
+        except Exception as exc:
+            warning("STRUCTURED_LAYOUT_FAILED")
+            report["error"] = str(exc)[:300]
+            proposed = []
+        if self.table_detector is not None:
+            try:
+                proposed = [*proposed, *self.table_detector(image_path)]
+            except Exception:
+                warning("CPU_TABLE_DETECTION_FAILED")
+        try:
             for region in proposed:
                 kind = KINDS.get(str(region.get("kind", "")).lower())
                 box = _bbox(region.get("bbox"), image.size)
@@ -199,6 +215,16 @@ class RegionEnricher:
                 if box is None:
                     warning("STRUCTURED_INVALID_BBOX")
                     continue
+                if kind in FIGURE_TYPES:
+                    nested = next((old for old, block in candidates if block is None and old["kind"] == kind
+                                   and _nested_figure(old["bbox"], box)), None)
+                    if nested is not None:
+                        prior = nested["bbox"]
+                        nested.setdefault("layout_boxes", [prior]).append(box)
+                        nested["bbox"] = [min(prior[0], box[0]), min(prior[1], box[1]),
+                                          max(prior[2], box[2]), max(prior[3], box[3])]
+                        nested["layout_score"] = max(nested.get("layout_score") or 0, region.get("layout_score") or 0)
+                        continue
                 overlaps = [old for old in candidates if _intersection(box, old[0]["bbox"]) > .7]
                 if overlaps:
                     if any(old[0]["kind"] != kind for old in overlaps):
@@ -209,12 +235,14 @@ class RegionEnricher:
             warning("STRUCTURED_LAYOUT_FAILED")
             report["error"] = str(exc)[:300]
         report["candidate_regions"] = len(candidates)
+        baseline_text = [block for block in page["blocks"]
+                         if block["block_type"] == "Text" and block.get("bbox") and not block.get("excluded_from_content")]
         work = out / "assets" / f"p{page['page_id']:04d}" / "structured"
-        for index, (region, existing) in enumerate(candidates):
+        budget_used = 0
+        prioritized = sorted(enumerate(candidates), key=lambda item: item[1][0]["kind"] == "Equation")
+        for index, (region, existing) in prioritized:
             remaining = options.page_budget_seconds - (time.perf_counter() - start)
-            if index >= options.max_regions or remaining <= 0:
-                warning("STRUCTURED_BUDGET_EXHAUSTED")
-                break
+            can_recognize = budget_used < options.max_regions and remaining > 0
             box = _bbox(region["bbox"], image.size)
             if box is None:
                 warning("STRUCTURED_INVALID_BBOX")
@@ -224,9 +252,21 @@ class RegionEnricher:
             bounds = [max(0, math.floor(box[0]) - pad), max(0, math.floor(box[1]) - pad), min(image.width, math.ceil(box[2]) + pad), min(image.height, math.ceil(box[3]) + pad)]
             entry = {"kind": kind, "pixel_bbox": bounds, "status": "unresolved", "block_id": None}
             report["regions"].append(entry)
-            if (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]) > options.max_crop_pixels:
+            if region.get("layout_boxes"):
+                entry["layout_boxes"] = region["layout_boxes"]
+            if not can_recognize:
+                warning("STRUCTURED_BUDGET_EXHAUSTED")
+                entry["recognition_skipped"] = "budget_limit"
+                if kind not in FIGURE_TYPES:
+                    entry["status"] = "budget_limit"
+                    entry["block_id"] = _hold_skipped_region(page, existing, region, kind, box, (sx, sy), index, "STRUCTURED_BUDGET_EXHAUSTED")
+                    continue
+            width, height = bounds[2] - bounds[0], bounds[3] - bounds[1]
+            oversized = width * height > options.max_crop_pixels
+            if oversized and kind not in FIGURE_TYPES:
                 entry["status"] = "pixel_limit"
                 warning("STRUCTURED_PIXEL_LIMIT")
+                entry["block_id"] = _hold_skipped_region(page, existing, region, kind, box, (sx, sy), index, "STRUCTURED_PIXEL_LIMIT")
                 continue
             bid = existing["block_id"] if existing else f"p{page['page_id']:04d}_s{index:03d}"
             # Stable new IDs must not collide with externally supplied IDs.
@@ -248,17 +288,36 @@ class RegionEnricher:
                 block["asset_paths"].append(str(crop))
             block["layout_score"] = region.get("layout_score", block.get("layout_score"))
             block["related_block_ids"] = _related(page, block)
+            if entry.get("recognition_skipped") == "budget_limit":
+                # The image is kept but not read; the page code needs an owner.
+                _add_flag(block, "STRUCTURED_BUDGET_EXHAUSTED")
             if kind == "Equation":
                 label = str(region.get("label") or region.get("kind_original") or "")
                 block.setdefault("formula_kind", "inline" if "inline" in label else "display" if "display" in label else "unknown")
                 block["formula_crops"] = [str(crop)]
-            else:
+            elif kind in FIGURE_TYPES:
                 block.setdefault("figure_kind", "content")
+            inference_crop = crop
+            inference_size = (width, height)
+            if oversized and can_recognize:
+                factor = math.sqrt(options.max_crop_pixels / (width * height))
+                inference_width = max(1, min(int(width * factor), options.max_crop_pixels))
+                inference_height = max(1, min(int(height * factor), options.max_crop_pixels // inference_width))
+                inference_size = (inference_width, inference_height)
+                inference_crop = crop.with_name(crop.stem + "_inference.png")
+                with Image.open(crop) as original:
+                    original.resize(inference_size, Image.Resampling.LANCZOS).save(inference_crop)
+                entry["inference_crop_path"] = str(inference_crop)
+                entry["inference_size"] = list(inference_size)
             before = time.perf_counter()
             timeout = min(options.region_timeout_seconds, max(.001, options.page_budget_seconds - (before - start)))
             producer = None
             try:
-                if kind == "Equation" and block.get("latex"):
+                if can_recognize:
+                    budget_used += 1
+                if not can_recognize:
+                    value = {}
+                elif kind == "Equation" and block.get("latex"):
                     value = {"latex": block["latex"]}
                     producer = {"name": "existing_parser"}
                 elif kind == "Table" and "<table" in (block.get("table_html") or block.get("html") or "").lower():
@@ -274,15 +333,15 @@ class RegionEnricher:
                     producer = getattr(self.table_reader, "identity", {"name": "custom_table"})
                 else:
                     if self.label_reader:
-                        value = self.label_reader(crop, timeout)
+                        value = self.label_reader(inference_crop, timeout)
                         producer = getattr(self.label_reader, "identity", {"name": "custom_label_reader"})
                     else:
-                        labels = parse_hocr_lines(_run_tesseract(crop, crop.with_name(crop.stem + "_labels"), self.language, 11, timeout=timeout))
+                        labels = parse_hocr_lines(_run_tesseract(inference_crop, crop.with_name(crop.stem + "_labels"), self.language, 11, timeout=timeout))
                         value = {"labels": labels}
                         producer = {"name": "tesseract_labels"}
                 if isinstance(value, dict) and len(json.dumps(value)) <= options.max_output_chars:
                     entry["reading"] = value
-                _apply_value(block, value, kind, bounds, options)
+                _apply_value(block, value, kind, bounds, options, visual_size=inference_size)
                 entry["status"] = "extracted" if kind in {"Table", "Equation"} else "image_preserved"
                 if kind == "Table" and (value.get("cell_disagreements") or value.get("ocr_budget_exhausted") or value.get("ocr_confidence", 1) < .7):
                     entry["status"] = "needs_verification"
@@ -290,16 +349,19 @@ class RegionEnricher:
                     warning("TABLE_OCR_REVIEW")
                     if self._hard_supports(kind):
                         raise ValueError("table OCR is incomplete, weak, or disagrees between readings")
-                if kind not in {"Table", "Equation"} and self._hard_supports(kind) and not block.get("description") and (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]) >= options.min_visual_pixels_for_model:
+                if can_recognize and kind in FIGURE_TYPES and self._hard_supports(kind) and not block.get("description") and width * height >= options.min_visual_pixels_for_model:
                     left = options.page_budget_seconds - (time.perf_counter() - start)
                     if left <= 0:
                         raise TimeoutError("no budget for visual understanding")
-                    visual = self.hard_reader(crop, min(left, options.region_timeout_seconds), kind)
-                    _apply_value(block, visual, kind, bounds, options)
+                    visual = self.hard_reader(inference_crop, min(left, options.region_timeout_seconds), kind)
+                    _apply_value(block, visual, kind, bounds, options, visual_size=inference_size)
                     producer = getattr(self.hard_reader, "identity", {"name": "hard_reader"})
                     entry["status"] = "extracted_external"
             except Exception as exc:
                 entry["error"] = str(exc)[:300]
+                if kind in FIGURE_TYPES:
+                    warning("VISUAL_RECOGNITION_REVIEW")
+                    block.setdefault("review_flags", []).append({"code": "VISUAL_RECOGNITION_REVIEW", "severity": "warning"})
                 left = options.page_budget_seconds - (time.perf_counter() - start)
                 if self._hard_supports(kind) and left > 0 and entry["status"] in {"unresolved", "needs_verification"}:
                     try:
@@ -319,8 +381,14 @@ class RegionEnricher:
                     except Exception as hard_error:
                         entry["external_error"] = str(hard_error)[:300]
                 if entry["status"] == "unresolved":
-                    warning("STRUCTURED_REGION_UNRESOLVED")
-                    block.setdefault("review_flags", []).append({"code": "TABLE_EMPTY" if kind == "Table" else "STRUCTURED_REGION_UNRESOLVED", "severity": "warning"})
+                    if kind in FIGURE_TYPES:
+                        entry["status"] = "image_preserved"
+                    else:
+                        warning("STRUCTURED_REGION_UNRESOLVED")
+                        if kind == "Table":
+                            _add_flag(block, "TABLE_EMPTY")
+                        # The block owns the page code, so the gap has a position.
+                        _add_flag(block, "STRUCTURED_REGION_UNRESOLVED")
             block["structured_status"] = entry["status"]
             if kind == "Equation" and not (block.get("text") or "").strip() and not block.get("latex"):
                 if not any(f.get("code") == "EMPTY_BLOCK" for f in block.get("review_flags", [])):
@@ -334,6 +402,14 @@ class RegionEnricher:
             warning("STRUCTURED_EXTRACTION_REVIEW")
             if existing is None:
                 page["blocks"].append(block)
+            if entry["status"] in {"extracted", "extracted_external", "image_preserved", "needs_verification"}:
+                # Containment establishes a review relationship, not OCR accuracy.
+                x1, y1, x2, y2 = block["bbox"]
+                entry["overlapping_text_block_ids"] = [
+                    item["block_id"] for item in baseline_text
+                    if (a := item["bbox"])[0] >= x1 - 1 and a[1] >= y1 - 1
+                    and a[2] <= x2 + 1 and a[3] <= y2 + 1
+                ]
             entry["seconds"] = time.perf_counter() - before
         for order, block in enumerate(page["blocks"]):
             block["order"] = order
@@ -348,9 +424,54 @@ class RegionEnricher:
         return report
 
 
+def _add_flag(block: dict, code: str, **extra) -> None:
+    flags = block.setdefault("review_flags", [])
+    if not any(f.get("code") == code for f in flags):
+        flags.append({"code": code, "severity": "warning", **extra})
+
+
+def _hold_skipped_region(page, existing, region, kind, box, scale, index, code):
+    """Make a region skipped by budget/pixel limit visible as a held block.
+
+    Without a block the region would vanish silently: retrieval would join
+    the text around it as if nothing were missing. The placeholder carries
+    no text, so it is never indexed, and its code holds it.
+    """
+    from idp.canonical import insert_in_reading_order
+
+    reason = {"reason": "region_not_transcribed"}
+    status = "budget_limit" if code == "STRUCTURED_BUDGET_EXHAUSTED" else "pixel_limit"
+    if existing is not None:
+        _add_flag(existing, code, **reason)
+        existing["structured_status"] = status
+        return existing.get("block_id")
+    sx, sy = scale
+    bid = f"p{page['page_id']:04d}_s{index:03d}"
+    while any(b.get("block_id") == bid for b in page["blocks"]):
+        bid += "_s"
+    block = {
+        "block_id": bid, "block_type": kind, "bbox": [box[0] / sx, box[1] / sy, box[2] / sx, box[3] / sy],
+        "text": "", "markdown": "", "html": "", "latex": [], "latex_validation": [],
+        "source": "structured_region", "confidence": None, "review_flags": [], "asset_paths": [],
+        "section_path": [], "page": page["page_id"], "excluded_from_content": False,
+        "layout_score": region.get("layout_score"),
+        "structured_status": status,
+    }
+    _add_flag(block, code, **reason)
+    _add_flag(block, "TABLE_EMPTY" if kind == "Table" else "EMPTY_BLOCK", **reason)
+    insert_in_reading_order(page["blocks"], block)
+    return bid
+
+
 def _intersection(a, b):
     inter = max(0, min(a[2], b[2]) - max(a[0], b[0])) * max(0, min(a[3], b[3]) - max(a[1], b[1]))
     return inter / max(1, max((a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1])))
+
+
+def _nested_figure(a, b):
+    smaller, larger = sorted([(a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1])])
+    ratio = smaller / larger
+    return ratio >= .5 and _intersection(a, b) >= .97 * ratio
 
 
 def _related(page, target):
@@ -367,7 +488,7 @@ def _related(page, target):
     return [bid for _, bid in sorted(candidates)[:6]]
 
 
-def _apply_value(block, value, kind, bounds, options):
+def _apply_value(block, value, kind, bounds, options, *, visual_size=None):
     if not isinstance(value, dict):
         raise ValueError("invalid or oversized structured response")
     content = value
@@ -407,8 +528,8 @@ def _apply_value(block, value, kind, bounds, options):
                 if not isinstance(score, (int, float)) or not math.isfinite(score) or not 0 <= score <= 1:
                     raise ValueError("invalid table-cell recognition confidence")
                 cell["recognition_confidence"] = score
-            if "whole_table_reading" in raw:
-                cell["alternative_text"] = raw["whole_table_reading"]
+            if "cell_local_reading" in raw or "whole_table_reading" in raw:
+                cell["alternative_text"] = raw.get("cell_local_reading", raw.get("whole_table_reading"))
             if "text_recognition" in raw:
                 cell["text_recognition"] = raw["text_recognition"]
             if "bbox" in raw:
@@ -423,10 +544,13 @@ def _apply_value(block, value, kind, bounds, options):
         labels = value.get("labels") or []
         if "labels" in value:
             normalized = []
+            width, height = bounds[2] - bounds[0], bounds[3] - bounds[1]
+            image_width, image_height = visual_size or (width, height)
+            sx, sy = width / image_width, height / image_height
             for line in labels:
-                box = _bbox(line.get("bbox"), (bounds[2] - bounds[0], bounds[3] - bounds[1]))
+                box = _bbox(line.get("bbox"), (image_width, image_height))
                 if box and line.get("text"):
-                    label = {"text": line["text"], "pixel_bbox": [box[0] + bounds[0], box[1] + bounds[1], box[2] + bounds[0], box[3] + bounds[1]]}
+                    label = {"text": line["text"], "pixel_bbox": [box[0] * sx + bounds[0], box[1] * sy + bounds[1], box[2] * sx + bounds[0], box[3] * sy + bounds[1]]}
                     if line.get("recognition_confidence") is not None:
                         score = line["recognition_confidence"]
                         if type(score) not in {int, float} or not math.isfinite(score) or not 0 <= score <= 1:
@@ -451,8 +575,13 @@ def _apply_value(block, value, kind, bounds, options):
 
 
 def add_structured_arguments(parser):
-    parser.add_argument("--structured-regions", action="store_true", help="typed CPU region extraction; requires --layout-model-dir")
-    parser.add_argument("--formula-model-dir", type=Path, help="optional local Paddle formula model")
+    parser.add_argument("--structured-regions", action="store_true", help="typed region extraction; requires --layout-model-dir")
+    parser.add_argument("--layout-device", choices=("cpu", "gpu:0"), default="cpu", help="device for the local Paddle layout model")
+    formula = parser.add_mutually_exclusive_group()
+    formula.add_argument("--formula-model-dir", type=Path, help="optional local Paddle formula model")
+    formula.add_argument("--formula-gguf-url", help="loopback HTTP origin of a PaddleOCR-VL llama-server")
+    parser.add_argument("--formula-gguf-revision", help="immutable llama-server/model revision required for registry caching")
+    parser.add_argument("--formula-device", choices=("cpu", "gpu:0"), default="cpu", help="device for the local Paddle formula model")
     parser.add_argument("--hard-region-cmd", help="optional command for regions the local reader cannot extract")
     parser.add_argument("--hard-region-revision", help="immutable runner/model revision required for registry/resume with a command")
     parser.add_argument("--structured-budget", type=float, default=30)
@@ -463,19 +592,29 @@ def add_structured_arguments(parser):
 
 
 @contextmanager
-def structured_context(args, parser, detector, language="vie"):
+def structured_context(args, parser, detector, language="vie", *, table_detector=None):
+    if args.layout_device != "cpu" and detector is None:
+        parser.error("--layout-device gpu:0 requires --layout-model-dir")
+    if args.formula_device != "cpu" and not args.formula_model_dir:
+        parser.error("--formula-device gpu:0 requires --formula-model-dir")
+    formula_requested = bool(args.formula_model_dir or args.formula_gguf_url)
+    if args.formula_gguf_revision and not args.formula_gguf_url:
+        parser.error("--formula-gguf-revision requires --formula-gguf-url")
     if args.ocr_retry_attempts and not args.text_recognizer_model_dir:
         parser.error("--ocr-retry-attempts requires --text-recognizer-model-dir")
-    if not args.structured_regions:
-        if args.formula_model_dir:
+    typed_regions = args.structured_regions or table_detector is not None
+    if not typed_regions:
+        if formula_requested:
             parser.error("formula options require --structured-regions")
         if not args.text_recognizer_model_dir:
             if args.hard_region_cmd or args.hard_region_revision or args.ocr_retry_attempts:
                 parser.error("hard-reader options require --text-recognizer-model-dir or --structured-regions")
             yield None
             return
-    if args.structured_regions and detector is None:
+    if args.structured_regions and detector is None and table_detector is None:
         parser.error("--structured-regions requires --layout-model-dir")
+    if formula_requested and detector is None:
+        parser.error("formula options require --layout-model-dir")
     if args.hard_region_revision and not args.hard_region_cmd:
         parser.error("--hard-region-revision requires --hard-region-cmd")
     try:
@@ -485,8 +624,16 @@ def structured_context(args, parser, detector, language="vie"):
     except ValueError as exc:
         parser.error(str(exc))
     with ExitStack() as stack:
-        formula = stack.enter_context(PaddleFormulaReader(args.formula_model_dir)) if args.formula_model_dir else None
+        formula = stack.enter_context(PaddleFormulaReader(args.formula_model_dir, device=args.formula_device)) if args.formula_model_dir else None
+        if args.formula_gguf_url:
+            from idp.ocr.local_region import PaddleGGUFFormulaReader
+
+            try:
+                formula = PaddleGGUFFormulaReader(args.formula_gguf_url, revision=args.formula_gguf_revision)
+            except ValueError as exc:
+                parser.error(str(exc))
         hard = CommandRegionReader(args.hard_region_cmd, args.hard_region_revision) if args.hard_region_cmd else None
         recognizer = EasyOCRRecognizer(args.text_recognizer_model_dir) if args.text_recognizer_model_dir else None
         yield RegionEnricher(detector, formula, language=language, options=options, hard_reader=hard,
-                             text_recognizer=recognizer, recognition_options=recognition_options, typed_regions=args.structured_regions)
+                             text_recognizer=recognizer, recognition_options=recognition_options,
+                             typed_regions=typed_regions, table_detector=table_detector)

@@ -11,7 +11,6 @@ Real-document measurements are in
 ``docs/deepdoc/benchmarks/content-quality-fixes/README.md``.
 """
 
-import dataclasses
 from types import SimpleNamespace
 
 import pytest
@@ -27,12 +26,7 @@ from idp.pdf.native.glyph.repair import apply_verified_font_glyph_correction
 from idp.pdf.native.glyph.tex import propose_tex_glyph_corrections, tex_glyph
 from idp.pdf.native.layout import PdfLayoutPolicy, _Box, _page_flow
 from idp.pdf.native.scoping import finding_targets
-from idp.pdf.ocr_tokens import suspect_ocr_tokens
-from idp.pdf.publication import (
-    PublicationPolicy,
-    folio_series_sources,
-    ocr_rows,
-)
+from idp.pdf.publication import PublicationPolicy, folio_series_sources
 
 
 def finding(code, status="SUSPECT", scope="FONT_RESOURCE", **kw):
@@ -76,92 +70,6 @@ def test_suspect_code_use_that_the_inspector_verified_is_resolved():
     assert finding_targets([suspect, verified], TEXTS)[suspect.id] == frozenset()
 
 
-@pytest.mark.parametrize(
-    ("text", "confidence", "suspect"),
-    [
-        ("Js?", 0.15, True),  # sqrt(s^2)
-        ("=5/2.", 0.16, True),  # 26/5 stacked fraction
-        ("Q.=", 0.41, True),  # Q2 =
-        ("(#®)", 0.12, True),  # activity icon
-        ("s?", 0.93, True),  # s^2, even with high confidence
-        ("./5,2", 0.80, True),  # sqrt(5,2), even with high confidence
-        ("Q,=", 0.93, True),  # Q1 =
-        ("A„", 0.95, True),  # Δ_Q
-        ("n", 0.96, True),  # a denominator alone on its line
-        ("x,", 0.28, True),  # a lone variable
-        ("Bj", 0.0, True),  # no reading at all
-        ("kế", 0.26, False),  # prose word with a diacritic slip
-        ("+", 0.41, False),  # bullet
-        ("«", 0.25, False),  # quote mark
-        ("không?", 0.95, False),  # a real question
-        ("12", 0.97, False),  # a confident number
-    ],
-)
-def test_suspect_ocr_tokens(text, confidence, suspect):
-    assert bool(suspect_ocr_tokens([{"text": text, "confidence": confidence}])) is suspect
-
-
-def test_paragraph_is_split_around_a_line_with_a_suspect_token():
-    from idp.pdf.acquire import OcrBlock, group_paragraphs
-    from idp.pdf.ocr_tokens import isolate_suspect_line
-
-    def line(n, text, conf):
-        words = [{"text": w, "confidence": conf.get(w, 0.95), "bbox_px": (10, 10 * n, 50, 10 * n + 8)} for w in text.split()]
-        return OcrBlock(f"1:1:1:{n}", text, (10, 10 * n, 200, 10 * n + 8), 0.9, payload={"words": words})
-
-    lines = [line(1, "Phương sai là", {}), line(2, "s = Js? độ lệch", {"Js?": 0.15}), line(3, "chuẩn của mẫu", {})]
-
-    @dataclasses.dataclass(frozen=True)
-    class Result:
-        blocks: tuple
-
-    grouped = group_paragraphs(Result(tuple(lines)), isolate=isolate_suspect_line)
-    assert [b.text for b in grouped.blocks] == ["Phương sai là", "s = Js? độ lệch", "chuẩn của mẫu"]
-    assert [b.key for b in grouped.blocks] == ["1:1:1/0", "1:1:1/1", "1:1:1/2"]
-    assert all(b.payload["grouping"] == "tesseract-paragraph:2" for b in grouped.blocks)
-    unchanged = group_paragraphs(Result(tuple(lines)))
-    assert [b.text for b in unchanged.blocks] == ["Phương sai là\ns = Js? độ lệch\nchuẩn của mẫu"]
-
-
-def test_a_numeric_table_is_not_split_into_publishable_rows():
-    """SGK p.87: splitting the deviation table published rows 1-4 without
-    the misread row 5; the table is withheld as a whole instead."""
-    from idp.pdf.acquire import OcrBlock, group_paragraphs
-    from idp.pdf.ocr_tokens import isolate_suspect_line, numeric_block
-
-    rows = ["43 43-43=0 0", "45 45-43=2 4", "40 40—43 =-3 9"]
-    lines = [
-        OcrBlock(f"1:2:1:{n}", text, (10, 10 * n, 200, 10 * n + 8), 0.9, payload={"words": [{"text": w, "confidence": 0.46 if w == "=-3" else 0.95} for w in text.split()]})
-        for n, text in enumerate(rows, 1)
-    ]
-
-    @dataclasses.dataclass(frozen=True)
-    class Result:
-        blocks: tuple
-
-    grouped = group_paragraphs(Result(tuple(lines)), isolate=isolate_suspect_line, keep_whole=numeric_block)
-    assert [b.text for b in grouped.blocks] == ["\n".join(rows)]
-
-
-def test_lead_in_above_withheld_data_is_withheld():
-    from idp.pdf.publication import PublicationDecision, _row_integrity
-
-    lead = obs("lead", 87, (55, 199, 700, 245), "Luyện tập 2. Mẫu số liệu sau đây của An:", lines=2)
-    row = [obs("a", 87, (220, 253, 267, 266), "12 7"), obs("b", 87, (290, 253, 337, 266), "10 9"), obs("c", 87, (361, 253, 483, 266), "12 9 10 T1")]
-    later = obs("ask", 87, (75, 277, 406, 294), "Hãy tìm khoảng tứ phân vị:")
-    decisions = [
-        PublicationDecision("lead", True, "OCR", (), 0.95),
-        PublicationDecision("a", True, "OCR", (), 0.88),
-        PublicationDecision("b", True, "OCR", (), 0.91),
-        PublicationDecision("c", False, "OCR", ("OCR_CONFIDENCE_REVIEW",), 0.79),
-        PublicationDecision("ask", True, "OCR", (), 0.95),
-    ]
-    out = {d.source_id: d for d in _row_integrity(SimpleNamespace(observations=[lead, *row, later]), decisions)}
-    assert out["a"].reasons == ("OCR_ROW_INCOMPLETE",)
-    assert out["lead"].reasons == ("OCR_DATA_INCOMPLETE",) and not out["lead"].eligible
-    assert out["ask"].eligible
-
-
 def obs(source_id, page, box, text, *, ocr=True, lines=1, run=None, height=842.0):
     payload = {"lines": lines}
     if run:
@@ -176,30 +84,6 @@ def obs(source_id, page, box, text, *, ocr=True, lines=1, run=None, height=842.0
     )
 
 
-def test_fragments_of_one_data_row_form_one_row():
-    """SGK p.87: "12 7 | 10 9 | 12 9 10 T1 | 10 | 14." is one printed series."""
-    row = [
-        obs("a", 87, (220, 253, 267, 266), "12 7"),
-        obs("b", 87, (290, 253, 337, 266), "10 9"),
-        obs("c", 87, (361, 253, 483, 266), "12 9 10 T1"),
-        obs("d", 87, (510, 253, 525, 266), "10"),
-        obs("e", 87, (549, 253, 568, 266), "14."),
-    ]
-    other = [
-        obs("f", 87, (75, 277, 406, 294), "Hãy tìm khoảng tứ phân vị"),
-        obs("g", 87, (75, 69, 629, 114), "Mẫu số liệu", lines=2),
-        obs("h", 87, (20, 253, 60, 266), "far", run={"run": "r0", "path": [0]}),
-    ]
-    groups = ocr_rows(row + other)
-    assert [sorted(g) for g in groups] == [["a", "b", "c", "d", "e"]]
-
-
-def test_split_column_segments_never_join_a_row():
-    left = obs("l", 5, (100, 100, 280, 112), "THUẬT NGỮ", run={"run": "r0", "path": [0]})
-    right = obs("r", 5, (300, 100, 480, 112), "KIẾN THỨC", run={"run": "r0", "path": [1]})
-    assert ocr_rows([left, right]) == []
-
-
 def test_folio_series_outside_the_narrow_band():
     """The folio shares the running-header line ~11-12% below the top."""
     pages = [obs(f"n{p}", p, (480, 94, 491, 104), str(p - 4), ocr=False) for p in (33, 34, 35)]
@@ -209,9 +93,10 @@ def test_folio_series_outside_the_narrow_band():
     assert folio_series_sources(record) == {"n33", "n34", "n35"}
 
 
-def test_publication_version_six_is_the_default_and_keeps_old_versions():
-    assert PublicationPolicy().version == "pdf-publication:6" and PublicationPolicy().scoped
-    assert not PublicationPolicy(version="pdf-publication:5").scoped
+def test_publication_version_seven_is_the_default():
+    assert PublicationPolicy().version == "pdf-publication:7"
+    with pytest.raises(ValueError):
+        PublicationPolicy(version="pdf-publication:6")
 
 
 def font(page=10, resource="/F31", name="LMMathSymbols8-Regular", differences=((48, "/prime"), (54, "/negationslash")), fingerprint="a" * 64):

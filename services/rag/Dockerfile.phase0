@@ -6,6 +6,7 @@ WORKDIR /work
 COPY requirements-phase0.lock.txt ./
 RUN python -m pip install --no-cache-dir -r requirements-phase0.lock.txt
 COPY idp ./idp
+COPY parser ./parser
 COPY chunking ./chunking
 COPY search ./search
 COPY retrieval ./retrieval

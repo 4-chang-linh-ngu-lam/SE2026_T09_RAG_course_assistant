@@ -12,9 +12,9 @@ from pathlib import Path
 
 import fitz
 import pytest
+from idp_test_backends import use_ocr_backend
 from idp.evidence.contracts import DeepDocProducer
-from idp.ocr.backends.tesseract import BackendUnavailable, OCRTimeout
-from idp.pdf import service as service_module
+from idp.ocr.backends.errors import BackendUnavailable, OCRTimeout
 from idp.pdf.acquire import AcquisitionResult, OcrBlock
 from idp.pdf.publication import PublicationPolicy
 from idp.pdf.resource import BudgetExceeded
@@ -63,12 +63,11 @@ def fixed_ocr(monkeypatch):
     class Backend(FixedOCR):
         calls = 0
 
-    monkeypatch.setattr(service_module, "TesseractBackend", Backend)
+    use_ocr_backend(monkeypatch, Backend)
     return Backend
 
 
 def run(path, out, **config):
-    config.setdefault("language", "eng")
     return DeepDocService(DeepDocConfig(engine="unified", **config)).process_pdf(
         path, out
     )
@@ -185,14 +184,18 @@ def test_effective_budget_scales_with_pages_and_is_capped():
     assert small == {
         "max_total_pixels": cfg.max_total_pixels,
         "max_calls": cfg.max_calls,
+        "max_regions": cfg.max_regions,
     }
     book = cfg.effective_limits(300)
+    # Region budget scales too (a fixed 100 crashed books past region 100).
+    assert book["max_regions"] == 300 * cfg.max_regions
     assert book["max_total_pixels"] >= 300 * cfg.max_pixels * 2
     assert book["max_calls"] >= 300 * cfg.max_calls_per_page
     huge = cfg.effective_limits(10**6)
     assert huge == {
         "max_total_pixels": cfg.max_total_pixels_cap,
         "max_calls": cfg.max_calls_cap,
+        "max_regions": 100_000,
     }
     absolute = DeepDocConfig(engine="unified", budget_mode="absolute")
     assert absolute.effective_limits(300)["max_total_pixels"] == 100_000_000
@@ -316,7 +319,7 @@ def test_wrong_hidden_layer_is_replaced_by_confident_ocr(tmp_path, monkeypatch, 
                 tuple(blocks),
             )
 
-    monkeypatch.setattr(service_module, "TesseractBackend", ReadsVisiblePage)
+    use_ocr_backend(monkeypatch, ReadsVisiblePage)
     path = scan_with_layer(tmp_path / "scan.pdf", truth, visible)
     doc = run(path, tmp_path / "out", canonical_version=version)
     texts = [b["text"] for b in v1_blocks(doc)]
@@ -376,8 +379,7 @@ def test_skewed_ocr_paragraphs_are_not_duplicates():
     assert current["alpha beta gamma delta epsilon"].eligible
     assert current["zeta eta theta iota kappa"].eligible
     assert current["lambda mu nu xi omicron"].reasons == ("DUPLICATE_REGION_REVIEW",)
-    legacy = skewed_publication(PublicationPolicy(version="pdf-publication:4"))
-    assert legacy["zeta eta theta iota kappa"].reasons == ("DUPLICATE_REGION_REVIEW",)
+
 
 
 @pytest.mark.unit
@@ -419,7 +421,7 @@ def test_missing_ocr_keeps_native_text_outside_unread_regions(
         def __init__(self, *a, **k):
             raise BackendUnavailable("Tesseract executable not found")
 
-    monkeypatch.setattr(service_module, "TesseractBackend", Missing)
+    use_ocr_backend(monkeypatch, Missing)
     path = native_with_logo(tmp_path / "logo.pdf")
     doc = run(path, tmp_path / "out", canonical_version=version)
     routes = json.loads((tmp_path / "out/routes.json").read_text())
@@ -432,16 +434,6 @@ def test_missing_ocr_keeps_native_text_outside_unread_regions(
     assert run_report["status"] == "REVIEW"
     assert "PARTIAL_PAGES" in run_report["status_reasons"]
     assert run_report["unread_regions"] == 1
-
-
-def test_worker_health_check_reports_missing_tesseract(monkeypatch):
-    import shutil
-
-    from idp.runtime.worker import check_ocr_backend
-
-    monkeypatch.setattr(shutil, "which", lambda *a, **k: None)
-    with pytest.raises(BackendUnavailable):
-        check_ocr_backend()
 
 
 # IDP-009 / IDP-014 -----------------------------------------------------------
@@ -483,20 +475,11 @@ def test_cached_renders_do_not_spend_pixel_budget(tmp_path, fixed_ocr):
     cache = tmp_path / "cache"
     for name in ("first", "second"):
         DeepDocService(
-            DeepDocConfig(engine="unified", language="eng", ocr_workers=1),
+            DeepDocConfig(engine="unified", ocr_workers=1),
             stage_cache=StageCache(cache, max_backend_calls=50),
         ).process_pdf(path, tmp_path / name)
     assert report(tmp_path / "first")["render_pixels"] > 0
     assert report(tmp_path / "second")["render_pixels"] == 0
-
-
-def test_language_probe_render_is_reused_for_ocr(tmp_path, fixed_ocr):
-    path = scan_pdf(tmp_path / "scan.pdf", pages=1)
-    run(path, tmp_path / "auto", language="auto", ocr_workers=1)
-    run(path, tmp_path / "fixed", language="eng", ocr_workers=1)
-    probed = report(tmp_path / "auto")
-    assert probed["ocr_language_decision"]["probe_pages"] == [1]
-    assert probed["render_pixels"] == report(tmp_path / "fixed")["render_pixels"]
 
 
 # IDP-012 -------------------------------------------------------------------
@@ -534,36 +517,6 @@ def test_cache_prune_removes_oldest_entries(tmp_path):
 
 
 # IDP-016 -------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_cutover_gate_blocks_failed_pages_and_lists_manual_review():
-    from idp.pdf.cutover import ShadowGate, evaluate
-
-    def diff(sha, characters, failed=(), seconds=2.0):
-        return {
-            "schema": "deepdoc-shadow:1",
-            "status": "compared",
-            "source_sha256": sha,
-            "legacy": {"characters": 100, "tables": 0},
-            "unified": {"characters": characters, "pages": 2, "tables": 0},
-            "shingle_jaccard": 0.95,
-            "unified_report": {
-                "review_pages": [],
-                "failed_pages": list(failed),
-                "seconds": seconds,
-                "publication": {"withheld_chars_ratio": 0.0},
-            },
-        }
-
-    result = evaluate(
-        [diff("a", 100), diff("b", 90, failed=[{"page": 2}])],
-        ShadowGate(min_documents=2, max_p95_seconds_per_page=0.5),
-    )
-    assert "UNIFIED_FAILED_PAGES:1" in result["reasons"]
-    assert "LATENCY_BUDGET_EXCEEDED" in result["reasons"]
-    assert result["metrics"]["documents_for_manual_review"] == ["b"]
-    assert result["metrics"]["p95_seconds_per_page"] == 1.0
 
 
 # IDP-017 -------------------------------------------------------------------

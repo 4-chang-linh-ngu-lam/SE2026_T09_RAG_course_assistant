@@ -31,28 +31,25 @@ from idp.pdf.router import PdfRouter
 from idp.publish import iter_retrievable_blocks, project_v2, to_v1
 
 
-def fixture(formula=False):
+def fixture():
     with fitz.open() as pdf:
-        page = pdf.new_page(width=400, height=150 if formula else 400)
-        if formula:
-            page.insert_text((50, 85), "x + y = z", fontname="tiit", fontsize=36)
-        else:
-            page.insert_text(
-                (25, 40),
-                "Synthetic source table for independent OCR evaluation",
-                fontsize=12,
-            )
-            for y in (80, 120, 160):
-                page.draw_line((30, y), (350, y))
-            for x in (30, 190, 350):
-                page.draw_line((x, 80), (x, 160))
-            for row, values in enumerate(
-                (("Element", "Reagent"), ("Cerium", "Nitrate"))
-            ):
-                for column, text in enumerate(values):
-                    page.insert_text(
-                        (40 + column * 160, 105 + row * 40), text, fontsize=18
-                    )
+        page = pdf.new_page(width=400, height=400)
+        page.insert_text(
+            (25, 40),
+            "Synthetic source table for independent OCR evaluation",
+            fontsize=12,
+        )
+        for y in (80, 120, 160):
+            page.draw_line((30, y), (350, y))
+        for x in (30, 190, 350):
+            page.draw_line((x, 80), (x, 160))
+        for row, values in enumerate(
+            (("Element", "Reagent"), ("Cerium", "Nitrate"))
+        ):
+            for column, text in enumerate(values):
+                page.insert_text(
+                    (40 + column * 160, 105 + row * 40), text, fontsize=18
+                )
         image = page.get_pixmap(matrix=fitz.Matrix(2, 2)).tobytes("png")
         with fitz.open() as scan:
             scan.new_page(width=page.rect.width, height=page.rect.height).insert_image(
@@ -69,7 +66,7 @@ def execute(out, backends, timeout):
         directory.mkdir(exist_ok=True)
         started = monotonic()
         try:
-            data = fixture(name == "paddle-formula")
+            data = fixture()
             (directory / "source.pdf").write_bytes(data)
             with PdfSource(
                 data, PdfAdmissionPolicy(timeout_seconds=timeout + 60)
@@ -199,14 +196,6 @@ def execute(out, backends, timeout):
                     )
                     assert verified_record.observations
                     verification = "APPEND_ONLY_PASS_NO_LEXICAL_PROOF"
-                formulas = [p.get("latex") for p in result.proposals if p.get("latex")]
-                formula_normalized = (
-                    "".join((formulas[0] if formulas else "").split())
-                    .replace("\\left", "")
-                    .replace("\\right", "")
-                    .replace("{", "")
-                    .replace("}", "")
-                )
                 results[name] = {
                     "status": "PASS",
                     "packages": raw["packages"],
@@ -219,12 +208,6 @@ def execute(out, backends, timeout):
                     "structures": len(canonical["structures"]["regions"]),
                     "published_blocks": 0,
                     "verification_runtime": verification,
-                    "formula_ground_truth": "x+y=z"
-                    if name == "paddle-formula"
-                    else None,
-                    "formula_exact_match": formula_normalized == "x+y=z"
-                    if name == "paddle-formula"
-                    else None,
                     "raw_artifact_sha256": result.artifact_sha256,
                     "seconds": monotonic() - started,
                 }
@@ -251,7 +234,6 @@ def execute(out, backends, timeout):
                             "error",
                             "detail",
                             "seconds",
-                            "formula_exact_match",
                         }
                     },
                 }
@@ -267,7 +249,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--backends",
         nargs="+",
-        choices=("marker", "paddle-layout", "paddle-formula", "paddle-vl"),
+        choices=("marker", "paddle-vl"),
         required=True,
     )
     parser.add_argument("--timeout", type=int, default=300)

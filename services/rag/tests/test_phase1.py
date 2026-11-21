@@ -16,8 +16,7 @@ from pathlib import Path
 
 import pytest
 from idp.pdf.native.engine import PdfParsingEngine
-if (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file():
-    from parser.pdf.engine import PdfParsingEngine as OriginalEngine
+from parser.pdf.engine import PdfParsingEngine as OriginalEngine
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/fixtures/generated"
@@ -76,7 +75,6 @@ def test_import_in_service_and_repository(cwd):
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.contract
 def test_parser_source_and_idp_production_unchanged():
     frozen = json.loads((ROOT / "tests/golden/source.json").read_text())
@@ -89,7 +87,6 @@ def test_parser_source_and_idp_production_unchanged():
         assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.contract
 def test_legacy_signature():
     assert str(inspect.signature(PdfParsingEngine.extract_source)) == str(
@@ -97,7 +94,6 @@ def test_legacy_signature():
     )
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.golden
 @pytest.mark.parametrize(
     "name",
@@ -143,7 +139,6 @@ def extra_documents():
     return documents()
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "name",
@@ -199,7 +194,6 @@ def test_empty_scan_without_figures(monkeypatch):
         engine.extract_source(data)
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.unit
 def test_blank_is_valid_intermediate(extra_documents):
     from idp.evidence.contracts import DeepDocPageReason
@@ -215,7 +209,6 @@ def test_blank_is_valid_intermediate(extra_documents):
             engine_type().extract_source(extra_documents["blank"])
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.integration
 def test_figure_only_and_mixed(extra_documents):
     engine = PdfParsingEngine()
@@ -258,7 +251,6 @@ def test_native_result_validation(extra_documents):
         native.page_count = 10
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "case,code",
@@ -468,7 +460,6 @@ def test_poppler_process_boundary_cleanup(monkeypatch, mode):
     assert temporary[0].closed
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 @pytest.mark.integration
 @pytest.mark.parametrize("rotation", [0, 90, 180, 270])
 def test_crop_and_rotation_geometry(rotation):

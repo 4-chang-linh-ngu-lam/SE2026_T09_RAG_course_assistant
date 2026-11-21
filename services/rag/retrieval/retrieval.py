@@ -18,6 +18,7 @@ from ..chunking.chunking import validate_chunking
 from ..chunking.chunk_views import eligible_with_context
 from ..indexing.embedding_store import load_generation, profile_id
 from ..packing.retrieval_context import expand_context
+from ..search.retrieval_bridge import bridge_rankings
 from ..search.retrieval_lexical import FieldedBM25, accent_fold
 from ..search.retrieval_diversity import mmr_ids
 from ..search.retrieval_fusion import fuse_rankings
@@ -68,6 +69,8 @@ class RetrievalConfig:
     extend_continuations: bool = False
     passage_strategy: str = "bm25"
     passage_gate: str = "always"
+    # Lexical bridge hop (search/retrieval_bridge.py); 0 keeps it off.
+    bridge_seeds: int = 0
 
     def __post_init__(self):
         if type(self.passage_window) is not int or not 0 <= self.passage_window <= 2:
@@ -89,6 +92,10 @@ class RetrievalConfig:
                 or not math.isfinite(self.lexical_fusion_weight)
                 or not 0 < self.lexical_fusion_weight <= 10):
             raise ValueError("lexical_fusion_weight must be finite numeric in (0, 10]")
+        if type(self.bridge_seeds) is not int or not 0 <= self.bridge_seeds <= 4:
+            raise ValueError("bridge_seeds must be an integer in 0..4")
+        if self.bridge_seeds and "lexical" not in self.arms:
+            raise ValueError("bridge_seeds requires the lexical arm")
         if type(self.lexical_probe_limit) is not int or not 0 <= self.lexical_probe_limit <= 4:
             raise ValueError("lexical_probe_limit must be an integer in 0..4")
         if type(self.lexical_probe_hits) is not int or not 1 <= self.lexical_probe_hits <= 4:
@@ -268,6 +275,15 @@ class TextRetriever:
                             probe_lexical = folded
                 if "lexical" in self.config.arms:
                     arms.append((lexical_arm, qi, list(lex.items())[:depth]))
+                if self.config.bridge_seeds and qi == 0:
+                    # Second evidence for two-hop questions: one extra RRF arm
+                    # per seed, from the same authorized lexical statistics.
+                    bridge_index = folded if lexical_arm == "lexical_accent_fallback" else lexical
+                    rankings, _ = bridge_rankings(
+                        bridge_index, query, list(lex),
+                        lambda cid: self.children[cid].get("index_body", self.children[cid]["text"]),
+                        seeds=self.config.bridge_seeds)
+                    arms.extend(("lexical_bridge", qi, ranking[:depth]) for ranking in rankings)
             if "structure" in self.config.arms:
                 wanted = set(plan["query_anchors"][qi])
                 tasks = exercise_query_anchors(wanted)

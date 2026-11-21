@@ -1,7 +1,6 @@
 """Reproducible CPU benchmark/stress driver; no unmeasured production claims."""
 
 import argparse
-import importlib.util
 import json
 import subprocess
 import sys
@@ -52,36 +51,14 @@ def child(args):
     settings = dict(  # noqa: C408 - keys below mirror keyword constructor arguments.
         engine="unified",
         canonical_version=2,
-        language="eng",
         dpi=144,
         max_pixels=1_000_000,
         timeout_seconds=3600,
         max_calls=10000,
         max_total_pixels=250_000_000,
     )
-    module = None
-    if args.before:
-        spec = importlib.util.spec_from_file_location(
-            "idp.pdf._before_phase5", args.before
-        )
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
-    counter = {"initializations": 0}
-    service_module = module or sys.modules[DeepDocService.__module__]
-    actual = service_module.TesseractBackend
-
-    class MeasuredTesseract(actual):
-        def __init__(self, *a, **kw):
-            counter["initializations"] += 1
-            super().__init__(*a, **kw)
-
-    service_module.TesseractBackend = MeasuredTesseract
     started = time.perf_counter()
-    cfg = (module.DeepDocConfig if module else DeepDocConfig)(**settings)
-    service = (
-        module.DeepDocService(cfg) if module else DeepDocService(cfg, stage_cache=cache)
-    )
+    service = DeepDocService(DeepDocConfig(**settings), stage_cache=cache)
     doc = service.process_pdf(source, output)
     duration = time.perf_counter() - started
     text = "\n".join(b["text"] for p in to_v1(doc)["pages"] for b in p["blocks"])
@@ -104,7 +81,8 @@ def child(args):
         "seconds": duration,
         "pages_per_second": len(doc["pages"]) / duration,
         "ocr_calls": report["ocr_invocations"],
-        "tesseract_initializations": counter["initializations"],
+        "ocr_backends": report["ocr_backends"],
+        "status": report["status"],
         "stage_seconds": report["stage_seconds"],
         "cache_stats": cache.stats if cache else None,
         "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
@@ -115,7 +93,7 @@ def child(args):
         "fds_before": fds,
         "fds_after": process.num_fds() if fds is not None else None,
         "service_sha256": hashlib.sha256(
-            Path(service_module.__file__).read_bytes()
+            Path(sys.modules[DeepDocService.__module__].__file__).read_bytes()
         ).hexdigest(),
         "serde_sha256": hashlib.sha256(
             Path(__import__("idp.evidence.serde", fromlist=["x"]).__file__).read_bytes()
@@ -176,10 +154,7 @@ def benchmark(args):
         source = root / (name + ".pdf")
         generate(source, n, scan)
         for repeat in range(args.repeats):
-            variants = ["cold", "warm"] + (
-                ["before", "after"] if args.before and name == "scan4" else []
-            )
-            for variant in variants:
+            for variant in ("cold", "warm"):
                 output = root / f"{name}-{repeat}-{variant}"
                 cache = root / f"cache-{name}-{repeat}"
                 command = [
@@ -191,10 +166,7 @@ def benchmark(args):
                     "--output",
                     str(output),
                 ]
-                if variant in {"cold", "warm"}:
-                    command.extend(["--cache", str(cache)])
-                if variant == "before":
-                    command.extend(["--before", args.before])
+                command.extend(["--cache", str(cache)])
                 metric = measured(command, root / (output.name + ".log"))
                 if metric["returncode"] == 0:
                     metric.update(json.loads((output / "measurement.json").read_text()))
@@ -249,7 +221,6 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True)
     parser.add_argument("--source")
     parser.add_argument("--cache")
-    parser.add_argument("--before")
     parser.add_argument("--child", action="store_true")
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--stress", nargs="*", type=int, default=[100, 500, 1000])

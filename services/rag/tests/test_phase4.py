@@ -3,7 +3,6 @@
 import copy
 import hashlib
 import json
-import shutil
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -239,7 +238,7 @@ def test_native_structures_and_invalid_latex(tmp_path):
 
 def test_backend_registry_selection():
     from idp.evidence.contracts import DeepDocCapability as C
-    from idp.ocr.backends.tesseract import BackendUnavailable
+    from idp.ocr.backends.errors import BackendUnavailable
     from idp.pdf.verify_runtime import AcquisitionBackendSpec, BackendRegistry
 
     specs = (
@@ -324,7 +323,7 @@ def test_structured_adapter_preserves_unknown_confidence(tmp_path):
 
 def test_models_unavailable_diagnostic(tmp_path):
     from idp.ocr.backends.advanced import DockerModelTransport
-    from idp.ocr.backends.tesseract import BackendUnavailable
+    from idp.ocr.backends.errors import BackendUnavailable
 
     with pytest.raises(BackendUnavailable):
         DockerModelTransport("deepdoc-deliberately-missing-image", "marker")
@@ -335,7 +334,7 @@ def test_v2_is_opt_in(tmp_path):
         FIX / "native.pdf", tmp_path
     )
     assert v1["schema_version"] == "idp-canonical-1"
-    assert DeepDocConfig().engine == "legacy" and DeepDocConfig().canonical_version == 1
+    assert DeepDocConfig().engine == "unified" and DeepDocConfig().canonical_version == 1
 
 
 def test_question_context_survives_real_chunking(tmp_path):
@@ -365,10 +364,45 @@ def test_question_context_survives_real_chunking(tmp_path):
     assert len(question_chunks[0]["references"]) >= 4
 
 
-@pytest.mark.skipif(shutil.which("tesseract") is None, reason="real Tesseract required")
+@pytest.mark.parametrize("status,released", [("needs_review", True), ("grouped_source", False)])
+def test_incomplete_question_group_withholding(tmp_path, monkeypatch, status, released):
+    """An unverified question guess must not hide publication-approved text.
+
+    Regression for the DocVQA benchmark: a memo page was detected as a
+    "lettered_question" (needs_review), publication dropped 11 of its 17
+    blocks, and build_chunks then withheld the 6 approved blocks as well.
+    """
+    import retrieval.canonical_harness as harness
+
+    path = tmp_path / "questions.pdf"
+    with fitz.open() as pdf:
+        page = pdf.new_page(width=600, height=400)
+        for y, text in ((70, "Question 1. What color is the synthetic cobalt crystal?"),
+                        (100, "A. Cobalt blue"), (130, "B. Orange")):
+            page.insert_text((30, y), text, fontsize=12)
+        pdf.save(path)
+    doc = DeepDocService(
+        DeepDocConfig(engine="unified", canonical_version=2)
+    ).process_pdf(path, tmp_path / "out")
+    blocks = list(iter_retrievable_blocks(doc))
+    partial = copy.deepcopy(doc)
+    group = partial["structures"]["questions"][0]
+    group["status"] = status
+    group["source_blocks"].append({"block_id": "ocr:withheld-by-publication"})
+    monkeypatch.setattr(harness, "iter_retrievable_blocks",
+                        lambda _: iter(copy.deepcopy(blocks)))
+    chunks = build_chunks(partial)
+    assert not any(c["question_id"] for c in chunks)
+    text = "\n".join(c["text"] for c in chunks)
+    assert ("Cobalt blue" in text) is released
+
+
 @pytest.mark.parametrize("name,pages", [("scan.pdf", [1]), ("mixed.pdf", [2])])
-def test_real_ocr_v2_finalization_and_index(tmp_path, name, pages):
-    doc = canonical(tmp_path / "out", name, language="eng")
+def test_injected_ocr_v2_finalization_and_index(tmp_path, name, pages, monkeypatch):
+    from idp_test_backends import FixtureOcr, use_ocr_backend
+
+    use_ocr_backend(monkeypatch, FixtureOcr)
+    doc = canonical(tmp_path / "out", name)
     report = json.loads((tmp_path / "out/run_report.json").read_text())
     assert report["ocr_pages"] == pages
     assert report["ocr_invocations"] == len(pages)
@@ -498,54 +532,9 @@ def test_native_only_skips_every_backend_factory(tmp_path):
     assert list(iter_retrievable_blocks(doc))
 
 
-@pytest.mark.skipif(shutil.which("tesseract") is None, reason="real Tesseract required")
-def test_page_override_mixed_and_shadow_v2(tmp_path):
-    from idp.evidence.contracts import DeepDocCapability
-    from idp.ocr.backends.tesseract import TesseractBackend, TesseractConfig
-    from idp.pdf.verify_runtime import AcquisitionBackendSpec, BackendRegistry
-
-    calls = []
-
-    def factory(out):
-        calls.append(out)
-        return TesseractBackend(out, TesseractConfig("eng"))
-
-    registry = BackendRegistry(
-        acquisitions=(
-            AcquisitionBackendSpec("tesseract", factory, (DeepDocCapability.TEXT,), 1),
-        )
-    )
-    config = DeepDocConfig(
-        engine="unified",
-        canonical_version=2,
-        ocr_backend="marker",
-        backend_by_page=((2, "tesseract"),),
-        language="eng",
-    )
-    DeepDocService(config, backend_registry=registry).process_pdf(
-        FIX / "mixed.pdf", tmp_path / "mixed"
-    )
-    assert len(calls) == 1
-    cfg = DeepDocConfig(
-        engine="shadow", canonical_version=2, legacy_lane="fast", language="eng"
-    )
-    result = DeepDocService(cfg).process_pdf(FIX / "scan.pdf", tmp_path / "shadow")
-    assert result["schema_version"] == "idp-canonical-1"
-    assert (
-        json.loads((tmp_path / "shadow/shadow_diff.json").read_text())["status"]
-        == "compared"
-    )
-    assert (
-        json.loads(
-            next((tmp_path / "shadow/shadow").glob("*/canonical.json")).read_text()
-        )["schema_version"]
-        == "idp-canonical-2"
-    )
-
-
 def test_container_timeout_forces_named_cleanup(tmp_path, monkeypatch):
     from idp.ocr.backends.advanced import DockerModelTransport
-    from idp.ocr.backends.tesseract import OCRTimeout
+    from idp.ocr.backends.errors import OCRTimeout
 
     calls = []
 
@@ -715,7 +704,7 @@ def test_citation_rejects_appended_hallucination_and_nested_version(tmp_path):
 
 def test_auto_backend_skips_unusable_factory_without_explicit_fallback(tmp_path):
     from idp.evidence.contracts import DeepDocCapability
-    from idp.ocr.backends.tesseract import BackendUnavailable
+    from idp.ocr.backends.errors import BackendUnavailable
     from idp.pdf.verify_runtime import AcquisitionBackendSpec, BackendRegistry
 
     calls = []

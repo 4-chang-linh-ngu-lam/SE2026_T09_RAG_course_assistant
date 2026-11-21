@@ -5,8 +5,7 @@ from pathlib import Path
 import pytest
 from idp.pdf.native.engine import PdfParsingEngine
 from idp.pdf.native.result import EmptyNativeError, NativeContentStatus
-if (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file():
-    from parser.pdf.engine import PdfParsingEngine as OriginalEngine
+from parser.pdf.engine import PdfParsingEngine as OriginalEngine
 
 DATA = Path(__file__).parent / "fixtures/generated/native.pdf"
 
@@ -24,7 +23,6 @@ def walk(value):
             yield from walk(item)
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "parser" / "pdf" / "engine.py").is_file(), reason="External reference parser unavailable")
 def test_nested_identity_and_foreign_rejection():
     engine = PdfParsingEngine()
     native = engine.extract_native(DATA.read_bytes())
