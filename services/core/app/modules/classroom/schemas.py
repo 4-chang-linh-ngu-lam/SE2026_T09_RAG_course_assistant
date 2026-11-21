@@ -135,6 +135,9 @@ class ClassResponse(BaseModel):
     status: ClassStatus
     version: int
     teaching_role: TeachingRole | None = None
+    primary_teacher_name: str | None = None
+    student_count: int | None = None
+    membership_status: MembershipStatus | None = None
 
 
 class TeachingAssignmentsRequest(RequestModel):
@@ -180,6 +183,7 @@ class MembershipRosterRequest(RequestModel):
 class MembershipResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    student_display_name: str | None = None
     id: UUID
     class_id: UUID
     student_id: UUID

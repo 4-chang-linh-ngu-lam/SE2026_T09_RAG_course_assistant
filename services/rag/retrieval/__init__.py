@@ -1,0 +1,1 @@
+"""Authorized candidate retrieval orchestration."""

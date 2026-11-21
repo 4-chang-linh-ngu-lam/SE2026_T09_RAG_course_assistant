@@ -202,3 +202,22 @@ Python public interface Identity cho consumer Core được đặc tả tại [C
 - Admin nhận code trực tiếp một lần, chịu trách nhiệm phân phối an toàn; không có API đọc lại code và không cache code response. Request mất phản hồi: dùng route issue-code để cấp mã mới; tạo lại cùng username trả 409. Ba thao tác create/issue-code/activate từ chối `Idempotency-Key` bằng 400.
 - Admin phải xác minh danh tính trước khi gửi `identity_verified:true` cho recovery; Backend kiểm tra role/trạng thái/trường, ghi audit cấp mã và reset; flag là xác nhận thao tác của Admin, không phải xác minh tự động. Cấp mã reset thu hồi các phiên đang mở; hoàn tất reset tiếp tục thu hồi phiên.
 - `identity.public.admin_assign_student_username` chuyển Student legacy trong cùng trường: username chưa có mới được gán; giữ UUID/email/hash/status. ACTIVE/LOCKED legacy phải đã verify email, ghi activated_at; LOCKED không tự mở. Pending vẫn phải nhận mã và activate. Thu hồi phiên/token cũ, audit cùng transaction. HTTP import hỗ trợ cột user_id để gọi helper này; không tự chuyển dữ liệu khi migration schema.
+
+## Classroom display enrichment (2026-11-15)
+
+The existing GET `/api/v1/classes` and GET `/api/v1/classes/{class_id}`
+responses additionally expose nullable `primary_teacher_name`, `student_count`
+and `membership_status`. `student_count` counts current ACTIVE memberships;
+`primary_teacher_name` is the current PRIMARY teacher display name from Identity
+public summaries, or null when missing. `membership_status` is ACTIVE only for
+an actual current membership of the requesting Student, otherwise null. These
+fields do not grant access or replace mutation authorization.
+
+GET `/api/v1/classes/{class_id}/members` keeps its existing class-read permission
+checks and additionally exposes nullable `student_display_name` for each active
+membership. It never returns student email or credentials. Missing/cross-school
+Identity summaries produce a null name. Results sort by display name with stable
+student/membership UUID tie breakers; homeroom rosters sort by student UUID.
+Current membership/assignment/school checks still precede reads. No new endpoint,
+database column, migration, permission or cross-service table access is added.
+Classroom and Web owners must review these additive response fields together.

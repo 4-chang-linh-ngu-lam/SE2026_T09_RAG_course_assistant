@@ -54,10 +54,10 @@ function RouteScreenInner({routeId,params}:{routeId:RouteId;params:RouteParams})
   },[snapshotKey,selfLoading,publicRoute,session.status]);
 
   if(publicRoute)return <AuthView key={routeId} route={route}/>;
-  if(session.status==='loading')return <main className="standalone"><Brand/><StatePanel busy title="Đang kiểm tra phiên…"/></main>;
-  if(session.status==='unavailable')return <main className="standalone"><Brand/><StatePanel title="Chưa thể kiểm tra phiên" message={session.error??undefined}><button className="button" onClick={()=>void session.reload()}>Thử lại</button><Link href="/login">Đăng nhập</Link></StatePanel></main>;
-  if(!session.user)return <main className="standalone"><Brand/><StatePanel title="Đăng nhập để tiếp tục"><Link className="button primary" href={'/login?next='+encodeURIComponent(windowPath(route.path,effectiveParams))}>Đăng nhập</Link></StatePanel></main>;
-  if(!canOpenRoute(route,session.user.roles))return <main className="standalone"><Brand/><StatePanel title="Bạn không có quyền mở nội dung này"><Link href={homeFor(session.user.roles)}>Về trang chủ</Link></StatePanel></main>;
+  if(session.status==='loading')return <main id="main-content" tabIndex={-1} className="standalone"><Brand/><StatePanel busy title="Đang kiểm tra phiên…"/></main>;
+  if(session.status==='unavailable')return <main id="main-content" tabIndex={-1} className="standalone"><Brand/><StatePanel title="Chưa thể kiểm tra phiên" message={session.error??undefined}><button className="button" onClick={()=>void session.reload()}>Thử lại</button><Link href="/login">Đăng nhập</Link></StatePanel></main>;
+  if(!session.user)return <main id="main-content" tabIndex={-1} className="standalone"><Brand/><StatePanel title="Đăng nhập để tiếp tục"><Link className="button primary" href={'/login?next='+encodeURIComponent(windowPath(route.path,effectiveParams))}>Đăng nhập</Link></StatePanel></main>;
+  if(!canOpenRoute(route,session.user.roles))return <main id="main-content" tabIndex={-1} className="standalone"><Brand/><StatePanel title="Bạn không có quyền mở nội dung này"><Link href={homeFor(session.user.roles)}>Về trang chủ</Link></StatePanel></main>;
   const pathRole:Role|null=route.path.startsWith('/teacher')?'LECTURER':route.path.startsWith('/admin')?'ADMIN':route.path.startsWith('/student')?'STUDENT':null;
   const role=pathRole&&session.user.roles.includes(pathRole)?pathRole:session.user.roles.includes('ADMIN')?'ADMIN':session.user.roles.includes('LECTURER')?'LECTURER':'STUDENT';
   const data=snapshot?.key===snapshotKey?snapshot.data:null;
@@ -73,6 +73,6 @@ function RouteScreenInner({routeId,params}:{routeId:RouteId;params:RouteParams})
   </ClassSummaryProvider>;
 }
 export function RouteScreen({routeId,params}:{routeId:RouteId;params:RouteParams}){
-  return <Suspense fallback={<main className="standalone"><Brand/><StatePanel busy title="Đang tải trang…"/></main>}><RouteScreenInner routeId={routeId} params={params}/></Suspense>;
+  return <Suspense fallback={<main id="main-content" tabIndex={-1} className="standalone"><Brand/><StatePanel busy title="Đang tải trang…"/></main>}><RouteScreenInner routeId={routeId} params={params}/></Suspense>;
 }
 function windowPath(path:string,params:RouteParams){return withSafeRouteQuery(path.replace(/:(\w+)/g,(_,key:string)=>encodeURIComponent(params[key]??'')),params);}

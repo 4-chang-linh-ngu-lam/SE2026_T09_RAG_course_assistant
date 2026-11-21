@@ -15,7 +15,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from idp.canonical import build_canonical, audit_canonical
+from idp.canonical import LOW_CONFIDENCE, build_canonical, audit_canonical
+from idp.documents.layout import prepare_page_figures
 from idp.documents.normalize import normalize_text
 from idp.orchestration.pipeline import collect_review, ensure_page_image, sha256_file
 from idp.documents.preprocess import analyze_page
@@ -23,8 +24,11 @@ from idp.validation.validate_output import validate_outputs
 from idp.structured.enrichment import enrichment_summary
 from idp.input.filetypes import choose_ocr_language, assert_tesseract_languages_loaded
 
-FAST_VERSION = "idp-fast-0.11"
-LINE_SPLIT_RE = re.compile(r"(?=<span[^>]*class=['\"]ocr_line['\"])", re.I)
+FAST_VERSION = "idp-fast-0.13"
+LINE_SPLIT_RE = re.compile(
+    r"(?=<span\b[^>]*\sclass\s*=\s*['\"]ocr_(?:line|header|caption|textfloat)['\"])",
+    re.I,
+)
 BBOX_RE = re.compile(r"bbox (\d+) (\d+) (\d+) (\d+)", re.I)
 WORD_RE = re.compile(
     r"<span[^>]*class=['\"]ocrx_word['\"][^>]*title=['\"]([^'\"]*)['\"][^>]*>(.*?)</span>",
@@ -104,6 +108,10 @@ def _page(
             image_obj.crop((max(0, x1 - 2), max(0, y1 - 2), min(width, x2 + 2), min(height, y2 + 2))).save(
                 crop_path, quality=88
             )
+        confidence = line["confidence"] / 100
+        flags = [{"code": "FAST_OCR_REVIEW", "severity": "warning", "confidence": line["confidence"]}]
+        if confidence < LOW_CONFIDENCE:
+            flags.append({"code": "LOW_CONFIDENCE", "severity": "warning"})
         blocks.append({
             "order": order,
             "block_id": block_id,
@@ -120,14 +128,10 @@ def _page(
             "asset_paths": [str(crop_path)] if crop_path else [],
             "block_crop_path": str(crop_path) if crop_path else None,
             "excluded_from_content": False,
-            "review_flags": [{
-                "code": "FAST_OCR_REVIEW",
-                "severity": "warning",
-                "confidence": line["confidence"],
-            }],
+            "review_flags": flags,
             "page": page_id,
             "source": "tesseract_fast",
-            "confidence": line["confidence"] / 100,
+            "confidence": confidence,
             "recovery_region_id": line.get("recovery_region_id"),
         })
     status = "ok"
@@ -195,6 +199,7 @@ def run_fast(
     recovery_options=None,
     region_enricher=None,
     prepared_pages: dict[int, dict] | None = None,
+    vl_reader=None,
 ) -> dict:
     pdf_path = Path(pdf_path)
     lang, _ = choose_ocr_language(lang)
@@ -255,6 +260,12 @@ def run_fast(
             page["review"].extend({"page": page_id, "block_id": None, "block_type": "Page", "bbox": None, **flag} for flag in recovery["flags"])
         if region_enricher:
             region_enricher.enrich_page(page, out, image)
+            prepare_page_figures(page, out)
+        if vl_reader:
+            # PaddleOCR-VL re-reads the page's text with recognition scores.
+            from idp.ocr.vl_primary import vl_reread_page
+
+            vl_reread_page(page, image, vl_reader)
         pages.append(page)
         timings.append({
             "page": page_id,
@@ -361,18 +372,27 @@ def main() -> int:
     parser.add_argument("--psm", type=int, default=3)
     parser.add_argument("--no-crops", action="store_true")
     parser.add_argument("--no-region-recovery", action="store_true")
+    parser.add_argument("--cpu-tables", action="store_true", help="detect ruled tables with OpenCV, with or without a layout model")
     parser.add_argument("--prepared-pages", type=Path, help="optional hash-bound rendered-page manifest; no implicit PDF rerender")
     parser.add_argument("--layout-model-dir", type=Path, help="optional local PP-DocLayoutV2 model; requires PaddleOCR runtime")
     parser.add_argument("--layout-policy", choices=("default", "v3_vl16"), default="default", help="experimental upstream V3 nested-region policy")
     parser.add_argument("--region-budget", type=float, default=15)
+    parser.add_argument("--vl-ocr-url", help="loopback PaddleOCR-VL llama-server used as the primary text reader")
+    parser.add_argument("--vl-ocr-revision", help="immutable model revision of the VL reader")
     from idp.structured.enrichment import add_structured_arguments, structured_context
     add_structured_arguments(parser)
     args = parser.parse_args()
     from idp.orchestration.cli import parse_pages
 
     from idp.ocr.recovery import PaddleLayoutDetector, cli_recovery_options
+    from idp.structured.structure import RuledTableDetector
 
     options = cli_recovery_options(parser, args)
+    vl_reader = None
+    if args.vl_ocr_url:
+        from idp.ocr.vl_primary import PaddleVLPrimaryReader
+
+        vl_reader = PaddleVLPrimaryReader(args.vl_ocr_url, revision=args.vl_ocr_revision)
     prepared_pages = None
     if args.prepared_pages:
         if args.prepared_pages.stat().st_size > 2_000_000:
@@ -384,8 +404,9 @@ def main() -> int:
         if len(prepared_pages) != len(rows):
             parser.error("duplicate prepared page ID")
     with (
-        (PaddleLayoutDetector(args.layout_model_dir, layout_policy=args.layout_policy) if args.layout_model_dir else nullcontext(None)) as detector,
-        structured_context(args, parser, detector, args.lang) as enricher,
+        (PaddleLayoutDetector(args.layout_model_dir, layout_policy=args.layout_policy, device=args.layout_device) if args.layout_model_dir else nullcontext(None)) as detector,
+        structured_context(args, parser, detector, args.lang,
+                           table_detector=RuledTableDetector() if args.cpu_tables else None) as enricher,
     ):
         report = run_fast(
             args.pdf, parse_pages(args.pages), args.out, args.dpi, args.lang,
@@ -394,6 +415,7 @@ def main() -> int:
             recovery_options=options,
             region_enricher=enricher,
             prepared_pages=prepared_pages,
+            vl_reader=vl_reader,
         )
     print(json.dumps({
         "pages": report["pages"],

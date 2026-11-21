@@ -17,6 +17,7 @@ import json
 import re
 import subprocess
 import time
+import unicodedata
 import zipfile
 from contextlib import nullcontext
 from email import policy
@@ -26,15 +27,132 @@ from pathlib import Path
 from PIL import Image
 
 from idp.canonical import audit_canonical, build_canonical
+from idp.documents.layout import prepare_page_figures
 from idp.input.filetypes import InputError, InputLimits, detect_file_type, validate_input
 from idp.documents.normalize import normalize_text
+from idp.documents.text_math import reconstruct_page_math
+from idp.documents.encoding import encoding_issues
 from idp.input.profiles import resolve_profile
 from idp.documents.text_quality import is_garbled_text, needs_ocr, repeated_watermark_tokens
 from idp.validation.validate import incomplete_formula_reasons, validate_latex
 from idp.validation.validate_output import validate_outputs
 from idp.structured.enrichment import enrichment_summary
 
-PIPELINE_VERSION = "idp-digital-0.16"
+PIPELINE_VERSION = "idp-digital-0.21"
+_MATH_FONT = re.compile(r"CMMI|CMSY|CMEX|Symbol|Math", re.I)
+_MATH_OPERATOR = re.compile(r"[=+\-×÷^_{}\\√∑∫∞≤≥<>]")
+_DISPLAY_RELATION = re.compile(r"[=≤≥⩽⩾→]")
+_PROSE_WORD = re.compile(r"[^\W\d_]{2,}")
+_LABEL_NUMBER = re.compile(r"\(\d+(?:\.\d+)*[a-z]?\)|\d+(?:\.\d+)+\.?|\d+\.")
+# A page number stands alone or is set apart from the head by whitespace;
+# "1.3." keeps its digits.
+_EDGE_NUMBER = re.compile(r"^\s*\d+\s*$|^\s*\d+\s+|\s+\d+\s*$")
+RUNNING_LINE_MIN_PAGES = 3
+
+
+def _text_layer_fragment(text: str) -> bool:
+    """A short text-layer line with fewer than two words is a formula shard.
+
+    TeX display math reaches the text layer as glyph pieces ("Z x", "y′",
+    "dI(t)") that the operator-count rule misses. They are flagged, not
+    dropped: the block stays in the canonical document for review.
+    """
+    value = text.strip()
+    # Equation numbers "(1.1.1)" and section/item numbers "1.2" / "3." are
+    # complete labels, not glyph pieces of a formula.
+    if _LABEL_NUMBER.fullmatch(value):
+        return False
+    return bool(value) and len(value) <= 60 and len(_PROSE_WORD.findall(value)) < 2
+
+
+def _running_line_entries(pages_raw: list[dict]) -> set[tuple[int, int]]:
+    """(page index, entry index) of running heads/footers and page numbers.
+
+    The fixed 4% edge band misses heads set lower on the page. A first/last
+    text entry whose text, minus a leading/trailing page number, recurs at a
+    page edge on RUNNING_LINE_MIN_PAGES pages, or is a bare number, is one.
+    """
+    keyed, pages_by_key = [], {}
+    for item in pages_raw:
+        texts = [
+            idx for idx, e in enumerate(item["entries"])
+            if e.get("kind") not in {"table", "image"} and (e.get("text") or "").strip()
+        ]
+        if not texts:
+            continue
+        for idx in dict.fromkeys((texts[0], texts[-1])):
+            text = item["entries"][idx]["text"].strip()
+            if len(text) > 160:
+                continue
+            key = " ".join(_EDGE_NUMBER.sub("", text).casefold().split())
+            keyed.append(((item["index"], idx), key))
+            if key:
+                pages_by_key.setdefault(key, set()).add(item["index"])
+    # A recurring key needs two words: "Chương 1".."Chương 3" reduce to one
+    # repeated word but are chapter headings, not running heads.
+    return {
+        position for position, key in keyed
+        if not key or (
+            len(_PROSE_WORD.findall(key)) >= 2
+            and len(pages_by_key.get(key, ())) >= RUNNING_LINE_MIN_PAGES
+        )
+    }
+
+
+def _pdf_span_text(span: dict, *, horizontal: bool) -> str:
+    """Recover word spaces omitted by a PDF text layer using glyph positions."""
+    chars = span.get("chars", [])
+    space_threshold = 0.25 * span["size"]
+    join_words = horizontal and not _MATH_FONT.search(span.get("font", ""))
+    parts = []
+    previous = None
+    for char in chars:
+        value = char["c"]
+        if (join_words and previous is not None and previous["c"].isalpha() and value.isalpha()
+                and char["origin"][0] - previous["bbox"][2] >= space_threshold):
+            parts.append(" ")
+        parts.append(value)
+        previous = char
+    return "".join(parts)
+
+
+def _is_display_line(entry: dict, page_width: float) -> bool:
+    left, _, right, _ = entry["bbox"]
+    centered = abs((left + right) / 2 - page_width / 2) < page_width * .08
+    return (entry["math_font"] and centered and right - left < page_width * .65
+            and "\n" not in entry["text"] and entry["prose_words"] <= 2
+            and bool(_DISPLAY_RELATION.search(entry["text"])))
+
+
+def _pdf_span_gap(previous, span):
+    left, right = previous["chars"][-1], span["chars"][0]
+    a, b = left["c"], right["c"]
+    text_boundary = (a.isalpha() and b.isalnum()) or (a.isdigit() and b.isalpha())
+    relation_boundary = (a in "=≤≥⩽⩾<>∈∉" and b.isalnum()) or (a.isalnum() and b in "=≤≥⩽⩾<>∈∉")
+    return (text_boundary or relation_boundary) and right["origin"][0] - left["bbox"][2] >= .25 * span["size"]
+
+
+def _native_reading_order(entries):
+    def anchor(entry):
+        _, top, _, bottom = entry["bbox"]
+        size = entry.get("size", 0)
+        if entry["kind"] == "text" and bottom - top <= 2.5 * size:
+            return (top + bottom) / 2
+        return top
+
+    rows = []
+    for entry in sorted(entries, key=lambda item: (anchor(item), item["bbox"][0])):
+        if rows:
+            first = rows[-1][0]
+            tolerance = .35 * min(first.get("size", 0), entry.get("size", 0))
+            if (tolerance and anchor(entry) - anchor(first) <= tolerance
+                    and all(entry["bbox"][0] >= other["bbox"][2] - tolerance
+                            or entry["bbox"][2] <= other["bbox"][0] + tolerance
+                            for other in rows[-1])):
+                rows[-1].append(entry)
+                continue
+        rows.append([entry])
+    return [entry for row in rows for entry in sorted(row, key=lambda item: item["bbox"][0])]
 
 
 def _sha256(path: Path) -> str:
@@ -57,21 +175,7 @@ def _strip_html(value: str) -> str:
 
 
 def _encoding_issues(text: str) -> list[str]:
-    issues = []
-    if "\ufffd" in text:
-        issues.append("replacement_char")
-    if re.search(r"\(cid:\d+\)", text):
-        issues.append("cid_text")
-    controls = sum(
-        1 for ch in text if ord(ch) < 32 and ch not in "\n\t\r"
-    )
-    if controls:
-        issues.append("control_chars")
-    letters = sum(1 for ch in text if ch.isalpha())
-    middle_dots = text.count("·")
-    if middle_dots >= 3 and middle_dots / max(1, letters) > 0.02:
-        issues.append("middle_dot_substitution")
-    return issues
+    return encoding_issues(text)
 
 
 def _column_reading_order(entries: list[dict], page_width: float) -> list[dict]:
@@ -103,13 +207,7 @@ def _column_reading_order(entries: list[dict], page_width: float) -> list[dict]:
     if text_left < 3 or text_right < 3:
         return entries
 
-    def order(column):
-        return sorted(
-            column,
-            key=lambda entry: (float(entry["bbox"][1]), float(entry["bbox"][0])),
-        )
-
-    return order(left) + order(right)
+    return _native_reading_order(left) + _native_reading_order(right)
 
 
 def _drop_watermark_entries(
@@ -342,7 +440,13 @@ def _block(block_id, block_type, bbox, text="", markdown=None, latex=None,
 
 
 def _page(page_id, blocks, page_size=None, classification="content", page_number=None):
-    review = [f for b in blocks for f in b["review_flags"] if f.get("severity") in {"warning", "error"}]
+    # Page summaries keep each block flag's owner, so the canonical gate can
+    # tell block-scoped findings from page-scoped ones.
+    review = [
+        {**f, "block_id": f.get("block_id") or b["block_id"]}
+        for b in blocks for f in b["review_flags"]
+        if f.get("severity") in {"warning", "error"}
+    ]
     return {
         "page_id": page_id,
         "page_number": page_number if page_number is not None else page_id,
@@ -398,6 +502,9 @@ def _render_pdf_page(
         longest = max(page.rect.width, page.rect.height)
         scale = min(dpi / 72.0, max_longest_dim / max(1.0, longest))
         pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+        # Record the real rendering resolution; OCR reads it as --dpi.
+        effective = max(1, round(scale * 72))
+        pix.set_dpi(effective, effective)
         target.parent.mkdir(parents=True, exist_ok=True)
         pix.save(str(target))
     return target
@@ -830,37 +937,60 @@ def _pdf_blocks_open(path: Path, assets: Path, tables: str, table_engine: str, p
                         table_rects.append(fitz.Rect(raw_table["bbox"]))
 
         try:
-            data = page.get_text("dict")
+            data = page.get_text("rawdict", flags=fitz.TEXTFLAGS_RAWDICT & ~fitz.TEXT_PRESERVE_IMAGES)
         except Exception:
             data = {"blocks": []}
         for raw in data.get("blocks", []):
             if raw.get("type") != 0:
                 continue
-            lines = []
-            sizes = []
-            fonts = []
+            rows = []
             for line in raw.get("lines", []):
                 parts = []
+                sizes = []
+                math_font = False
+                prose_words = 0
+                previous = None
+                horizontal = line.get("dir") == (1.0, 0.0)
                 for span in line.get("spans", []):
-                    txt = span.get("text", "")
+                    txt = _pdf_span_text(span, horizontal=horizontal)
                     if txt:
+                        if horizontal and previous is not None and _pdf_span_gap(previous, span):
+                            parts.append(" ")
                         parts.append(txt)
+                        previous = span
                         sizes.append(float(span.get("size", 0)))
-                        fonts.append(span.get("font", ""))
+                        if _MATH_FONT.search(span.get("font", "")):
+                            math_font = True
+                        else:
+                            prose_words += len(re.findall(r"[^\W\d_]{3,}", txt))
                 if parts:
-                    lines.append("".join(parts))
-            text = "\n".join(lines).strip()
+                    rows.append({
+                        "kind": "text", "bbox": list(line["bbox"]),
+                        "text": unicodedata.normalize("NFC", "".join(parts)).strip(),
+                        "size": max(sizes), "math_font": math_font, "prose_words": prose_words,
+                    })
+            rows = [row for row in rows if row["text"]]
+            text = "\n".join(row["text"] for row in rows)
             if not text:
                 continue
             bbox = list(raw.get("bbox", [0, 0, 0, 0]))
             rect = fitz.Rect(bbox)
             if any((rect & tr).get_area() > max(1, rect.get_area()) * 0.5 for tr in table_rects):
                 continue
-            size = max(sizes) if sizes else 0
+            size = max(row["size"] for row in rows)
             all_sizes.append(size)
+            if len(rows) > 1 and _is_display_line(rows[0], page.rect.width):
+                # PyMuPDF can group the centered expression and labels in
+                # the right margin into one block even on a single baseline.
+                _, top, right, bottom = rows[0]["bbox"]
+                if all(row["bbox"][0] > right and row["bbox"][1] < bottom
+                       and row["bbox"][3] > top for row in rows[1:]):
+                    entries.extend(rows)
+                    continue
             entries.append({
                 "kind": "text", "bbox": bbox, "text": text,
-                "size": size, "fonts": fonts,
+                "size": size, "math_font": any(row["math_font"] for row in rows),
+                "prose_words": sum(row["prose_words"] for row in rows),
             })
 
         # Extract images.
@@ -891,8 +1021,7 @@ def _pdf_blocks_open(path: Path, assets: Path, tables: str, table_engine: str, p
                     "asset": str(target), "caption": "",
                 })
 
-        entries.sort(key=lambda e: (float(e["bbox"][1]), float(e["bbox"][0])))
-        entries = _column_reading_order(entries, float(page.rect.width))
+        entries = _column_reading_order(_native_reading_order(entries), float(page.rect.width))
         entries, watermark_tokens = _drop_watermark_entries(entries)
         pages_raw.append({
             "page": page, "index": page_index, "entries": entries,
@@ -902,6 +1031,7 @@ def _pdf_blocks_open(path: Path, assets: Path, tables: str, table_engine: str, p
         })
 
     median_size = sorted(all_sizes)[len(all_sizes) // 2] if all_sizes else 10.0
+    running_lines = _running_line_entries(pages_raw)
     pages = []
     for item in pages_raw:
         page_no = item["index"] + 1
@@ -909,7 +1039,10 @@ def _pdf_blocks_open(path: Path, assets: Path, tables: str, table_engine: str, p
         section_path = []
         section_stack = []
         for idx, e in enumerate(item["entries"]):
-            bbox = e["bbox"]
+            left, top, right, bottom = e["bbox"]
+            bbox = [max(0, left), max(0, top), min(item["width"], right), min(item["height"], bottom)]
+            if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+                continue
             bid = f"p{page_no:04d}_b{idx:03d}"
             if e["kind"] == "table":
                 table_block = _block(
@@ -928,23 +1061,35 @@ def _pdf_blocks_open(path: Path, assets: Path, tables: str, table_engine: str, p
                 continue
             text = e["text"]
             size = e["size"]
-            fonts = " ".join(e.get("fonts") or [])
             y0, y1 = float(bbox[1]), float(bbox[3])
             btype = "Text"
             flags = []
             level = None
-            if y0 < item["height"] * 0.04 or y1 > item["height"] * 0.96:
+            if (
+                y0 < item["height"] * 0.04 or y1 > item["height"] * 0.96
+                or (item["index"], idx) in running_lines
+            ):
                 btype = "PageHeader" if y0 < item["height"] * 0.5 else "PageFooter"
             elif size >= median_size * 1.12 and len(text) <= 180 and "\n" not in text:
                 btype = "SectionHeader"
                 level = 1 if size >= median_size * 1.35 else 2
             else:
-                math_chars = len(re.findall(r"[=+\-×÷^_{}\\√∑∫∞≤≥<>]", text))
-                math_font = bool(re.search(r"CMMI|CMSY|CMEX|Symbol|Math", fonts, re.I))
-                if math_chars >= 4 and (math_font or math_chars / max(1, len(text)) > 0.08):
+                math_chars = len(_MATH_OPERATOR.findall(text))
+                legacy_math = math_chars >= 4 and (e["math_font"] or math_chars / len(text) > 0.08)
+                # TeX may use a single ASCII operator alongside Unicode
+                # symbols. Recognize centered display lines without treating
+                # every inline relation in a prose block as an equation.
+                display = _is_display_line(e, item["width"])
+                if (legacy_math and e["prose_words"] <= 2) or display:
                     btype = "Equation"
+                if legacy_math or display:
                     flags.append({
                         "block_id": bid, "code": "FORMULA_TEXT_LAYER_UNVERIFIED",
+                        "severity": "warning",
+                    })
+                elif _text_layer_fragment(text):
+                    flags.append({
+                        "block_id": bid, "code": "FORMULA_TEXT_LAYER_FRAGMENT",
                         "severity": "warning",
                     })
             if btype == "SectionHeader":
@@ -968,6 +1113,9 @@ def _pdf_blocks_open(path: Path, assets: Path, tables: str, table_engine: str, p
                 review_flags=flags,
                 formula_text=text if btype == "Equation" else None,
             ))
+        # Rebuild flagged text-layer formulas from glyph geometry; regions that
+        # are not provably lossless keep their original blocks and flags.
+        blocks = reconstruct_page_math(blocks, item["page"])
         page_obj = _page(page_no, blocks, [item["width"], item["height"]],
                          page_number=page_no)
         page_obj["table_extraction"] = {
@@ -2096,6 +2244,7 @@ def process(
     layout_detector=None,
     recovery_options=None,
     region_enricher=None,
+    dual_reader=None,
 ) -> dict:
     if not ingestion_only:
         raise ValueError("Chunking was removed from IDP; use the downstream indexing service")
@@ -2265,6 +2414,19 @@ def process(
             if any(b.get("structured_status") and (b.get("latex") or b.get("asset_paths")) for b in page["blocks"]):
                 page["processing_status"] = "ok"
 
+    if dual_reader and file_kind == "pdf":
+        # Opt-in second reading of OCR lines (verification evidence only).
+        from idp.ocr.dual_read import dual_read_page
+
+        fallback_ids = set(source_audit.get("ocr_fallback_pages") or [])
+        for page in pages:
+            if page["page_id"] in fallback_ids:
+                image_path = _render_pdf_page(
+                    source, page["page_id"], out / "work" / "dual_read" / f"p{page['page_id']:04d}.png",
+                    300, max_longest_dim=5000,
+                )
+                dual_read_page(page, image_path, dual_reader)
+
     if len(pages) > limits.max_pages:
         raise InputError(
             "PAGE_LIMIT_EXCEEDED",
@@ -2328,6 +2490,8 @@ def process(
                         "bbox": block["bbox"],
                         **flag,
                     })
+        if source_type == "pdf_text":
+            prepare_page_figures(page, out)
         page["markdown"] = _markdown_for_page(page["blocks"])
 
     if source_type == "pdf_text" and not any(
@@ -2540,7 +2704,7 @@ def main() -> int:
 
         options = cli_recovery_options(parser, args)
         with (
-            (PaddleLayoutDetector(args.layout_model_dir, layout_policy=args.layout_policy) if args.layout_model_dir else nullcontext(None)) as detector,
+            (PaddleLayoutDetector(args.layout_model_dir, layout_policy=args.layout_policy, device=args.layout_device) if args.layout_model_dir else nullcontext(None)) as detector,
             structured_context(args, parser, detector, args.language or "vie") as enricher,
         ):
             result = process(

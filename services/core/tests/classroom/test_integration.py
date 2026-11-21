@@ -143,6 +143,35 @@ def _setup(service, users):
     return course, homeroom
 
 
+def test_class_display_and_roster_follow_current_access(classroom):
+    session, service, users = classroom
+    course, room = _setup(service, users)
+    teacher = session.get(User, users["teacher"].id)
+    teacher.display_name = "Teacher Display"
+    session.get(User, users["student"].id).display_name = "Z Student"
+    session.get(User, users["student2"].id).display_name = "A Student"
+    session.flush()
+    klass = _class(
+        service, users["admin"], course.id, teacher.id, room.id, mode=EnrollmentMode.MANUAL
+    )
+    for key in ("student", "student2"):
+        service.add_member(klass.id, users["admin"], users[key].id)
+    detail = service.get_class(klass.id, users["student"])
+    assert detail.primary_teacher_name == "Teacher Display"
+    assert detail.student_count == 2
+    assert detail.membership_status == MembershipStatus.ACTIVE
+    assert service.get_class(klass.id, users["teacher"]).membership_status is None
+    roster = service.list_members(klass.id, users["teacher"])
+    assert [row.student_display_name for row in roster] == ["A Student", "Z Student"]
+    assert all("email" not in row.model_dump() for row in roster)
+    assert roster == service.list_members(klass.id, users["teacher"])
+    service.end_member(klass.id, users["admin"], users["student"].id)
+    assert service.get_class(klass.id, users["teacher"]).student_count == 1
+    for actor in (users["student"], users["teacher2"], users["other_admin"]):
+        with pytest.raises(AppError):
+            service.list_members(klass.id, actor)
+
+
 def test_admin_only_assignments_manual_transfer_and_archive(classroom):
     session, service, users = classroom
     admin, student = users["admin"], users["student"]

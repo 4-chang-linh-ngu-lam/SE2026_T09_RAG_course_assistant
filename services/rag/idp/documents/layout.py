@@ -3,6 +3,7 @@ import io
 import json
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 from PIL import Image
 
@@ -214,6 +215,60 @@ def attach_captions(blocks: list[dict], max_distance: float = 180) -> None:
         fig["caption"] = (best.get("text") if best else "") or ""
         fig["caption_block_order"] = best.get("order") if best else None
         fig["caption_distance"] = round(best_dist, 1) if best_dist is not None else None
+
+
+def prepare_page_figures(page: dict, out_dir: Path) -> None:
+    """Associate short, spatially adjacent caption lines and link figure assets."""
+    width, height = page.get("page_size") or (0, 0)
+    if width <= 0 or height <= 0:
+        return
+    blocks = [b for b in page["blocks"] if b.get("bbox") and not b.get("excluded_from_content")]
+    figures = [b for b in blocks if b["block_type"] in {"Picture", "PictureGroup", "Diagram", "Chart"}]
+    captions = [b for b in blocks if b["block_type"] in {"Text", "Caption"}
+                and len((b.get("text") or "").strip()) <= 180
+                and re.match(r"^H[ìi]nh\s+(?:[A-Z]\.\s*)?\d+(?:\.\d+)*[a-z]?\b", (b.get("text") or "").strip(), re.I)]
+    candidates = []
+    for figure in figures:
+        if figure.get("caption"):
+            continue
+        fx1, fy1, fx2, fy2 = figure["bbox"]
+        for caption in captions:
+            cx1, cy1, cx2, cy2 = caption["bbox"]
+            horizontal_overlap = min(fx2, cx2) - max(fx1, cx1)
+            if horizontal_overlap < .5 * min(fx2 - fx1, cx2 - cx1):
+                continue
+            if cy1 >= fy2 - .004 * height:
+                gap = max(0, cy1 - fy2)
+            elif cy2 <= fy1 + .004 * height:
+                gap = max(0, fy1 - cy2) + .025 * height
+            else:
+                continue
+            if gap <= .075 * height:
+                score = gap + .12 * abs((cx1 + cx2 - fx1 - fx2) / 2)
+                candidates.append((score, figure, caption))
+    used_captions = set()
+    for _, figure, caption in sorted(candidates, key=lambda item: item[0]):
+        key = caption["block_id"]
+        if figure.get("caption") or key in used_captions:
+            continue
+        figure["caption"] = caption["text"].strip()
+        figure["caption_block_order"] = caption.get("order")
+        figure["review_flags"] = [flag for flag in figure.get("review_flags") or []
+                                  if flag.get("code") != "FIGURE_NO_CAPTION"]
+        used_captions.add(key)
+    root = out_dir.resolve()
+    for figure in figures:
+        paths = figure.get("asset_paths") or []
+        markdown = figure.get("markdown") or ""
+        if not paths or (markdown and not markdown.startswith("![](")):
+            continue
+        # For enriched native figures the original embedded asset comes first.
+        try:
+            relative = Path(paths[0]).resolve().relative_to(root).as_posix()
+        except ValueError:
+            continue
+        alt = (figure.get("caption") or "").replace("\n", " ").replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+        figure["markdown"] = f"![{alt}](../{quote(relative, safe='/')})"
 
 
 def figure_kind(block: dict, page_width: float, page_height: float) -> str:

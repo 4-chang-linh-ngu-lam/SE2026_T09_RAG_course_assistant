@@ -128,7 +128,7 @@ export type TeacherHomeOverview = {
   stats?: {
     totalClasses: number;
     totalStudents: number;
-    pendingGrading: number;
+    pendingGrading?: number;
   };
 };
 
@@ -608,6 +608,7 @@ export type WorkspaceData =
       kind: 'ready';
       classes?: ClassSummary[];
       classSummary?: ClassSummary;
+      classMembers?: { id: string; displayName?: string }[];
       rows?: { id: string; title: string; detail: string; href?: string; status?: string }[];
       // Rich typed view models:
       studentHome?: StudentHomeOverview;

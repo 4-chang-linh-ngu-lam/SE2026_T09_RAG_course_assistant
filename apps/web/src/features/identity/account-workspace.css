@@ -1,0 +1,252 @@
+/* Scoped layout and control refinements for Identity account profile and provisioning workspaces. */
+.account-workspace {
+  min-width: 0;
+  color: var(--ink, #0f172a);
+}
+
+.account-workspace > *,
+.account-workspace section,
+.account-workspace form {
+  min-width: 0;
+}
+
+.account-workspace h2 {
+  font-size: 18px;
+  line-height: 1.35;
+  margin: 0 0 8px;
+  color: var(--ink, #0f172a);
+  overflow-wrap: anywhere;
+}
+
+.account-workspace p {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.account-workspace label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink, #0f172a);
+  min-width: 0;
+}
+
+.account-workspace input:where(:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']):not([type='color']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset'])),
+.account-workspace select,
+.account-workspace textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  margin-top: 0;
+}
+
+.account-workspace input[type='checkbox'],
+.account-workspace input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--primary, #2563eb);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.account-workspace input:disabled,
+.account-workspace select:disabled,
+.account-workspace textarea:disabled {
+  background: var(--surface-subtle, #f1f5f9);
+  border-color: var(--border, #e2e8f0);
+  color: var(--muted, #5b6b82);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.account-workspace input[readonly],
+.account-workspace textarea[readonly] {
+  background: var(--bg, #f8fafc);
+  border-color: var(--border-strong, #cbd5e1);
+  color: var(--ink, #0f172a);
+  cursor: text;
+  opacity: 1;
+}
+
+.account-workspace .account-code-input,
+.account-workspace input[readonly].account-code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: var(--primary-tint, #eff6ff);
+  border-color: var(--primary-border, #bfdbfe);
+  color: var(--ink, #0f172a);
+}
+
+.account-workspace .button {
+  min-height: 44px;
+  white-space: normal;
+  text-align: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.account-workspace :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid var(--focus-ring, #93c5fd);
+  outline-offset: 2px;
+}
+
+.account-profile-grid {
+  gap: 24px;
+  align-items: start;
+}
+
+.account-facts {
+  display: grid;
+  grid-template-columns: minmax(110px, 140px) minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 18px 0 22px;
+  padding: 14px 16px;
+  background: var(--bg, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+}
+
+.account-facts dt {
+  color: var(--muted, #5b6b82);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.account-facts dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+  overflow-wrap: anywhere;
+}
+
+.account-workspace .form-stack small {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted, #5b6b82);
+  margin-top: 0;
+}
+
+.account-nav-links {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 22px;
+}
+
+.account-nav-links a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 12px 16px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg, #f8fafc);
+  color: var(--primary-hover, #1d4ed8);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.account-nav-links a:hover {
+  background: var(--primary-tint, #eff6ff);
+  border-color: var(--primary-border, #bfdbfe);
+  color: var(--primary, #2563eb);
+  text-decoration: none;
+}
+
+.account-danger-zone {
+  padding-top: 20px;
+  border-top: 1px solid var(--border, #e2e8f0);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.account-provisioning-card {
+  width: 100%;
+  max-width: 640px;
+}
+
+.account-provisioning-card .form-stack {
+  margin-top: 14px;
+}
+
+.account-provisioning-card .form-stack > .button.primary {
+  align-self: flex-start;
+}
+
+.account-handoff-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.account-handoff-stack > p {
+  margin: 0;
+}
+
+.account-copy-button {
+  align-self: flex-start;
+}
+
+.account-workspace .check-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.account-workspace .check-label.account-handoff-ack {
+  padding: 12px 14px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg, #f8fafc);
+  font-weight: 500;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.account-workspace .check-label.account-handoff-ack:has(input:checked) {
+  background: var(--success-tint, #f0fdf4);
+  border-color: var(--success-border, #bbf7d0);
+  color: var(--success, #166534);
+}
+
+.account-unknown-notice {
+  margin-bottom: 0;
+}
+
+@media (max-width: 780px) {
+  .account-facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .account-workspace .actions > .button,
+  .account-provisioning-card .form-stack > .button.primary,
+  .account-copy-button,
+  .account-danger-zone > .button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-workspace * {
+    transition-duration: 0.01ms;
+  }
+}

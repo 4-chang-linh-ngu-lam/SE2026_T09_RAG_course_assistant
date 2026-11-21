@@ -90,20 +90,24 @@ export function AuthView({ route }: { route: RouteDefinition }) {
   // Handle invalid/expired reset or invitation credential (C04e, base-3ad6cef9)
   if (invalidCredential && !notice) {
     return (
-      <main className="auth-shell">
+      <main id="main-content" className="auth-shell" tabIndex={-1}>
         <section className="auth-story">
           <Brand/>
-          <div>
+          <div className="auth-story-body">
             <span className="eyebrow">XÁC THỰC TÀI KHOẢN</span>
             <h2>Bảo vệ an toàn<br/>cho không gian học.</h2>
-            <p>Mỗi liên kết xác thực chỉ có hiệu lực một lần và có thời hạn nhất định.</p>
+            <p className="auth-story-lead">Mỗi liên kết xác thực chỉ có hiệu lực một lần và có thời hạn nhất định.</p>
           </div>
-          <small>Lumi · Học tập phổ thông</small>
+          <div className="auth-story-foot">
+            <small>Lumi · Học tập phổ thông</small>
+          </div>
         </section>
         <section className="auth-form-region">
           <div className="auth-card">
             <div className="auth-mobile-brand"><Brand/></div>
-            <h1>Liên kết không còn hiệu lực</h1>
+            <header className="auth-card-header">
+              <h1>Liên kết không còn hiệu lực</h1>
+            </header>
             <div className="notice error" role="alert">
               Liên kết đặt lại mật khẩu hoặc kích hoạt này đã hết hạn, không hợp lệ hoặc đã được sử dụng trước đó.
             </div>
@@ -112,8 +116,8 @@ export function AuthView({ route }: { route: RouteDefinition }) {
                 ? 'Vui lòng liên hệ quản trị viên nhà trường để yêu cầu gửi lại thư mời.'
                 : 'Vui lòng thực hiện lại yêu cầu khôi phục mật khẩu để nhận liên kết mới.'}
             </p>
-            <div className="actions" style={{ marginTop: '24px' }}>
-              <button className="button" onClick={() => { setInvalidCredential(false); setCode(''); setError(null); }}>Nhập mã khác</button>
+            <div className="actions auth-invalid-actions">
+              <button type="button" className="button" onClick={() => { setInvalidCredential(false); setCode(''); setError(null); }}>Nhập mã khác</button>
               {isRecovery || isReset ? (
                 <Link className="button primary" href="/recover">Yêu cầu liên kết mới</Link>
               ) : null}
@@ -126,46 +130,61 @@ export function AuthView({ route }: { route: RouteDefinition }) {
   }
 
   return (
-    <main className="auth-shell">
+    <main id="main-content" className="auth-shell" tabIndex={-1}>
       <section className="auth-story">
         <Brand/>
-        <div>
+        <div className="auth-story-body">
           <span className="eyebrow">KHÔNG GIAN HỌC TẬP CỦA BẠN</span>
           <h2>Học sáng hơn,<br/>mỗi ngày.</h2>
-          <p>Tài liệu, luyện tập và trợ lý Lumi trong cùng một lớp học.</p>
-          <div className="book-art" aria-hidden="true">
-            <span>∫</span>
-            <span>π</span>
-            <span>✦</span>
-            <IconBook/>
+          <p className="auth-story-lead">Tài liệu, luyện tập và trợ lý Lumi trong cùng một lớp học.</p>
+          <div className="auth-illustration" aria-hidden="true">
+            <div className="auth-book-wrap">
+              <IconBook/>
+            </div>
+            <ul className="auth-highlights">
+              <li>
+                <Icon name="book"/>
+                <span>Tài liệu học tập theo từng lớp học</span>
+              </li>
+              <li>
+                <Icon name="clipboard"/>
+                <span>Luyện tập và kiểm tra trực tuyến</span>
+              </li>
+              <li className="is-ai">
+                <Icon name="sparkles"/>
+                <span>Trợ lý Lumi bám sát học liệu lớp</span>
+              </li>
+            </ul>
           </div>
         </div>
-        <small>Lumi · Học tập phổ thông</small>
+        <div className="auth-story-foot">
+          <small>Lumi · Học tập phổ thông</small>
+        </div>
       </section>
 
       <section className="auth-form-region">
         <div className="auth-card">
           <div className="auth-mobile-brand"><Brand/></div>
-          <h1>{route.title}</h1>
-          <p className="muted">
-            {isActivate
-              ? 'Dùng tên đăng nhập và mã một lần do nhà trường cấp để kích hoạt tài khoản học sinh.'
-              : isInvitation
-              ? 'Thiết lập mật khẩu an toàn để kích hoạt tài khoản công tác của bạn.'
-              : isReset
-              ? 'Nhập mật khẩu mới từ 12 đến 128 ký tự để bảo mật tài khoản.'
-              : isLogin
-              ? 'Chào mừng bạn quay trở lại với Lumi.'
-              : 'Chọn đối tượng tài khoản và làm theo hướng dẫn an toàn.'}
-          </p>
+          <header className="auth-card-header">
+            <h1>{route.title}</h1>
+            <p className="auth-card-subtitle">
+              {isActivate
+                ? 'Dùng tên đăng nhập và mã một lần do nhà trường cấp để kích hoạt tài khoản học sinh.'
+                : isInvitation
+                ? 'Thiết lập mật khẩu an toàn để kích hoạt tài khoản công tác của bạn.'
+                : isReset
+                ? 'Nhập mật khẩu mới từ 12 đến 128 ký tự để bảo mật tài khoản.'
+                : isLogin
+                ? 'Chào mừng bạn quay trở lại với Lumi.'
+                : 'Chọn đối tượng tài khoản và làm theo hướng dẫn an toàn.'}
+            </p>
+          </header>
 
           {(isLogin || isRecovery) && (
-            <div className="segmented" aria-label="Loại tài khoản" role="tablist">
+            <div className="segmented" aria-label="Loại tài khoản" role="group">
               <button
                 type="button"
-                role="tab"
                 id="tab-student"
-                aria-selected={audience === 'student'}
                 aria-pressed={audience === 'student'}
                 onClick={() => { setAudience('student'); setIdentifier(''); setError(null); }}
               >
@@ -173,9 +192,7 @@ export function AuthView({ route }: { route: RouteDefinition }) {
               </button>
               <button
                 type="button"
-                role="tab"
                 id="tab-staff"
-                aria-selected={audience === 'staff'}
                 aria-pressed={audience === 'staff'}
                 onClick={() => { setAudience('staff'); setIdentifier(''); setError(null); }}
               >
@@ -185,12 +202,12 @@ export function AuthView({ route }: { route: RouteDefinition }) {
           )}
 
           {isRecovery && audience === 'student' && (
-            <div className="notice" role="status">
+            <div className="notice auth-recovery-box" role="status">
               <strong>Quy định khôi phục mật khẩu học sinh:</strong>
-              <p style={{ marginTop: '8px' }}>
+              <p>
                 Học sinh không tự khôi phục mật khẩu qua email. Vui lòng liên hệ trực tiếp giáo viên chủ nhiệm hoặc quản trị viên nhà trường để xác minh danh tính và nhận mã đặt lại mật khẩu một lần.
               </p>
-              <div style={{ marginTop: '16px' }}>
+              <div className="actions">
                 <Link className="button primary" href="/reset-password">Tôi đã có mã đặt lại mật khẩu</Link>
                 <Link className="button" href="/login">Về trang đăng nhập</Link>
               </div>
@@ -245,14 +262,15 @@ export function AuthView({ route }: { route: RouteDefinition }) {
               )}
 
               {(isLogin || requiresNewPassword) && (
-                <label htmlFor="password">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{requiresNewPassword ? 'Mật khẩu mới' : 'Mật khẩu'}</span>
+                <div className="field-group">
+                  <div className="field-label-row">
+                    <label htmlFor="password">{requiresNewPassword ? 'Mật khẩu mới' : 'Mật khẩu'}</label>
                     <button
                       type="button"
                       id="toggle-password"
-                      className="icon-button"
-                      style={{ fontSize: '12px', minWidth: 'auto', height: 'auto', padding: '2px 4px' }}
+                      className="password-toggle"
+                      aria-pressed={showPassword}
+                      aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
                       onClick={() => setShowPassword(v => !v)}
                     >
                       {showPassword ? 'Ẩn' : 'Hiển thị'}
@@ -269,8 +287,8 @@ export function AuthView({ route }: { route: RouteDefinition }) {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                   />
-                  {requiresNewPassword && <small>Mật khẩu an toàn từ 12 đến 128 ký tự.</small>}
-                </label>
+                  {requiresNewPassword && <small className="field-hint">Mật khẩu an toàn từ 12 đến 128 ký tự.</small>}
+                </div>
               )}
 
               {requiresNewPassword && (
@@ -292,7 +310,7 @@ export function AuthView({ route }: { route: RouteDefinition }) {
 
               <ErrorNotice message={error}/>
 
-              <button className="button primary" disabled={busy || unknown} type="submit">
+              <button className="button primary auth-submit" disabled={busy || unknown} aria-busy={busy} type="submit">
                 {busy
                   ? 'Đang xử lý…'
                   : isLogin
@@ -309,10 +327,10 @@ export function AuthView({ route }: { route: RouteDefinition }) {
           )}
 
           {notice && (
-            <div className="notice success" role="status">
+            <div className="notice success auth-success-box" role="status">
               <strong>Hoàn tất thành công</strong>
-              <p style={{ marginTop: '8px' }}>{notice}</p>
-              <div style={{ marginTop: '16px' }}>
+              <p>{notice}</p>
+              <div className="actions">
                 <Link className="button primary" href="/login">Đăng nhập ngay</Link>
               </div>
             </div>
@@ -330,13 +348,13 @@ export function AuthView({ route }: { route: RouteDefinition }) {
           </div>
 
           {unknown && isLogin && (
-            <button className="button" style={{ marginTop: '12px' }} onClick={() => void session.reload()}>
+            <button type="button" className="button auth-session-check" onClick={() => void session.reload()}>
               Kiểm tra phiên đăng nhập
             </button>
           )}
 
           {session.user && (
-            <div style={{ marginTop: '20px' }}>
+            <div className="auth-return">
               <Link className="back-link" href={homeFor(session.user.roles)}>
                 <Icon name="arrow"/> Về trang chủ của tôi
               </Link>
@@ -350,9 +368,15 @@ export function AuthView({ route }: { route: RouteDefinition }) {
 
 function IconBook() {
   return (
-    <svg width="180" height="150" viewBox="0 0 180 150" fill="none">
-      <path d="M20 30c25-12 45-12 70 4 25-16 45-16 70-4v95c-25-12-45-12-70 4-25-16-45-16-70-4V30Z" fill="white"/>
-      <path d="M90 34v95M35 48c15-5 28-4 41 2m-41 16c15-5 28-4 41 2m28-18c13-6 26-7 41-2m-41 20c13-6 26-7 41-2" stroke="#93C5FD" strokeWidth="3" strokeLinecap="round"/>
+    <svg width="200" height="108" viewBox="0 0 200 108" fill="none" aria-hidden="true">
+      <rect x="26" y="14" width="148" height="84" rx="12" fill="#EFF6FF" stroke="#BFDBFE" strokeWidth="1.5"/>
+      <path d="M40 26h50a10 10 0 0 1 10 10v54a8 8 0 0 0-8-8H40V26Z" fill="#FFFFFF" stroke="#93C5FD" strokeWidth="1.5" strokeLinejoin="round"/>
+      <path d="M160 26h-50a10 10 0 0 0-10 10v54a8 8 0 0 1 8-8h52V26Z" fill="#FFFFFF" stroke="#93C5FD" strokeWidth="1.5" strokeLinejoin="round"/>
+      <path d="M100 36v52" stroke="#2563EB" strokeWidth="1.75" strokeLinecap="round"/>
+      <path d="M52 42h34M52 54h28M52 66h32" stroke="#93C5FD" strokeWidth="2.5" strokeLinecap="round"/>
+      <path d="M114 46h32M114 58h24M114 70h28" stroke="#CBD5E1" strokeWidth="2.5" strokeLinecap="round"/>
+      <path d="M142 26v18l-5-3.5-5 3.5V26" fill="#0D9488"/>
+      <circle cx="148" cy="20" r="6" fill="#DBEAFE" stroke="#2563EB" strokeWidth="1.5"/>
     </svg>
   );
 }

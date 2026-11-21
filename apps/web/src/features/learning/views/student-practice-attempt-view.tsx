@@ -6,7 +6,7 @@ import type { RouteDefinition } from '@/config/routes';
 import type { Role, RouteParams, User, WorkspaceData, PracticeAnswer, PracticeQuestionFeedback, PracticeAttemptDetail } from '@/lib/domain';
 import { adapter } from '@/lib/data';
 import { draftStore, getAttemptDraft, setAttemptDraft, clearAttemptDraft } from '@/lib/draft-store';
-import { StatePanel, Dialog, useUnsavedChanges } from '@/components/ui';
+import { Icon, StatePanel, Dialog, useUnsavedChanges } from '@/components/ui';
 import { QuestionRenderer } from '../components/question-renderer';
 import { SaveController, isAnswerComplete } from '../lib/save-controller';
 import { areAnswersEqual, areAnswerMapsEqual, reconcileAttemptDraft } from '../lib/draft-reconciliation';
@@ -762,52 +762,40 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
     });
   };
 
+  const saveBadgeTone =
+    ackStatusRef.current === 'unknown' ? 'is-unknown'
+      : ackStatusRef.current === 'error' ? 'is-error'
+        : saveControllerRef.current?.isSaving() ? 'is-saving'
+          : ackStatusRef.current === 'pending' || !areAnswerMapsEqual(answers, lastAckedAnswersRef.current) ? 'is-pending'
+            : lastAckedAtRef.current ? 'is-saved'
+              : 'is-idle';
+
   return (
-    <div className="practice-attempt-workspace" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="practice-attempt-workspace">
       {/* Top Attempt Header Bar */}
-      <div
-        className="card"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '14px 20px',
-          backgroundColor: '#fff',
-          borderRadius: '12px',
-          border: '1px solid var(--color-border, #e2e8f0)',
-          flexWrap: 'wrap',
-          gap: '12px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+      <div className="card practice-attempt-topbar">
+        <div className="practice-attempt-topbar-left">
           <button
             id="btn-open-leave"
             type="button"
             className="button outline"
             onClick={() => setShowLeaveModal(true)}
-            style={{ fontSize: '13px', padding: '6px 12px' }}
           >
             ← Rời bài luyện tập
           </button>
 
-          <div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted, #64748b)' }}>
+          <div className="practice-attempt-title-wrap">
+            <div className="practice-attempt-meta">
               {attempt.className} · {attempt.primaryTeacherName} (Giáo viên chính)
             </div>
-            <strong style={{ fontSize: '16px', color: '#0f172a' }}>{attempt.title}</strong>
+            <strong className="practice-attempt-title">{attempt.title}</strong>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div className="practice-attempt-topbar-right">
           <span
             data-testid="save-status-badge"
-            style={{
-              fontSize: '13px',
-              color: '#475569',
-              backgroundColor: '#f1f5f9',
-              padding: '4px 10px',
-              borderRadius: '6px',
-            }}
+            className={`practice-save-badge ${saveBadgeTone}`}
           >
             {saveStatus}
           </span>
@@ -817,7 +805,6 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
             type="button"
             className="button primary"
             onClick={() => setShowFinishModal(true)}
-            style={{ fontSize: '14px', padding: '8px 18px' }}
           >
             Hoàn tất luyện tập
           </button>
@@ -825,23 +812,9 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
       </div>
 
       {actionError && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderRadius: '8px',
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#991b1b',
-            fontSize: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '10px',
-          }}
-        >
+        <div className="practice-attempt-error">
           <span>{actionError}</span>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="practice-attempt-error-actions">
             {(ackStatusRef.current === 'unknown' || saveControllerRef.current?.isBlocked()) && (
               <button
                 id="btn-check-save-status"
@@ -849,7 +822,6 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
                 className="button outline"
                 onClick={handleCheckSaveStatus}
                 disabled={isCheckingSaveStatus}
-                style={{ fontSize: '13px', padding: '4px 10px', backgroundColor: '#fff' }}
               >
                 {isCheckingSaveStatus ? 'Đang kiểm tra…' : 'Kiểm tra trạng thái lưu'}
               </button>
@@ -860,7 +832,6 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
                 type="button"
                 className="button outline"
                 onClick={handleRetrySave}
-                style={{ fontSize: '13px', padding: '4px 10px', backgroundColor: '#fff' }}
               >
                 Thử lưu lại
               </button>
@@ -886,28 +857,14 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
               />
 
               {/* Bottom Question Controls Bar */}
-              <div
-                className="card"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '16px 20px',
-                  backgroundColor: '#fff',
-                  borderRadius: '12px',
-                  border: '1px solid var(--color-border, #e2e8f0)',
-                  flexWrap: 'wrap',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ display: 'flex', gap: '10px' }}>
+              <div className="card practice-controls-bar">
+                <div className="practice-controls-group">
                   <button
                     id="btn-check-answer"
                     type="button"
-                    className="button secondary"
+                    className="button secondary practice-check-btn"
                     onClick={handleCheckAnswer}
                     disabled={isPending || isCheckingAnswer || Boolean(saveControllerRef.current?.isBlocked())}
-                    style={{ fontSize: '14px', backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
                   >
                     {isCheckingAnswer ? 'Đang kiểm tra…' : 'Kiểm tra đáp án'}
                   </button>
@@ -917,20 +874,19 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
                     type="button"
                     className="button outline"
                     onClick={() => setShowHint(prev => !prev)}
-                    style={{ fontSize: '14px' }}
                   >
-                    💡 Gợi ý từ Lumi
+                    <Icon name="sparkles" />
+                    <span>Gợi ý từ Lumi</span>
                   </button>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="practice-controls-group">
                   <button
                     id="btn-prev"
                     type="button"
                     className="button outline"
                     onClick={() => navigateToQuestion(currentIndex - 1)}
                     disabled={currentIndex === 0}
-                    style={{ fontSize: '14px' }}
                   >
                     Câu trước
                   </button>
@@ -941,7 +897,6 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
                       type="button"
                       className="button primary"
                       onClick={() => navigateToQuestion(currentIndex + 1)}
-                      style={{ fontSize: '14px' }}
                     >
                       Câu tiếp theo
                     </button>
@@ -950,7 +905,6 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
                       type="button"
                       className="button primary"
                       onClick={() => setShowFinishModal(true)}
-                      style={{ fontSize: '14px' }}
                     >
                       Hoàn tất luyện tập
                     </button>
@@ -960,21 +914,11 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
 
               {/* Lumi Pedagogical Hint Box */}
               {showHint && (
-                <div
-                  className="card"
-                  style={{
-                    marginTop: '16px',
-                    padding: '16px 20px',
-                    borderRadius: '10px',
-                    backgroundColor: '#fffbeb',
-                    border: '1px solid #fef08a',
-                    color: '#713f12',
-                  }}
-                >
-                  <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>
+                <div className="card practice-hint-box">
+                  <div className="practice-hint-title">
                     Gợi ý phương pháp từ Lumi:
                   </div>
-                  <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.5 }}>
+                  <p className="practice-hint-text">
                     {currentQuestion.sourceRef && currentQuestion.sourceRef.isAccessible !== false && currentQuestion.sourceRef.locator
                       ? `Tham khảo tài liệu "${currentQuestion.sourceRef.documentTitle}", lưu ý mục ${currentQuestion.sourceRef.locator} để nắm công thức trọng tâm.`
                       : 'Hãy xác định dạng hàm số, xem xét kỹ các hệ số và áp dụng các định lý tương ứng từng bước.'}
@@ -987,95 +931,61 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
 
         {/* Right Column: Question Palette */}
         <div className="practice-palette-sidebar">
-          <div
-            className="card"
-            style={{
-              padding: '18px',
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              border: '1px solid var(--color-border, #e2e8f0)',
-              position: 'sticky',
-              top: '20px',
-            }}
-          >
-            <h3 style={{ fontSize: '15px', fontWeight: 600, margin: '0 0 8px 0', color: '#0f172a' }}>
+          <div className="card practice-palette-card">
+            <h3 className="practice-palette-title">
               Bảng câu hỏi
             </h3>
-            <p style={{ fontSize: '13px', color: 'var(--color-text-muted, #64748b)', margin: '0 0 16px 0' }}>
+            <p className="practice-palette-count">
               Đã hoàn thành: {answeredCount}/{totalQuestions} câu
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '18px' }}>
+            <div className="practice-palette-list">
               {questions.map((q, idx) => {
                 const isActive = idx === currentIndex;
                 const isComplete = isAnswerComplete(q, answers[q.id]);
                 const fb = feedbacks[q.id];
                 const typeLabel = QUESTION_TYPE_LABELS[q.type] ?? 'Câu hỏi';
-
-                let bg = '#f8fafc';
-                let color = '#334155';
-                let borderColor = '#cbd5e1';
-
-                if (fb) {
-                  bg = fb.isCorrect ? '#f0fdf4' : '#fef2f2';
-                  color = fb.isCorrect ? '#16a34a' : '#dc2626';
-                  borderColor = fb.isCorrect ? '#86efac' : '#fca5a5';
-                } else if (isComplete) {
-                  bg = '#eff6ff';
-                  color = '#2563eb';
-                  borderColor = '#bfdbfe';
-                }
-
-                if (isActive) {
-                  borderColor = 'var(--brand-primary, #3b82f6)';
-                }
+                const stateClass = fb
+                  ? fb.isCorrect
+                    ? 'is-correct'
+                    : 'is-incorrect'
+                  : isComplete
+                    ? 'is-answered'
+                    : 'is-unanswered';
 
                 return (
                   <button
                     key={q.id}
                     type="button"
                     onClick={() => navigateToQuestion(idx)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      border: `2px solid ${borderColor}`,
-                      backgroundColor: bg,
-                      color,
-                      fontWeight: isActive ? 700 : 500,
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
+                    className={`practice-palette-btn ${stateClass} ${isActive ? 'is-active' : ''}`}
                   >
                     <span>
                       <strong>{idx + 1}</strong> {typeLabel}
                     </span>
                     {fb ? (
-                      <span>{fb.isCorrect ? '✓' : '✕'}</span>
+                      <span className="practice-palette-state">{fb.isCorrect ? '✓ Đúng' : '✕ Sai'}</span>
                     ) : isComplete ? (
-                      <span style={{ fontSize: '12px' }}>Đã làm</span>
+                      <span className="practice-palette-state">Đã làm</span>
                     ) : (
-                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>Chưa làm</span>
+                      <span className="practice-palette-state">Chưa làm</span>
                     )}
                   </button>
                 );
               })}
             </div>
 
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted, #64748b)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }} />
+            <div className="practice-palette-legend">
+              <div className="practice-legend-item">
+                <span className="practice-legend-swatch is-answered" />
                 <span>Đã trả lời</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#f0fdf4', border: '1px solid #86efac' }} />
+              <div className="practice-legend-item">
+                <span className="practice-legend-swatch is-correct" />
                 <span>Đúng (đã kiểm tra)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5' }} />
+              <div className="practice-legend-item">
+                <span className="practice-legend-swatch is-incorrect" />
                 <span>Chưa đúng (đã kiểm tra)</span>
               </div>
             </div>
@@ -1090,12 +1000,12 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
         title="Rời khỏi bài luyện tập?"
       >
         <div>
-          <p style={{ fontSize: '14px', color: 'var(--color-text-muted, #64748b)', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+          <p className="practice-modal-text">
             {!areAnswerMapsEqual(lastAckedAnswersRef.current, answers) || Boolean(saveControllerRef.current?.isBlocked())
               ? 'Một số câu trả lời của bạn chưa được xác nhận lưu trên máy chủ và chỉ được giữ trong phiên làm việc hiện tại. Bạn có thể tiếp tục làm bài hoặc quay lại sau trong phiên này.'
               : 'Các câu trả lời đã được lưu trên hệ thống. Bạn có thể quay lại làm tiếp bất cứ lúc nào.'}
           </p>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <div className="practice-modal-actions">
             <button
               id="btn-cancel-leave"
               type="button"
@@ -1128,10 +1038,10 @@ export function StudentPracticeAttemptView({ data, reload, params, user }: Props
         busy={isPending}
       >
         <div>
-          <p style={{ fontSize: '14px', color: 'var(--color-text-muted, #64748b)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+          <p className="practice-modal-text">
             Bạn đã trả lời {answeredCount} / {totalQuestions} câu hỏi. Sau khi hoàn tất, hệ thống sẽ tổng kết điểm số và cung cấp giải thích chi tiết cho từng câu.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <div className="practice-modal-actions">
             <button
               id="btn-close-finish"
               type="button"

@@ -136,10 +136,12 @@ class ClassroomRepository:
     def active_roster(self, homeroom_id: UUID) -> list[HomeroomRoster]:
         return list(
             self.session.scalars(
-                select(HomeroomRoster).where(
+                select(HomeroomRoster)
+                .where(
                     HomeroomRoster.homeroom_class_id == homeroom_id,
                     HomeroomRoster.ended_at.is_(None),
                 )
+                .order_by(HomeroomRoster.student_id, HomeroomRoster.id)
             )
         )
 
@@ -175,11 +177,13 @@ class ClassroomRepository:
         query = select(SubjectClass).where(SubjectClass.school_id == school_id)
         if not is_admin:
             enrolled = exists(
-                select(ClassMembership.id).where(
+                select(ClassMembership.id)
+                .where(
                     ClassMembership.class_id == SubjectClass.id,
                     ClassMembership.student_id == user_id,
                     ClassMembership.status == MembershipStatus.ACTIVE,
                 )
+                .order_by(ClassMembership.student_id, ClassMembership.id)
             )
             assigned = exists(
                 select(TeachingAssignment.id).where(
@@ -193,13 +197,48 @@ class ClassroomRepository:
             query = query.where(SubjectClass.id > cursor)
         return list(self.session.scalars(query.order_by(SubjectClass.id).limit(limit + 1)))
 
+    def display_summaries(self, class_ids: list[UUID]):
+        counts = dict(
+            self.session.execute(
+                select(ClassMembership.class_id, func.count(ClassMembership.id))
+                .where(
+                    ClassMembership.class_id.in_(class_ids),
+                    ClassMembership.status == MembershipStatus.ACTIVE,
+                )
+                .group_by(ClassMembership.class_id)
+            ).all()
+        )
+        primary = dict(
+            self.session.execute(
+                select(TeachingAssignment.class_id, TeachingAssignment.lecturer_id).where(
+                    TeachingAssignment.class_id.in_(class_ids),
+                    TeachingAssignment.role == TeachingRole.PRIMARY,
+                    TeachingAssignment.ended_at.is_(None),
+                )
+            ).all()
+        )
+        return counts, primary
+
+    def active_student_class_ids(self, class_ids: list[UUID], student_id: UUID):
+        return set(
+            self.session.scalars(
+                select(ClassMembership.class_id).where(
+                    ClassMembership.class_id.in_(class_ids),
+                    ClassMembership.student_id == student_id,
+                    ClassMembership.status == MembershipStatus.ACTIVE,
+                )
+            )
+        )
+
     def active_memberships(self, class_id: UUID) -> list[ClassMembership]:
         return list(
             self.session.scalars(
-                select(ClassMembership).where(
+                select(ClassMembership)
+                .where(
                     ClassMembership.class_id == class_id,
                     ClassMembership.status == MembershipStatus.ACTIVE,
                 )
+                .order_by(ClassMembership.student_id, ClassMembership.id)
             )
         )
 

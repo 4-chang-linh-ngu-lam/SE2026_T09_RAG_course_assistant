@@ -1,0 +1,6 @@
+{
+ "_source": "docs/deepdoc/gpu-paddle/evidence/gpu-formula-1.json (real PP-FormulaNet_plus-S output, GPU, SGK Toan 10 physical page 87 sample-variance crop; unverified model output kept only to test the LaTeX check)",
+ "model": "PP-FormulaNet_plus-S",
+ "input_sha256": "4d020a8470531e5385b3724372b83ac4a6f62ec6b949b2ad25b06db0a823808b",
+ "rec_formula": "\\begin aligned}{hat s{{^22}=}}&{{{\\}{\\frac{\\left(X_{1}-\\overline{{X}}\\right)^{2}+\\left(X_{2}-\\overline{{X}}\\right)^{2}+\\cdots+\\left(X_{n}-\\overline{{X}}\\right)^{2}}{\\ \\ left\\ vert vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert\\vert}}}\\\\ \\end{aligned}"
+}

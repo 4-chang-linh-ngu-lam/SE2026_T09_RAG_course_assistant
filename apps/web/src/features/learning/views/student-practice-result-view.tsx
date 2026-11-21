@@ -91,28 +91,26 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
       : questions;
 
   return (
-    <div className="practice-result-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="practice-result-content">
       {/* Top Navigation & Action Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div className="practice-result-topbar">
+        <div className="practice-result-nav">
           <Link
             href={`/student/classes/${classId}/practice`}
             className="button outline"
-            style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
             ← Trở về Luyện tập
           </Link>
-          <span style={{ fontSize: '13px', color: 'var(--color-text-muted, #64748b)' }}>
+          <span className="practice-result-meta">
             Lượt làm #{result.attemptNumber} · Hoàn thành: {result.completedAt}
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="practice-result-actions">
           <button
             type="button"
             className="button outline"
             onClick={handleReviewWithLumi}
-            style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
             <Icon name="sparkles" />
             <span>Ôn cùng Lumi</span>
@@ -122,7 +120,6 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
             className="button primary"
             onClick={handleRetry}
             disabled={isPending}
-            style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
             {isPending ? 'Đang tạo lượt mới…' : 'Làm lại bài luyện tập (Tạo lượt mới)'}
           </button>
@@ -130,82 +127,43 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
       </div>
 
       {actionError && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderRadius: '8px',
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#991b1b',
-            fontSize: '14px',
-          }}
-        >
+        <div className="practice-error-banner">
           {actionError}
         </div>
       )}
 
       {/* Main Score & Stats Banner */}
-      <div
-        className="card"
-        style={{
-          padding: '28px',
-          borderRadius: '16px',
-          backgroundColor: '#fff',
-          border: '1px solid var(--color-border, #e2e8f0)',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '20px' }}>
-          <div>
-            <span
-              style={{
-                fontSize: '12px',
-                fontWeight: 600,
-                padding: '3px 10px',
-                borderRadius: '6px',
-                backgroundColor: '#f0fdf4',
-                color: '#16a34a',
-                display: 'inline-block',
-                marginBottom: '8px',
-              }}
-            >
+      <div className="card practice-result-banner">
+        <div className="practice-result-banner-inner">
+          <div className="practice-result-banner-info">
+            <span className="practice-result-badge">
               Hoàn thành bài luyện tập
             </span>
-            <h1 style={{ fontSize: '22px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            <h1 className="practice-result-title">
               {result.title}
             </h1>
-            <p style={{ margin: '6px 0 0 0', fontSize: '14px', color: 'var(--color-text-muted, #64748b)' }}>
+            <p className="practice-result-sub">
               {result.className} · Phiên bản v{result.publishedVersionNumber}
             </p>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '24px',
-              padding: '16px 24px',
-              borderRadius: '12px',
-              backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
-            }}
-          >
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', fontWeight: 800, color: '#2563eb', lineHeight: 1 }}>
+          <div className="practice-score-summary">
+            <div className="practice-score-metric">
+              <div className="practice-score-pct">
                 {result.score.percentage}%
               </div>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginTop: '4px' }}>
+              <div className="practice-score-label">
                 Độ chính xác
               </div>
             </div>
 
-            <div style={{ width: '1px', height: '40px', backgroundColor: '#e2e8f0' }} />
+            <div className="practice-score-divider" />
 
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a', lineHeight: 1 }}>
+            <div className="practice-score-metric">
+              <div className="practice-score-ratio">
                 {result.score.correct}/{result.score.total}
               </div>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginTop: '4px' }}>
+              <div className="practice-score-label">
                 Câu đúng
               </div>
             </div>
@@ -214,124 +172,44 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
       </div>
 
       {/* 3 Metric Summary Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '16px',
-        }}
-      >
-        <div
-          className="card"
-          style={{
-            padding: '20px',
-            borderRadius: '12px',
-            backgroundColor: '#fff',
-            border: '1px solid var(--color-border, #e2e8f0)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-          }}
-        >
-          <div
-            style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '10px',
-              backgroundColor: '#f0fdf4',
-              color: '#16a34a',
-              border: '1px solid #bbf7d0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-              fontWeight: 700,
-            }}
-          >
-            ✓
+      <div className="practice-metrics-grid">
+        <div className="card practice-metric-card">
+          <div className="practice-metric-icon is-correct" aria-hidden="true">
+            <Icon name="check" />
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted, #64748b)', marginBottom: '2px' }}>
+            <div className="practice-metric-label">
               Trả lời chính xác
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#16a34a' }}>
+            <div className="practice-metric-value is-correct">
               {result.correctCount} câu
             </div>
           </div>
         </div>
 
-        <div
-          className="card"
-          style={{
-            padding: '20px',
-            borderRadius: '12px',
-            backgroundColor: '#fff',
-            border: '1px solid var(--color-border, #e2e8f0)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-          }}
-        >
-          <div
-            style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '10px',
-              backgroundColor: '#fef2f2',
-              color: '#dc2626',
-              border: '1px solid #fecaca',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-              fontWeight: 700,
-            }}
-          >
+        <div className="card practice-metric-card">
+          <div className="practice-metric-icon is-incorrect" aria-hidden="true">
             ✕
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted, #64748b)', marginBottom: '2px' }}>
+            <div className="practice-metric-label">
               Cần ôn luyện lại
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#dc2626' }}>
+            <div className="practice-metric-value is-incorrect">
               {result.incorrectCount} câu
             </div>
           </div>
         </div>
 
-        <div
-          className="card"
-          style={{
-            padding: '20px',
-            borderRadius: '12px',
-            backgroundColor: '#fff',
-            border: '1px solid var(--color-border, #e2e8f0)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-          }}
-        >
-          <div
-            style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '10px',
-              backgroundColor: '#eff6ff',
-              color: '#2563eb',
-              border: '1px solid #bfdbfe',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '18px',
-            }}
-          >
+        <div className="card practice-metric-card">
+          <div className="practice-metric-icon is-time" aria-hidden="true">
             <Icon name="clock" />
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted, #64748b)', marginBottom: '2px' }}>
+            <div className="practice-metric-label">
               Thời gian hoàn thành
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>
+            <div className="practice-metric-value">
               {result.durationMinutes} phút
             </div>
           </div>
@@ -340,36 +218,24 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
 
       {/* Pedagogical Study Tip Card */}
       {result.studyTip && (
-        <div
-          className="card"
-          style={{
-            padding: '16px 20px',
-            borderRadius: '12px',
-            backgroundColor: '#fffbeb',
-            border: '1px solid #fef08a',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '16px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1, minWidth: '260px' }}>
-            <span style={{ fontSize: '20px' }}>💡</span>
+        <div className="card practice-tip-card">
+          <div className="practice-tip-main">
+            <span className="practice-tip-icon" aria-hidden="true">
+              <Icon name="info" />
+            </span>
             <div>
-              <strong style={{ color: '#854d0e', fontSize: '14px', display: 'block', marginBottom: '4px' }}>
+              <strong>
                 Lời khuyên học tập từ Lumi:
               </strong>
-              <p style={{ margin: 0, fontSize: '14px', color: '#713f12', lineHeight: 1.5 }}>
+              <p>
                 {result.studyTip}
               </p>
             </div>
           </div>
           <button
             type="button"
-            className="button outline"
+            className="button outline practice-tip-btn"
             onClick={handleReviewWithLumi}
-            style={{ fontSize: '13px', backgroundColor: '#fff', color: '#854d0e', borderColor: '#fde047' }}
           >
             Hỏi chi tiết Lumi →
           </button>
@@ -377,27 +243,11 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
       )}
 
       {/* Filter Tabs */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          borderBottom: '1px solid var(--color-border, #e2e8f0)',
-          paddingBottom: '8px',
-        }}
-      >
+      <div className="practice-result-tabs">
         <button
           type="button"
           onClick={() => setFilterMode('all')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '6px',
-            border: 'none',
-            backgroundColor: filterMode === 'all' ? 'var(--brand-primary, #3b82f6)' : 'transparent',
-            color: filterMode === 'all' ? '#fff' : '#475569',
-            fontWeight: 600,
-            fontSize: '14px',
-            cursor: 'pointer',
-          }}
+          className={`practice-result-tab is-all ${filterMode === 'all' ? 'is-active' : ''}`}
         >
           Tất cả ({questions.length})
         </button>
@@ -405,16 +255,7 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
         <button
           type="button"
           onClick={() => setFilterMode('incorrect')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '6px',
-            border: 'none',
-            backgroundColor: filterMode === 'incorrect' ? '#ef4444' : 'transparent',
-            color: filterMode === 'incorrect' ? '#fff' : '#475569',
-            fontWeight: 600,
-            fontSize: '14px',
-            cursor: 'pointer',
-          }}
+          className={`practice-result-tab is-incorrect ${filterMode === 'incorrect' ? 'is-active' : ''}`}
         >
           Chỉ câu sai ({incorrectQuestions.length})
         </button>
@@ -422,109 +263,60 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
         <button
           type="button"
           onClick={() => setFilterMode('correct')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '6px',
-            border: 'none',
-            backgroundColor: filterMode === 'correct' ? '#16a34a' : 'transparent',
-            color: filterMode === 'correct' ? '#fff' : '#475569',
-            fontWeight: 600,
-            fontSize: '14px',
-            cursor: 'pointer',
-          }}
+          className={`practice-result-tab is-correct ${filterMode === 'correct' ? 'is-active' : ''}`}
         >
           Chỉ câu đúng ({correctQuestions.length})
         </button>
       </div>
 
       {/* Question Details List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="practice-result-list">
         {displayedQuestions.map(q => (
           <div
             key={q.id}
-            className="card"
-            style={{
-              padding: '20px 24px',
-              borderRadius: '12px',
-              backgroundColor: '#fff',
-              border: `1px solid ${q.isCorrect ? '#e2e8f0' : '#fecaca'}`,
-            }}
+            className={`card practice-result-item ${q.isCorrect ? '' : 'is-incorrect'}`}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '6px',
-                    backgroundColor: q.isCorrect ? '#f0fdf4' : '#fef2f2',
-                    color: q.isCorrect ? '#16a34a' : '#dc2626',
-                    fontWeight: 700,
-                    fontSize: '14px',
-                  }}
-                >
+            <div className="practice-result-item-head">
+              <div className="practice-result-item-badges">
+                <span className={`practice-result-qnum ${q.isCorrect ? 'is-correct' : 'is-incorrect'}`}>
                   {q.questionNumber}
                 </span>
-                <span
-                  style={{
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    padding: '3px 10px',
-                    borderRadius: '6px',
-                    backgroundColor: q.isCorrect ? '#f0fdf4' : '#fef2f2',
-                    color: q.isCorrect ? '#16a34a' : '#dc2626',
-                  }}
-                >
+                <span className={`practice-result-state ${q.isCorrect ? 'is-correct' : 'is-incorrect'}`}>
                   {q.isCorrect ? 'Chính xác' : 'Chưa chính xác'}
                 </span>
               </div>
 
               <button
                 type="button"
-                className="button outline"
+                className="button outline practice-ask-lumi-btn"
                 onClick={() => handleAskLumiQuestion(q)}
-                style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
                 <Icon name="sparkles" />
                 <span>Hỏi Lumi câu này</span>
               </button>
             </div>
 
-            <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a', marginBottom: '16px', lineHeight: 1.5 }}>
+            <div className="practice-result-prompt">
               {q.prompt}
             </div>
 
             {/* Student answer vs Correct answer comparison */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '14px',
-                padding: '14px 16px',
-                borderRadius: '8px',
-                backgroundColor: '#f8fafc',
-                marginBottom: '16px',
-                fontSize: '14px',
-              }}
-            >
+            <div className="practice-answer-compare">
               <div>
-                <span style={{ color: 'var(--color-text-muted, #64748b)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                <span className="practice-answer-label">
                   Câu trả lời của bạn:
                 </span>
-                <strong style={{ color: q.isCorrect ? '#16a34a' : '#dc2626' }}>
+                <strong className={`practice-answer-val ${q.isCorrect ? 'is-correct' : 'is-incorrect'}`}>
                   {q.studentAnswerText}
                 </strong>
               </div>
 
               {!q.isCorrect && (
                 <div>
-                  <span style={{ color: 'var(--color-text-muted, #64748b)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                  <span className="practice-answer-label">
                     Đáp án đúng:
                   </span>
-                  <strong style={{ color: '#16a34a' }}>
+                  <strong className="practice-answer-val is-correct">
                     {q.correctAnswerText}
                   </strong>
                 </div>
@@ -532,26 +324,15 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
             </div>
 
             {/* Explanation */}
-            <div style={{ fontSize: '14px', color: '#334155', lineHeight: 1.6, marginBottom: '12px' }}>
+            <div className="practice-result-explanation">
               <strong>Giải thích:</strong> {q.explanation}
             </div>
 
             {/* Grounding Source Citation */}
             {q.sourceRef && (
-              <div style={{ marginTop: '10px' }}>
+              <div className="practice-result-source">
                 {q.sourceRef.isAccessible === false ? (
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      color: '#64748b',
-                      backgroundColor: '#f1f5f9',
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                    }}
-                  >
+                  <span className="practice-result-source-unavailable">
                     <span>Nguồn: Tài liệu không còn khả dụng</span>
                   </span>
                 ) : (
@@ -560,17 +341,9 @@ export function StudentPracticeResultView({ data, reload, params, user }: Props)
                     className="button outline source-reference-link"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{
-                      fontSize: '12px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      color: '#2563eb',
-                      backgroundColor: '#eff6ff',
-                      borderColor: '#bfdbfe',
-                    }}
                   >
-                    <span>📖 {q.sourceRef.displayText || q.sourceReference || 'Xem tài liệu nguồn của lớp'}</span>
+                    <Icon name="book" />
+                    <span>{q.sourceRef.displayText || q.sourceReference || 'Xem tài liệu nguồn của lớp'}</span>
                   </Link>
                 )}
               </div>

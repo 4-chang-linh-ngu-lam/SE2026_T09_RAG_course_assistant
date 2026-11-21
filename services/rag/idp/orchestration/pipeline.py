@@ -21,7 +21,7 @@ from idp.structured.enrichment import enrichment_summary
 import html as html_lib
 import re
 
-PIPELINE_VERSION = "idp-poc-0.49"
+PIPELINE_VERSION = "idp-poc-0.52"
 
 
 def _utc_now() -> str:

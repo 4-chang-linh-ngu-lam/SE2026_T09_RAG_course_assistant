@@ -63,7 +63,15 @@ def validate_latex(latex: str) -> ValidationResult:
     ends = len(re.findall(r"\\end\{", s))
     if begins != ends:
         return ValidationResult(False, "environment", "begin/end mismatch")
-    if s.count(r"\left") != s.count(r"\right"):
+    depth = 0
+    for command in re.findall(r"\\(?:[A-Za-z]+|[^A-Za-z])", balance_source):
+        if command == r"\left":
+            depth += 1
+        elif command == r"\right":
+            depth -= 1
+            if depth < 0:
+                return ValidationResult(False, "left-right", "left/right mismatch")
+    if depth:
         return ValidationResult(False, "left-right", "left/right mismatch")
     if latex_to_mathml is not None:
         try:

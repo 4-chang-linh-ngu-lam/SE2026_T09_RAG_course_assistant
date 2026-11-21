@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import Link from '@/components/available-link';
 import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { WorkspaceData } from '@/lib/domain';
@@ -55,6 +55,11 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
 
   return (
     <div className="teacher-overview-container">
+      {summary.teacherName && <p className="muted">Giáo viên chính: {summary.teacherName}</p>}
+      {data.classMembers && <section className="card class-roster" aria-label="Danh sách học sinh">
+        <h2>Học sinh trong lớp ({data.classMembers.length})</h2>
+        {data.classMembers.length ? <ol>{data.classMembers.map(member => <li key={member.id}>{member.displayName || 'Chưa có tên hiển thị'}</li>)}</ol> : <p className="muted">Lớp chưa có học sinh đang ghi danh.</p>}
+      </section>}
       {/* Quick Action Toolbar */}
       {readOnly ? (
         <p className="notice" role="status">Lớp đã lưu trữ và chỉ đọc. Bạn có thể xem nội dung còn quyền; không tạo hoạt động, đăng bài hoặc thêm tài liệu mới.</p>
@@ -94,7 +99,7 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
           <div className="metric-number">{summary?.studentCount ?? '—'}</div>
           <span className="muted text-xs">Học sinh chính thức</span>
         </div>
-        <div className="card metric-card">
+        {!data.pendingCapabilities?.includes('Learning') && (<>        <div className="card metric-card">
           <span className="muted text-sm">Bài nộp đang chờ</span>
           <div className="metric-number text-primary">{data.teacherMetrics?.pendingGrading ?? '—'}</div>
           <span className="muted text-xs">Cần chấm hoặc phản hồi</span>
@@ -104,6 +109,7 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
           <div className="metric-number">{data.teacherMetrics?.openActivities ?? '—'}</div>
           <span className="muted text-xs">Luyện tập & Kiểm tra</span>
         </div>
+</>)}
       </section>
 
       {/* Two Column: Announcements & Activities */}
@@ -126,7 +132,7 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
           {announcement ? (
             <article className="card announcement-hero-card">
               <div className="announcement-badge-row">
-                <span className="tag primary">Thông báo đã đăng</span>
+                <span className="tag primary">Bài viết mới nhất</span>
                 <span className="muted text-sm">{announcement.timeAgo}</span>
               </div>
               <div className="announcement-author-row">
@@ -162,7 +168,7 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
 
         {/* Activities List */}
         <div className="overview-col-side">
-          <section className="overview-section">
+          {!data.pendingCapabilities?.includes('Learning') && (<section className="overview-section">
             <div className="section-header">
               <div>
                 <h2>Hoạt động học tập</h2>
@@ -179,11 +185,11 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
             <div className="activity-list">
               {activities.length === 0 ? (
                 <div className="card empty-card">
-                  <p className="muted">Chưa có hoạt động nào trong lớp này.</p>
+                  <p className="muted">{data.pendingCapabilities?.includes('Learning') ? 'Chức năng học tập chưa khả dụng ở bản này.' : 'Chưa có hoạt động nào trong lớp này.'}</p>
                 </div>
               ) : (
                 activities.map(act => (
-                  <article key={act.id} className="card activity-item-card">
+                  <article key={act.id} className={`card activity-item-card activity-type-${act.type.toLowerCase()}`}>
                     <div className="activity-item-main">
                       <div className="activity-header">
                         <span className={`tag ${act.type === 'EXAM' ? 'danger' : 'info'}`}>
@@ -198,7 +204,7 @@ export function TeacherOverviewFeature({ route: _route, data, reload }: Props) {
                 ))
               )}
             </div>
-          </section>
+          </section>)}
         </div>
       </div>
     </div>

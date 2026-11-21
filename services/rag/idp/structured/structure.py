@@ -8,6 +8,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from PIL import Image
 
 
 class _TableParser(HTMLParser):
@@ -149,13 +150,61 @@ def visual_evidence(page: dict, block: dict) -> dict | None:
     }
 
 
+def _grid_positions(mask, axis, length):
+    values = np.flatnonzero(np.count_nonzero(mask, axis=axis) > .45 * length)
+    groups = np.split(values, np.where(np.diff(values) > 3)[0] + 1)
+    return [int(np.median(group)) for group in groups if len(group)]
+
+
+def _inset_cell(box):
+    left, top, right, bottom = box
+    inset = min(8, (right - left) // 8, (bottom - top) // 8)
+    return [left + inset, top + inset, right - inset, bottom - inset]
+
+
+class RuledTableDetector:
+    """Propose page regions for connected, axis-aligned ruled tables."""
+
+    identity = {"name": "opencv_ruled_table_detector", "version": 1, "device": "cpu"}
+
+    def __call__(self, image_path):
+        with Image.open(image_path) as opened:
+            # A cyan rule can be nearly as light as paper in grayscale.
+            darkest = np.asarray(opened.convert("RGB")).min(axis=2)
+        height, width = darkest.shape
+        binary = cv2.adaptiveThreshold(darkest, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY_INV, 31, 12)
+        horizontal = cv2.morphologyEx(binary, cv2.MORPH_OPEN, np.ones((1, max(12, width // 30)), np.uint8))
+        vertical = cv2.morphologyEx(binary, cv2.MORPH_OPEN, np.ones((max(12, height // 30), 1), np.uint8))
+        contours, _ = cv2.findContours(cv2.bitwise_or(horizontal, vertical), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        junctions = cv2.bitwise_and(horizontal, vertical)
+        regions = []
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            if w < .08 * width or h < .05 * height:
+                continue
+            crop = np.s_[y:y + h, x:x + w]
+            xs = _grid_positions(vertical[crop], 0, h)
+            ys = _grid_positions(horizontal[crop], 1, w)
+            if min(len(xs), len(ys)) < 3 or (len(xs) - 1) * (len(ys) - 1) > 256:
+                continue
+            hits = [
+                [bool(junctions[max(0, y + row - 3):y + row + 4, max(0, x + col - 3):x + col + 4].any())
+                 for col in xs]
+                for row in ys
+            ]
+            if all(hits[r][c] for r in (0, -1) for c in (0, -1)) and sum(map(sum, hits)) >= .65 * len(xs) * len(ys):
+                regions.append({"bbox": [x, y, x + w, y + h], "kind": "table"})
+        return sorted(regions, key=lambda region: (region["bbox"][1], region["bbox"][0]))
+
+
 class GridTableReader:
     """CPU ruled-table reader. Unknown headers/borderless tables stay review-only.
 
     Detect geometry first, then assign recognized words to cells. No invented
     first-row headers, no guess that a missing grid line means an empty cell.
     """
-    identity = {"name": "opencv_grid_tesseract", "version": 4, "cell_source": "original_rgb_with_white_padding",
+    identity = {"name": "opencv_grid_tesseract", "version": 5, "cell_source": "original_rgb_with_inset_and_white_padding",
                 "word_assignment": "idp-table-word-alignment-1"}
 
     def __init__(self, language="vie", max_cells=256, *, text_recognizer=None, recognition_options=None):
@@ -183,12 +232,7 @@ class GridTableReader:
         horizontal = cv2.morphologyEx(binary, cv2.MORPH_OPEN, np.ones((1, max(12, width // 12)), np.uint8))
         vertical = cv2.morphologyEx(binary, cv2.MORPH_OPEN, np.ones((max(12, height // 12), 1), np.uint8))
 
-        def positions(mask, axis, length):
-            values = np.flatnonzero(np.count_nonzero(mask, axis=axis) > .45 * length)
-            groups = np.split(values, np.where(np.diff(values) > 3)[0] + 1)
-            return [int(np.median(group)) for group in groups if len(group)]
-
-        xs, ys = positions(vertical, 0, height), positions(horizontal, 1, width)
+        xs, ys = _grid_positions(vertical, 0, height), _grid_positions(horizontal, 1, width)
         if len(xs) < 2 or len(ys) < 2:
             raise ValueError("no reliable ruled-table grid; use an external table reader")
         nr, nc = len(ys) - 1, len(xs) - 1
@@ -256,7 +300,6 @@ class GridTableReader:
                                  source_hocr_path=str(crop.with_name(crop.stem + "_table").with_suffix(".hocr")))
         disagreements, budget_hit = len(unassigned), False
         for index, cell in enumerate(cells):
-            x1, y1, x2, y2 = cell["bbox"]
             selected = assigned[index]
             cell["text"] = " ".join(word["text"] for word in sorted(selected, key=lambda w: (round(w["bbox"][1] / 8), w["bbox"][0])))
             cell["confidence"] = sum(w["confidence"] for w in selected) / (100 * len(selected)) if selected else None
@@ -267,28 +310,28 @@ class GridTableReader:
                 if remaining <= .05:
                     budget_hit = True
                     continue
-                # Inpainting can erase strokes touching a detected grid line.
-                # Use it only for whole-table geometry/word assignment. Cell
-                # recognition reads original colour pixels with an inset that
-                # removes borders, then adds white segmentation padding.
-                left, top, right, bottom = cell["bbox"]
-                local = original_rgb[top + 3:bottom - 3, left + 3:right - 3]
+                left, top, right, bottom = _inset_cell(cell["bbox"])
+                local = original_rgb[top:bottom, left:right]
                 if not local.size:
                     continue
                 if scale != 1:
                     local = cv2.resize(local, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
                 local = cv2.copyMakeBorder(local, 8, 8, 8, 8, cv2.BORDER_CONSTANT, value=(255, 255, 255))
                 cell_image = crop.with_name(crop.stem + f"_cell{index:03d}.png")
-                cv2.imwrite(str(cell_image), local)
+                if not cv2.imwrite(str(cell_image), local):
+                    raise ValueError("cannot save cell OCR image")
                 try:
                     reading = parse_hocr_lines(_run_tesseract(cell_image, cell_image.with_suffix(""), self.language, 6, timeout=remaining))
                     text = " ".join(line["text"] for line in reading).strip()
                     if text:
-                        if text != cell["text"]:
-                            cell["whole_table_reading"] = cell["text"]
+                        score = sum(line["confidence"] for line in reading) / (100 * len(reading))
+                        baseline = cell["text"]
+                        if baseline and text != baseline:
+                            cell["cell_local_reading"] = text
                             disagreements += 1
-                        cell["text"] = text
-                        cell["confidence"] = sum(line["confidence"] for line in reading) / (100 * len(reading))
+                        elif text == baseline or (score >= .75 and any(ch.isalnum() for ch in text)):
+                            cell["text"] = text
+                            cell["confidence"] = max(cell["confidence"] or 0, score)
                 except RuntimeError:
                     budget_hit = True
         if self.text_recognizer:
@@ -304,8 +347,7 @@ class GridTableReader:
                 if index >= limits.max_blocks or remaining <= .05:
                     budget_hit = True
                     break
-                x1, y1, x2, y2 = cell["bbox"]
-                box = [x1 + 3, y1 + 3, x2 - 3, y2 - 3]
+                box = _inset_cell(cell["bbox"])
                 if box[2] <= box[0] or box[3] <= box[1]:
                     continue
                 reading = read_candidate(self.text_recognizer, original.crop(box),

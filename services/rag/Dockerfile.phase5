@@ -1,0 +1,12 @@
+# Core runtime verification with existing DOCX/DOC readers; no GPU model stack.
+FROM lumi-rag-phase4:local
+RUN apt-get update && apt-get install -y --no-install-recommends pandoc antiword && rm -rf /var/lib/apt/lists/*
+# Keep optional Pandoc Python bindings out of the default interpreter: the
+# legacy TXT reader changes behavior when pypandoc becomes importable.
+RUN python -m venv --system-site-packages /opt/deepdoc-docx && /opt/deepdoc-docx/bin/python -m pip install --no-cache-dir pypandoc==1.15
+COPY idp /work/idp
+COPY tests /work/tests
+COPY tools /work/tools
+COPY colab /work/colab
+COPY tools /work/tools
+CMD ["python", "-m", "pytest", "tests", "colab/tests", "-q", "-p", "no:cacheprovider"]

@@ -1,12 +1,20 @@
 ﻿'use client';
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { AdminReason, ClassroomAdminWorkspace, ClassroomChangePreview } from '@/lib/classroom-admin';
 import { Dialog, ErrorNotice } from '@/components/ui';
 import { ApiError, errorMessage } from '@/lib/api/errors';
 import { adapter } from '@/lib/data';
 export function ReasonSelect({ data, value, onChange }: { data: ClassroomAdminWorkspace; value: AdminReason | ''; onChange(value: AdminReason | ''): void }) { return <label>Lý do thay đổi<select required value={value} onChange={event => onChange(event.target.value as AdminReason | '')}><option value="">Chọn lý do được phép</option>{data.reasonCodes.map(reason => <option value={reason.value} key={reason.value}>{reason.label}</option>)}</select></label>; }
-export function AdminClassNav({ classId }: { classId: string }) { return <nav className="ca-tabs" aria-label="Quản lý lớp"><Link href={`/admin/classes/${classId}/settings`}>Cài đặt & phân công</Link><Link href={`/admin/classes/${classId}/enrollment`}>Ghi danh học sinh</Link><Link href={`/admin/classes/${classId}/lifecycle`}>Lưu trữ & khôi phục</Link></nav>; }
+export function AdminClassNav({ classId }: { classId: string }) {
+  const pathname = usePathname();
+  const tabs = [['settings', 'Cài đặt & phân công'], ['enrollment', 'Ghi danh học sinh'], ['lifecycle', 'Lưu trữ & khôi phục']] as const;
+  return <nav className="ca-tabs" aria-label="Quản lý lớp">{tabs.map(([path, label]) => {
+    const href = `/admin/classes/${classId}/${path}`;
+    return <Link key={path} href={href} aria-current={pathname === href ? 'page' : undefined}>{label}</Link>;
+  })}</nav>;
+}
 export function BackLink({ homerooms = false }: { homerooms?: boolean }) { return <Link className="ca-back" href={homerooms ? '/admin/homerooms' : '/admin/classes'}>← {homerooms ? 'Danh sách lớp hành chính' : 'Danh sách lớp môn học'}</Link>; }
 export function ClassStatus({ status }: { status: 'ACTIVE' | 'ARCHIVED' }) { return <span className={`ca-status ca-${status.toLowerCase()}`}>{status === 'ACTIVE' ? 'Đang hoạt động' : 'Đã lưu trữ'}</span>; }
 export function PreviewDialog({ preview, data, reason, onClose, onApplied, onStale }: { preview: ClassroomChangePreview | null; data: ClassroomAdminWorkspace; reason: AdminReason | ''; onClose(): void; onApplied(): void; onStale(): void }) {

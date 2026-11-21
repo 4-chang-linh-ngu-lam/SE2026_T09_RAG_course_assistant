@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
+import Link from '@/components/available-link';
 import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { WorkspaceData } from '@/lib/domain';
@@ -136,11 +136,16 @@ export function StudentClassesFeature({ route: _route, data, reload }: Props) {
               : routeHref('s.overview', { classId: cls.id }) ?? `/student/classes/${cls.id}/overview`;
 
             return (
-              <article key={cls.id} className="card class-card student-class-card">
+              <article key={cls.id} className={`card class-card student-class-card ${isHistorical ? 'is-archived' : ''}`}>
                 <div className="class-card-top">
-                  <span className={`tag ${isHistorical ? 'default' : 'primary'}`}>
-                    {cls.code || 'Lớp học'}
-                  </span>
+                  <div className="class-card-ident">
+                    <span className="class-card-emblem" aria-hidden="true">
+                      <Icon name="book" />
+                    </span>
+                    <span className={`tag ${isHistorical ? 'default' : 'primary'}`}>
+                      {cls.code || 'Lớp học'}
+                    </span>
+                  </div>
                   {cls.membershipStatus === 'ENDED' ? (
                     <span className="badge warning">Đã kết thúc ghi danh</span>
                   ) : cls.status === 'ARCHIVED' ? (

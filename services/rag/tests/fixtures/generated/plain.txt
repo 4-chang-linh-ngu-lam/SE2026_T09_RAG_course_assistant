@@ -1,0 +1,2 @@
+Phase zero plain text.
+Independent expected text.
