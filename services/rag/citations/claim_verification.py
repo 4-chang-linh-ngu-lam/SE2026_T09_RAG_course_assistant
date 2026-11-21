@@ -10,7 +10,7 @@ import json
 import re
 
 
-VERSION = "idp-claim-verification-1"
+VERSION = "idp-claim-verification-2"
 MAX_RESPONSE_CHARS = 32_768
 MAX_CLAIMS = 6
 MAX_EVIDENCE_PER_CLAIM = 2
@@ -225,17 +225,19 @@ class ClaimVerifier:
             valid_quote = False
             source_id = ""
             if verdict == "supported":
-                if not 3 <= len(quote) <= 160 or not quote.strip() or not evidence_id:
-                    raise _VerifierError("supported_quote_required")
                 if evidence_id not in expected[cid]["allowed_evidence_ids"]:
                     raise _VerifierError("evidence_id_outside_citation_scope")
                 item = prepared["evidence_by_id"][evidence_id]
-                matches = [item]
-                valid_quote = any(quote in item["text"] and _mapping_ok(
-                    prepared["items_by_id"][item["id"]], quote) for item in matches)
+                valid_quote = (bool(evidence_id) and 3 <= len(quote) <= 160 and bool(quote.strip())
+                               and quote in item["text"]
+                               and _mapping_ok(prepared["items_by_id"][item["id"]], quote))
                 if not valid_quote:
-                    raise _VerifierError("quote_not_exact_or_unmapped")
-                source_id = item["record"]["source_id"]
+                    # A "supported" verdict without an exact, source-mapped quote is
+                    # not verifiable: downgrade this claim to insufficient_evidence
+                    # instead of failing the whole review call.
+                    verdict, evidence_id, quote = "insufficient_evidence", "", ""
+                else:
+                    source_id = item["record"]["source_id"]
             elif evidence_id or quote:
                 raise _VerifierError("unexpected_quote_for_non_supported")
             result.append({"claim_id": cid, "verdict": verdict, "question_match": match,
