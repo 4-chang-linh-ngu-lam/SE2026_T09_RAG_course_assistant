@@ -2,8 +2,8 @@
 import json
 
 import pytest
-from rag.generation.rag_generation import LlamaGenerator, LlamaTokenCounter
-from rag.generation.runtime.sampling import (
+from services.rag.generation.rag_generation import LlamaGenerator, LlamaTokenCounter
+from services.rag.generation.runtime.sampling import (
     GROUNDED_QA,
     ITEM_GENERATION,
     SamplingProfile,
@@ -76,8 +76,8 @@ def test_profiles_validate_and_seed_is_deterministic():
 
 @pytest.mark.unit
 def test_pipeline_refuses_spec_above_adapter_ceiling():
-    from rag.generation.pipeline import GroundedTaskPipeline
-    from rag.generation.tasks.quiz.verify import ITEM_SPECS
+    from services.rag.generation.pipeline import GroundedTaskPipeline
+    from services.rag.generation.tasks.quiz.verify import ITEM_SPECS
 
     generator, sent = adapter(output_ceiling=512)
     generator.count_messages = lambda messages: 10

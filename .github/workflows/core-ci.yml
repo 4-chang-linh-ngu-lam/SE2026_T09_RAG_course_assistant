@@ -15,6 +15,17 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  rag-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r services/rag/requirements-test.txt
+      - run: python -m pytest services/rag/tests -q -p no:cacheprovider
+
   core-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20
