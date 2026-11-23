@@ -25,6 +25,7 @@ from .generation.vi_mrc_reader import (
 from .retrieval.corpus import load_retriever
 from .retrieval.retrieval import AccessChangedError, RetrievalConfig, authorize as validate_authorization
 from .retrieval.mrc_recovery import LexicalDateRecovery, relative_event_candidate
+from .retrieval.multihop import MultiHopDecision
 from .search.retrieval_plan import SearchRequest
 from .citations.source_quotes import SourceBoundSchemaError
 from .citations.quote_alignment import ALIGNMENT_VERSION, align_quotes
@@ -92,6 +93,59 @@ def _validate_citation_alignment(answer_policy, citation_alignment):
         raise ValueError("quote_alignment_requires_source_quotes")
 
 
+def _merge_multihop_retrieval(results, *, counter, decision):
+    """Merge child/context records returned by bounded subquery retrievals."""
+    if not results:
+        raise ValueError("multi-hop retrieval requires at least one result")
+    if len(results) == 1:
+        return results[0]
+    merged_items, seen_items = [], set()
+    ranked_ids, seen_ids = [], set()
+    max_rank = max(len(result.get("ranked_child_ids", ())) for result in results)
+    for rank in range(max_rank):
+        for result in results:
+            ranked = result.get("ranked_child_ids", ())
+            if rank < len(ranked) and ranked[rank] not in seen_ids:
+                seen_ids.add(ranked[rank])
+                ranked_ids.append(ranked[rank])
+    for result in results:
+        for item in result.get("context", {}).get("items", ()):
+            item_id = item.get("id")
+            if item_id not in seen_items:
+                seen_items.add(item_id)
+                merged_items.append(copy.deepcopy(item))
+    context_text = "\n\n".join(f"[{item['id']}]\n{item['text']}" for item in merged_items)
+    first = copy.deepcopy(results[0])
+    first["status"] = "retrieved_unverified" if merged_items else "no_context"
+    first["ranked_child_ids"] = ranked_ids
+    first["context"] = {
+        **first.get("context", {}),
+        "context": context_text,
+        "items": merged_items,
+        "seed_child_ids": list(dict.fromkeys(
+            seed for result in results
+            for seed in result.get("context", {}).get("seed_child_ids", ())
+        )),
+        "budget_count": counter.count(context_text),
+        "skipped_budget_child_ids": list(dict.fromkeys(
+            skipped for result in results
+            for skipped in result.get("context", {}).get("skipped_budget_child_ids", ())
+        )),
+    }
+    traces = [result.get("trace", {}) for result in results]
+    flags = list(dict.fromkeys(flag for result in results for flag in result.get("flags", ())))
+    first["flags"] = flags
+    first["trace"] = {
+        **first.get("trace", {}),
+        "total_ms": sum(trace.get("total_ms", 0.0) for trace in traces),
+        "query_embeddings_computed": sum(trace.get("query_embeddings_computed", 0) for trace in traces),
+        "passes": [stage for trace in traces for stage in trace.get("passes", ())],
+        "multi_hop": {"status": "applied", "mode": decision.mode,
+                      "queries": list(decision.queries), "hops": len(results)},
+    }
+    return first
+
+
 def baseline_config():
     return RetrievalConfig(arms=("dense", "lexical"), decompose_comparisons=False,
         balance_facets=False, enable_recovery=False, neighbor_radius=0, linked_unit_limit=0)
@@ -118,7 +172,8 @@ def vi_mrc_config():
 
 class RagPipeline:
     def __init__(self, retriever, *, generator, answer_policy="baseline", citation_alignment="none",
-                 verifier=None, on_verifier_error="keep", mrc_reader=None, mrc_recovery=None):
+                 verifier=None, on_verifier_error="keep", mrc_reader=None, mrc_recovery=None,
+                 multihop_planner=None):
         if retriever.counter.identity != generator.counter.identity:
             raise ValueError("retrieval context must use the generator tokenizer")
         _answer_version(answer_policy)  # validates the selected offline answer contract
@@ -145,7 +200,12 @@ class RagPipeline:
             raise ValueError("invalid_claim_verifier")
         if on_verifier_error not in ("keep", "refuse"):
             raise ValueError("invalid_on_verifier_error")
+        if multihop_planner is not None and not callable(getattr(multihop_planner, "plan", None)):
+            raise ValueError("invalid_multihop_planner")
+        if multihop_planner is not None and not isinstance(getattr(multihop_planner, "identity", None), dict):
+            raise ValueError("invalid_multihop_planner_identity")
         self.retriever, self.generator = retriever, generator
+        self.multihop_planner = multihop_planner
         self.mrc_reader, self.mrc_recovery = mrc_reader, mrc_recovery
         self._verifier = verifier
         self._on_verifier_error = on_verifier_error
@@ -160,6 +220,7 @@ class RagPipeline:
                          "on_verifier_error": on_verifier_error if verifier is not None else None,
                          "retrieval": copy.deepcopy(retriever.identity),
                          "generator": copy.deepcopy(generator.identity),
+                         "multihop_planner": copy.deepcopy(getattr(multihop_planner, "identity", None)),
                          "mrc_reader": copy.deepcopy(getattr(mrc_reader, "identity", None)),
                          "mrc_recovery": copy.deepcopy(getattr(mrc_recovery, "identity", None))}
 
@@ -170,7 +231,8 @@ class RagPipeline:
     @classmethod
     def from_corpus(cls, directory, *, encoder, generator, config=None, reranker=None,
                     answer_policy="baseline", citation_alignment="none", verifier=None,
-                    on_verifier_error="keep", mrc_reader=None, mrc_recovery=None):
+                    on_verifier_error="keep", mrc_reader=None, mrc_recovery=None,
+                    multihop_planner=None):
         _answer_version(answer_policy)
         _validate_citation_alignment(answer_policy, citation_alignment)
         retriever, _, _ = load_retriever(directory, encoder=encoder, context_counter=generator.counter,
@@ -178,7 +240,7 @@ class RagPipeline:
         return cls(retriever, generator=generator, answer_policy=answer_policy,
                    citation_alignment=citation_alignment, verifier=verifier,
                    on_verifier_error=on_verifier_error, mrc_reader=mrc_reader,
-                   mrc_recovery=mrc_recovery)
+                   mrc_recovery=mrc_recovery, multihop_planner=multihop_planner)
 
     def answer(self, request: SearchRequest, *, authorize):
         started = time.perf_counter()
@@ -190,6 +252,7 @@ class RagPipeline:
                 or self.identity.get("version") != _rag_version(
                     self._answer_policy_binding, self._citation_alignment_binding)
                 or self.generator.identity != self.identity["generator"]
+                or getattr(self.multihop_planner, "identity", None) != self.identity["multihop_planner"]
                 or getattr(self.mrc_reader, "identity", None) != self.identity["mrc_reader"]
                 or getattr(self.mrc_recovery, "identity", None) != self.identity["mrc_recovery"]
                 or self.retriever.identity != self.identity["retrieval"]
@@ -204,7 +267,44 @@ class RagPipeline:
                 raise AccessChangedError("authorization changed during RAG; discard and retry")
             return value
 
-        retrieved = self.retriever.retrieve(request, authorize=current)
+        planner_trace = None
+        decision = MultiHopDecision()
+        if self.multihop_planner is not None:
+            try:
+                planned = self.multihop_planner.plan(request)
+                if not isinstance(planned, MultiHopDecision):
+                    raise ValueError("multi-hop planner must return MultiHopDecision")
+                decision = planned
+                planner_trace = {"status": "planned", "mode": decision.mode,
+                                 "queries": list(decision.queries), "hops": None}
+            except (ValueError, RuntimeError, OSError) as error:
+                decision = MultiHopDecision()
+                planner_trace = {"status": "planner_failed",
+                                 "error": error.safe() if callable(getattr(error, "safe", None))
+                                 else type(error).__name__, "mode": "direct", "queries": [], "hops": 1}
+            current()
+        if decision.mode == "rewrite" and decision.queries:
+            retrieval_requests = [replace(
+                request, query=decision.queries[0], facets=(), context_hint=""
+            )]
+        else:
+            retrieval_requests = [request]
+            for query in decision.queries:
+                if query.strip() == request.query.strip():
+                    continue
+                retrieval_requests.append(replace(request, query=query, facets=(), context_hint=""))
+        if planner_trace is not None:
+            planner_trace["hops"] = len(retrieval_requests)
+        retrieved_results = [self.retriever.retrieve(subrequest, authorize=current)
+                             for subrequest in retrieval_requests]
+        retrieved = _merge_multihop_retrieval(
+            retrieved_results, counter=self.generator.counter, decision=decision,
+        )
+        if planner_trace is not None:
+            merged_trace = {**retrieved["trace"].get("multi_hop", {}), **planner_trace}
+            merged_trace["hops"] = len(retrieved_results)
+            retrieved["trace"]["multi_hop"] = merged_trace
+            planner_trace = merged_trace
         evidence = evidence_items(retrieved["context"])
         fitted_result = fit_evidence(
             evidence,
@@ -382,5 +482,6 @@ class RagPipeline:
                 "primary_usage": primary_raw.get("usage", {}) if isinstance(primary_raw, dict) else {},
                 "citation_alignment": self._citation_alignment_binding,
                 "quote_alignment_version": ALIGNMENT_VERSION if self._citation_alignment_binding == "bm25" else None,
-                "server_timings": raw.get("server_timings", {}) if isinstance(raw, dict) else {}},
+                "server_timings": raw.get("server_timings", {}) if isinstance(raw, dict) else {},
+                **({"multi_hop": planner_trace} if planner_trace is not None else {})},
             "grants_authorization": False, "certifies_answer_correctness": False}

@@ -51,6 +51,22 @@ recovered answer is accepted only with a positive reader margin or the checked
 relative-year rule.  This is an experimental non-commercial path; it is not
 the default policy or a production quality claim.
 
+## Optional bounded multi-hop planner
+
+`RagPipeline` accepts an opt-in `multihop_planner`. The planner may return a
+validated `MultiHopDecision` in `services.rag.retrieval.multihop`: `direct`
+keeps the raw request, `rewrite` replaces it with one standalone query, and
+`decompose` keeps the raw request plus at most two bounded subqueries. Each
+retrieval still runs through the caller's fresh authorization callback; only
+authorized evidence is merged before normal packing and generation. The
+planner never supplies evidence or answer text. `GeneratorMultiHopPlanner`
+uses the injected generator and is gated by follow-up/composite/context cues;
+callers needing deterministic routing can use `CallableMultiHopPlanner`.
+
+The default remains planner-off for backward-compatible latency and budget
+behavior. Evaluation harnesses enable it explicitly with `--multi-hop`, and
+record the planner identity and decision under `trace.multi_hop`.
+
 The older `indexing.load_corpus()` entry point remains a compatibility wrapper
 for prototype callers. New pipeline composition uses the retrieval boundary.
 
