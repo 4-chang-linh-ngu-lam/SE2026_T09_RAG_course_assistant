@@ -48,69 +48,83 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
       />
     );
   }
+
   const announcement = overview?.announcement;
   const materials = overview?.recentMaterials ?? [];
   const activities = overview?.upcomingActivities ?? [];
   const classId = summary.id;
+  const learningPending = data.pendingCapabilities?.includes('Learning') ?? false;
+  const documentPending = data.pendingCapabilities?.includes('Document') ?? false;
+  const tutorPending = data.pendingCapabilities?.includes('AI Tutor') ?? false;
 
   return (
     <div className="class-overview-container">
       {summary.teacherName && <p className="muted">Giáo viên chính: {summary.teacherName}</p>}
-      {/* Latest Class Announcement */}
-      {announcement && (
-        <section className="card announcement-hero-card">
-          <div className="announcement-badge-row">
-            <span className="tag primary">Bài viết mới nhất</span>
-            <span className="muted text-sm">{announcement.timeAgo}</span>
-          </div>
 
-          <div className="announcement-author-row">
-            <div className="avatar-circle">
-              {announcement.authorInitials}
-            </div>
-            <div>
-              <strong>{announcement.authorName}</strong>
-              <p className="muted text-xs">{announcement.authorRole}</p>
-            </div>
+      <section className="overview-section">
+        <div className="section-header">
+          <div>
+            <h2>Bảng tin lớp</h2>
+            <p className="muted">Bài viết và trao đổi trong lớp</p>
           </div>
+          <Link
+            className="link-button text-sm"
+            href={routeHref('s.feed', { classId }) ?? `/student/classes/${classId}/feed`}
+          >
+            Mở bảng tin <Icon name="chevronRight" />
+          </Link>
+        </div>
 
-          <div className="announcement-body">
-            <h3>{announcement.title}</h3>
-            <p className="announcement-text">{announcement.content}</p>
-            {announcement.deadlineNotice && (
-              <div className="notice-box info">
-                <Icon name="clock" />
-                <span>{announcement.deadlineNotice}</span>
+        {announcement ? (
+          <article className="card announcement-hero-card">
+            <div className="announcement-badge-row">
+              <span className="tag primary">Bài viết mới nhất</span>
+              <span className="muted text-sm">{announcement.timeAgo}</span>
+            </div>
+
+            <div className="announcement-author-row">
+              <div className="avatar-circle">{announcement.authorInitials}</div>
+              <div>
+                <strong>{announcement.authorName}</strong>
+                <p className="muted text-xs">{announcement.authorRole}</p>
               </div>
-            )}
-          </div>
+            </div>
 
-          <div className="announcement-footer">
-            <Link
-              className="link-button"
-              href={routeHref('s.feed', { classId }) ?? `/student/classes/${classId}/feed`}
-            >
-              Mở thảo luận bảng tin <Icon name="chevronRight" />
-            </Link>
+            <div className="announcement-body">
+              <h3>{announcement.title}</h3>
+              <p className="announcement-text">{announcement.content}</p>
+              {announcement.deadlineNotice && (
+                <div className="notice-box info">
+                  <Icon name="clock" />
+                  <span>{announcement.deadlineNotice}</span>
+                </div>
+              )}
+            </div>
+          </article>
+        ) : (
+          <div className="card empty-card">
+            <p className="muted">Lớp chưa có bài đăng nào. Bài viết mới sẽ xuất hiện tại đây.</p>
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
-      {/* Two Column Layout: Activities & Materials */}
       <div className="overview-two-col">
-        {/* Upcoming Activities */}
-        {!data.pendingCapabilities?.includes('Learning') && (<section className="overview-col-main">
+        <section className="overview-col-main">
           <div className="section-header">
             <div>
-              <h2>Hoạt động & Bài tập sắp tới</h2>
+              <h2>Hoạt động &amp; Bài tập sắp tới</h2>
               <p className="muted">Nhiệm vụ học tập cần chú ý trong lớp</p>
             </div>
           </div>
 
           <div className="activity-list">
-            {activities.length === 0 ? (
+            {learningPending ? (
+              <div className="card empty-card" role="status">
+                <p className="muted">Hoạt động và bài tập sẽ hiển thị tại đây khi dịch vụ học tập được kết nối.</p>
+              </div>
+            ) : activities.length === 0 ? (
               <div className="card empty-card">
-                <p className="muted">{data.pendingCapabilities?.includes('Learning') ? 'Dịch vụ bài tập và kết quả học tập chưa được kết nối.' : 'Hiện tại lớp chưa có hoạt động hay bài tập nào mới.'}</p>
+                <p className="muted">Hiện tại lớp chưa có hoạt động hay bài tập nào mới.</p>
               </div>
             ) : (
               activities.map(act => (
@@ -134,29 +148,33 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
               ))
             )}
           </div>
-        </section>)}
+        </section>
 
-        {/* Recent Materials & Lumi Class Assistant */}
         <div className="overview-col-side">
-          {/* Recent Materials */}
-          {!data.pendingCapabilities?.includes('Document') && (<section className="overview-section">
+          <section className="overview-section">
             <div className="section-header">
               <div>
                 <h2>Tài liệu gần đây</h2>
                 <p className="muted">Bài giảng và tài liệu học tập</p>
               </div>
-              <Link
-                className="link-button text-sm"
-                href={routeHref('s.documents', { classId }) ?? `/student/classes/${classId}/documents`}
-              >
-                Xem tất cả
-              </Link>
+              {!documentPending && (
+                <Link
+                  className="link-button text-sm"
+                  href={routeHref('s.documents', { classId }) ?? `/student/classes/${classId}/documents`}
+                >
+                  Xem tất cả
+                </Link>
+              )}
             </div>
 
             <div className="materials-list">
-              {materials.length === 0 ? (
+              {documentPending ? (
+                <div className="card empty-card" role="status">
+                  <p className="muted">Tài liệu lớp sẽ hiển thị tại đây khi dịch vụ tài liệu được kết nối.</p>
+                </div>
+              ) : materials.length === 0 ? (
                 <div className="card empty-card">
-                  <p className="muted">{data.pendingCapabilities?.includes('Document') ? 'Dịch vụ tài liệu chưa được kết nối.' : 'Chưa có tài liệu nào được đăng tải.'}</p>
+                  <p className="muted">Chưa có tài liệu nào được đăng tải.</p>
                 </div>
               ) : (
                 materials.map(mat => (
@@ -179,25 +197,28 @@ export function ClassOverviewFeature({ route: _route, data, reload }: Props) {
                 ))
               )}
             </div>
-          </section>)}
+          </section>
 
-          {/* Ask Lumi About This Class */}
-          {!data.pendingCapabilities?.includes('AI Tutor') && (<section className="overview-section">
+          <section className="overview-section">
             <article className="card lumi-tutor-box">
               <div className="lumi-box-header">
                 <span className="lumi-badge">✨ Hỏi Lumi trong lớp này</span>
                 <p className="muted text-sm">
-                  Lumi trả lời dựa trên tài liệu và bài giảng của giáo viên lớp {summary?.name ?? ''}
+                  Lumi trả lời dựa trên tài liệu và bài giảng của giáo viên lớp {summary.name}
                 </p>
               </div>
-              <Link
-                className="button primary full-width"
-                href={routeHref('s.tutor', { classId }) ?? `/student/classes/${classId}/tutor`}
-              >
-                Đặt câu hỏi cho Lumi <Icon name="chevronRight" />
-              </Link>
+              {tutorPending ? (
+                <p className="notice" role="status">Chức năng hỏi Lumi sẽ hiển thị tại đây khi dịch vụ Gia sư AI được kết nối.</p>
+              ) : (
+                <Link
+                  className="button primary full-width"
+                  href={routeHref('s.tutor', { classId }) ?? `/student/classes/${classId}/tutor`}
+                >
+                  Đặt câu hỏi cho Lumi <Icon name="chevronRight" />
+                </Link>
+              )}
             </article>
-          </section>)}
+          </section>
         </div>
       </div>
     </div>
