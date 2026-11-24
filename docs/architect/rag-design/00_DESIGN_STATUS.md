@@ -148,3 +148,12 @@ DOC-D01 đến DOC-D07 ACCEPTED. Chuyển sang technical design: database/ERD, p
 - Retry execution đã xác nhận FAILED tạo job và key mới; resend/polling lỗi giữ nguyên job/key. Không tạo nhiều job đang hoạt động cho cùng version; bảo toàn lịch sử.
 - Transaction T1 hoàn tất upload: STORED, latest pointer, PENDING job; T2 khóa document, xác minh index/version/job và chống stale activation; T3 revoke grant; T4 retry kiểm tra eligibility và tạo job mới. File storage không nằm trong DB transaction: yêu cầu reconciliation và cleanup file mồ côi.
 - Trước migration phải đối chiếu schema/migrations/ID hiện tại; báo xung đột để review, không tự thay đổi quyết định. Chi tiết contract AI, lease/retry policy, cleanup và migration implementation chưa được xác minh.
+
+## DOC-T03 — Public API Contract (ACCEPTED)
+
+**Phương án A — Upload đồng bộ, ingestion bất đồng bộ.** Product Owner đồng ý ngày 25/11/2026.
+
+- Public API dự kiến /api/v1: POST/GET /documents; GET/PATCH/DELETE /documents/{id}; POST/GET /documents/{id}/versions; GET /documents/{id}/versions/{vid}; GET /documents/{id}/versions/{vid}/download; POST/GET /documents/{id}/grants; DELETE /documents/{id}/grants/{gid}; GET /classrooms/{cid}/documents; GET/POST /documents/{id}/versions/{vid}/jobs; GET /documents/{id}/versions/{vid}/jobs/{jid}. Tổng 16 endpoint; đối chiếu routing hiện tại trước implementation.
+- Upload multipart file/title, trả 201 sau khi file lưu và DB transaction tạo version/job bền vững; không chờ AI. Detail trả latest_version, active_rag_version, ingestion status và rag_ready (eligibility, không phải live AI health). DELETE document trả 202, chặn truy cập mới ngay khi DELETING; cleanup bất đồng bộ. Retry trả 202; revoke grant 204.
+- Owner/authorized manager quản lý; học sinh chỉ xem/tải tài nguyên được phép; xác minh quyền Core và Document. Không lộ storage key, lease, index nội bộ. 404 cho tài nguyên không được phép biết tồn tại; 403 cho thao tác bị cấm trên tài nguyên được phép thấy; 503 nếu không xác minh được quyền. HTTP 200/201/202/204/400/401/403/404/409/413/415/422/429/503 theo ngữ nghĩa chuẩn; error envelope error.code/message/request_id/details, không lộ nội bộ.
+- Giới hạn 50 MB, PDF/DOCX/PPTX/TXT, pagination 20/100, frontend polling 3–5s vẫn đề xuất PENDING; xác nhận định dạng với AI team. Admin/co-teacher/ownership transfer/historical download, full DTO/OpenAPI và routing compatibility cần review trước implementation.
