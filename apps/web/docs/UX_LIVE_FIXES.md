@@ -16,7 +16,9 @@ preserved. Changes cover existing classroom, feed, calendar and account flows.
 - Live sidebar/class tabs and classroom quick links hide unavailable Document,
   Tutor, Learning, analytics, reports and Admin data-request screens. Direct
   routes retain their existing unavailable states with product-facing copy.
-  Unavailable learning/material widgets are omitted on classroom overview/home.
+  Classroom overview keeps Core feed navigation and its empty state visible.
+  Pending Learning, Document and Tutor integrations show non-interactive status
+  cards instead of leaving the overview blank.
 - Preview progress defaults to the earliest confirmed result in the permitted
   student/class scope. An explicit date filter continues to take precedence.
   A regression covers October scores still appearing by default in November.
