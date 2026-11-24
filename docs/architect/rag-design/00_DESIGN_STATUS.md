@@ -53,3 +53,11 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 ## Giới hạn review
 
 Đã đọc đầy đủ 10 Markdown discovery và đối chiếu tài liệu nguồn chuẩn. Chưa chạy mã hay test mới, chưa xác minh remote Production runtime. Đây là biên bản kiến trúc, không phải nghiệm thu thực thi.
+
+## Điều chỉnh phạm vi thiết kế — 25/11/2026 (ACCEPTED)
+
+- Product Owner phụ trách Core, Document, Learning, Notification và tích hợp toàn hệ thống.
+- Nhóm AI/RAG phụ trách AI Service và RAG Engine; Product Owner hỗ trợ endpoint/adapter tích hợp khi cần.
+- RAG-D01 giữ ACCEPTED. RAG-D02 (Canonical v1/v2) DEFERRED, giao nhóm AI/RAG quyết định nội bộ; hợp đồng dữ liệu liên service vẫn cần hai bên thống nhất.
+- Thứ tự review tiếp theo: Document–AI integration contract; authorization Core/Document/AI; Learning–AI; lifecycle tài liệu/index; public API/frontend; lỗi/retry/timeout; integration tests/deployment.
+- Không phê duyệt trước các contract hoặc thuật toán chưa được thảo luận.
