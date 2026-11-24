@@ -87,3 +87,12 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 - Document Service chủ động polling trạng thái job qua internal REST API của AI; không phụ thuộc trình duyệt, lưu trạng thái bền vững và phục hồi sau restart.
 - Hỗ trợ backoff khi lỗi hoặc job kéo dài; xác minh job/version và điều kiện activation trước READY. Không coi lỗi kết nối là kết quả xử lý thất bại.
 - Không yêu cầu callback trong Increment 1; có thể nâng cấp Hybrid sau này. Chu kỳ polling, scheduler, endpoint/schema và retry policy cụ thể vẫn PENDING.
+
+## DOC-D04 — Vòng đời và trạng thái tài liệu (ACCEPTED)
+
+**Phương án B — Tách trạng thái theo trách nhiệm.** Product Owner đồng ý ngày 25/11/2026.
+
+- Tách vòng đời Document, trạng thái lưu file DocumentVersion và trạng thái thực thi IngestionJob; không gộp thành một status chung.
+- Trạng thái dự kiến: Document ACTIVE/DELETING/DELETED; DocumentVersion UPLOADING/STORED/FAILED; IngestionJob PENDING/PROCESSING/SUCCEEDED/FAILED. Tên enum và schema cụ thể vẫn PENDING.
+- AI lỗi không làm mất khả năng quản lý/tải file đã lưu nếu quyền hiện hành cho phép. Retry bảo toàn lịch sử thực thi; SUCCEEDED không đồng nghĩa index đã activation.
+- Query chỉ được phép với phiên bản/index hợp lệ đã kích hoạt và quyền hiện hành; chính sách version activation, reindex, deletion và authorization chi tiết vẫn PENDING.
