@@ -114,3 +114,15 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 - Không tin quyền/danh sách tài liệu từ frontend hoặc metadata index như nguồn authorization. Kiểm tra trước retrieval và trước khi trả nội dung; fail closed nếu không xác minh được quyền hiện hành.
 - Thu hồi quyền/xóa chặn truy vấn mới mà không chờ xóa index. Streaming revocation cần contract riêng; nội dung đã gửi không thể thu hồi.
 - Service-to-service authentication, endpoint/schema, consistency/race handling, streaming và Learning D6 contract vẫn PENDING. Không áp đặt cách bố trí vector index nội bộ.
+
+## DOC-D07 — Lưu trữ và bàn giao file (ACCEPTED)
+
+**Phương án B — Internal Download API + Storage Abstraction.** Product Owner đồng ý ngày 25/11/2026.
+
+- Document sở hữu file gốc; Increment 1 dùng Docker Volume riêng bền vững qua restart, thông qua Storage Interface để có thể thay adapter Object Storage sau này.
+- AI tải đúng DocumentVersion qua Internal Download API có xác thực service và giới hạn phạm vi job; streaming file, không Base64 trong JSON, không chia sẻ đường dẫn vật lý. SHA-256 kiểm tra toàn vẹn; AI quản lý và dọn file tạm.
+- Giới hạn dung lượng, định dạng, credential, endpoint/schema và interface cụ thể vẫn PENDING.
+
+## Mốc hoàn thành lựa chọn kiến trúc nền tảng Document Service
+
+DOC-D01 đến DOC-D07 ACCEPTED. Chuyển sang technical design: database/ERD, public API, internal API, retry/timeout/idempotency, integration tests/acceptance criteria và implementation tasks. Các thiết kế chi tiết chưa được phê duyệt; RAG-D02 vẫn DEFERRED cho nhóm AI/RAG.
