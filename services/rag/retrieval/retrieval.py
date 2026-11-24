@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import defaultdict
 import copy
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 import hashlib
 import math
 import time
@@ -17,15 +18,19 @@ from ..chunking.chunking import validate_chunking
 from ..chunking.chunk_views import eligible_with_context
 from ..indexing.embedding_store import load_generation, profile_id
 from ..packing.retrieval_context import expand_context
+from ..search.retrieval_bridge import bridge_rankings
 from ..search.retrieval_lexical import FieldedBM25, accent_fold
 from ..search.retrieval_diversity import mmr_ids
 from ..search.retrieval_fusion import fuse_rankings
 from ..search.retrieval_probes import augment_fused, probe_candidates
 from ..packing.passage_context import passage_context
-from ..search.retrieval_plan import SearchRequest, anchors, facet_supported, make_plan, topic_terms
+from ..search.retrieval_plan import (
+    SearchRequest, anchors, exercise_anchors, exercise_query_anchors,
+    facet_supported, make_plan, topic_terms,
+)
 from ..search.text_reranking import PairBudgetError
 
-RETRIEVAL_VERSION = "idp-text-retrieval-1"
+RETRIEVAL_VERSION = "idp-text-retrieval-2"
 
 
 class AccessChangedError(PermissionError):
@@ -49,7 +54,7 @@ class RetrievalConfig:
     soft_deadline_ms: int = 10000
     seed_selection: str = "ranked"
     mmr_weight: float = .7
-    accent_fallback: bool = False
+    accent_fallback: bool = True
     fusion_method: str = "rrf"
     lexical_fusion_weight: float = 1.0
     lexical_probe_limit: int = 0
@@ -64,6 +69,8 @@ class RetrievalConfig:
     extend_continuations: bool = False
     passage_strategy: str = "bm25"
     passage_gate: str = "always"
+    # Lexical bridge hop (search/retrieval_bridge.py); 0 keeps it off.
+    bridge_seeds: int = 0
 
     def __post_init__(self):
         if type(self.passage_window) is not int or not 0 <= self.passage_window <= 2:
@@ -85,6 +92,10 @@ class RetrievalConfig:
                 or not math.isfinite(self.lexical_fusion_weight)
                 or not 0 < self.lexical_fusion_weight <= 10):
             raise ValueError("lexical_fusion_weight must be finite numeric in (0, 10]")
+        if type(self.bridge_seeds) is not int or not 0 <= self.bridge_seeds <= 4:
+            raise ValueError("bridge_seeds must be an integer in 0..4")
+        if self.bridge_seeds and "lexical" not in self.arms:
+            raise ValueError("bridge_seeds requires the lexical arm")
         if type(self.lexical_probe_limit) is not int or not 0 <= self.lexical_probe_limit <= 4:
             raise ValueError("lexical_probe_limit must be an integer in 0..4")
         if type(self.lexical_probe_hits) is not int or not 1 <= self.lexical_probe_hits <= 4:
@@ -128,9 +139,13 @@ def _authorization(callback, known):
         value = callback()
     except Exception:
         raise PermissionError("current authorization could not be verified") from None
-    if not isinstance(value, set) or any(not isinstance(x, str) for x in value) or not value <= known:
+    if not isinstance(value, set):
         raise PermissionError("authorization must return known current child IDs")
-    return value
+    # The provider may mutate and reuse the same set between checks.
+    snapshot = set(value)
+    if any(not isinstance(x, str) for x in snapshot) or not snapshot <= known:
+        raise PermissionError("authorization must return known current child IDs")
+    return snapshot
 
 
 def authorize(callback, known):
@@ -190,12 +205,17 @@ class TextRetriever:
         # The generation is immutable. Runtime candidates are indexed by its row
         # order, never by a separately sorted chunk registry.
         self.children, self.parents = children, parents
-        # Keep immutable source text available to opt-in source recovery.  The
-        # normal retrieval path still returns only authorized context records.
-        self.sources = dict(sources)
         self.bundle = {"children": list(children.values()), "parents": list(parents.values())}
         self.row_ids = [r["chunk_id"] for r in rows]
         self.position = {cid: i for i, cid in enumerate(self.row_ids)}
+        # Reuse only an identical authorized, eligible and scoped row set.
+        # The bounded cache is local to this immutable corpus generation.
+        self._lexical_index = lru_cache(maxsize=4)(self._build_lexical_index)
+        self._path_anchors = {
+            cid: anchors(" > ".join(c.get("context_path", c["section_path"])) + " " + c.get("unit_label", ""))
+            for cid, c in children.items()
+        }
+        self._exercise_anchors = {cid: exercise_anchors(c) for cid, c in children.items()}
         self.vectors, self.profile = vectors, profile
         self.identity = {"version": RETRIEVAL_VERSION, "profile_id": profile_id(profile),
             "ordered_ids_sha256": manifest["ordered_ids_sha256"], "config": asdict(self.config),
@@ -205,6 +225,10 @@ class TextRetriever:
         if self.config.passage_strategy in {"cross_encoder", "sentence_lexical"}:
             from ..packing.semantic_packing import SEMANTIC_PACKING_VERSION
             self.identity["semantic_packing"] = SEMANTIC_PACKING_VERSION
+
+    def _build_lexical_index(self, eligible, fold_accents):
+        return FieldedBM25([self.children[cid] for cid in self.row_ids if cid in eligible],
+                           fold_accents=fold_accents)
 
     def _query_vector(self, text, cache):
         if text not in cache:
@@ -251,10 +275,23 @@ class TextRetriever:
                             probe_lexical = folded
                 if "lexical" in self.config.arms:
                     arms.append((lexical_arm, qi, list(lex.items())[:depth]))
+                if self.config.bridge_seeds and qi == 0:
+                    # Second evidence for two-hop questions: one extra RRF arm
+                    # per seed, from the same authorized lexical statistics.
+                    bridge_index = folded if lexical_arm == "lexical_accent_fallback" else lexical
+                    rankings, _ = bridge_rankings(
+                        bridge_index, query, list(lex),
+                        lambda cid: self.children[cid].get("index_body", self.children[cid]["text"]),
+                        seeds=self.config.bridge_seeds)
+                    arms.extend(("lexical_bridge", qi, ranking[:depth]) for ranking in rankings)
             if "structure" in self.config.arms:
-                wanted = anchors(query)
-                matches = [c["id"] for c in children if wanted and wanted <= anchors(
-                    " > ".join(c.get("context_path", c["section_path"])) + " " + c.get("unit_label", ""))]
+                wanted = set(plan["query_anchors"][qi])
+                tasks = exercise_query_anchors(wanted)
+                remaining = {anchor for anchor in wanted if not exercise_query_anchors([anchor])}
+                task_matches = [cid for cid in eligible if tasks and tasks <= self._exercise_anchors[cid]
+                                and remaining <= self._path_anchors[cid]]
+                # Prefer an actual numbered exercise over a same-number lesson.
+                matches = task_matches or [cid for cid in eligible if wanted and wanted <= self._path_anchors[cid]]
                 matches.sort(key=lambda cid: (-lex.get(cid, 0), -dense.get(cid, 0), cid))
                 arms.append(("structure", qi, [(cid, float(len(wanted))) for cid in matches[:depth]]))
             if "section" in self.config.arms:
@@ -285,6 +322,10 @@ class TextRetriever:
         ordered = fuse_rankings(arms, method=self.config.fusion_method,
                                 rrf_constant=self.config.rrf_constant,
                                 lexical_weight=self.config.lexical_fusion_weight)
+        direct_matches = {cid for name, qi, ranking in arms if name == "structure" and qi == 0
+                          for cid, _ in ranking}
+        if direct_matches:
+            ordered.sort(key=lambda row: row["id"] not in direct_matches)
         selected = ordered[:self.config.fusion_limit]
         trace = {
             "depth": depth, "arms": [{"arm": a, "query_index": qi, "count": len(r)} for a, qi, r in arms],
@@ -344,11 +385,17 @@ class TextRetriever:
                     rerank_trace = {"status": "failed_fallback_rrf" if config.fusion_method == "rrf"
                                     else "failed_fallback_fusion", "count": len(head),
                         "reason": "pair_budget" if isinstance(error, PairBudgetError) else "invalid_output_or_runtime"}
+        direct = {row["id"] for row in ranked if any(
+            m["arm"] == "structure" and m["query_index"] == 0 for m in row["matches"])}
+        if direct:
+            ranked.sort(key=lambda row: row["id"] not in direct)
         seed_ids = [c["id"] for c in ranked[:config.seed_limit]]
         if config.seed_selection == "mmr" and ranked:
             pool_ids = [c["id"] for c in ranked[:config.rerank_limit]]
             seed_ids = mmr_ids(pool_ids, self.vectors[[self.position[cid] for cid in pool_ids]],
                                count=config.seed_limit, weight=config.mmr_weight)
+            if direct:
+                seed_ids = list(dict.fromkeys([ranked[0]["id"], *seed_ids]))[:config.seed_limit]
         if config.balance_facets and ranked and plan["facets"]:
             preferred = seed_ids
             seed_ids = [ranked[0]["id"]]
@@ -438,7 +485,8 @@ class TextRetriever:
             raise ValueError("reranker profile changed after index binding")
         if asdict(self.config) != self.identity["config"] or self.counter.identity != self.identity["context_counter"]:
             raise ValueError("retrieval configuration/counter changed after index binding")
-        plan = make_plan(request, decompose_comparisons=self.config.decompose_comparisons)
+        plan = make_plan(request, decompose_comparisons=self.config.decompose_comparisons,
+                         accent_fallback=self.config.accent_fallback)
         allowed = _authorization(authorize, set(self.children))
         eligible = {cid for cid in allowed if self.children[cid]["retrieval_eligible"]
             and (request.scope_source_ids is None or self.children[cid]["source_id"] in request.scope_source_ids)}
@@ -451,12 +499,13 @@ class TextRetriever:
                 "has_context_hint": plan["has_context_hint"], "anchor_count": len(plan["anchors"])},
             "eligible_count": len(eligible), "context_dependency_exclusions": scoped_eligible_count - len(eligible),
             "passes": [], "soft_deadline_is_hard_timeout": False}
-        lexical = FieldedBM25([self.children[cid] for cid in self.row_ids if cid in eligible]) if (
+        scope_key = frozenset(eligible)
+        lexical = self._lexical_index(scope_key, False) if (
             {"lexical", "section"} & set(self.config.arms)) else None
         # Build alternate statistics only for an entirely unaccented query and
         # only over the same authorized/scoped subset. Accented queries retain
         # the exact original lexical route; this does not guess missing accents.
-        folded = FieldedBM25(lexical.children, fold_accents=True) if (lexical is not None
+        folded = self._lexical_index(scope_key, True) if (lexical is not None
             and self.config.accent_fallback and any(accent_fold(q) == q.casefold() for q in plan["queries"])) else None
         cache, ranked = {}, []
         context = {"context": "", "items": [], "budget_count": self.counter.count(""),
