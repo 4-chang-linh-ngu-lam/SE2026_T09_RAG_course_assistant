@@ -79,3 +79,11 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 - Job phải bền vững qua restart, hỗ trợ idempotency và retry; Document vẫn hoạt động khi AI offline, không đánh dấu READY khi chưa xác minh index đúng phiên bản và đủ điều kiện kích hoạt.
 - Không bổ sung message broker cho tích hợp này trong Increment 1; giữ khả năng chuyển đổi sau này. Không coi FastAPI BackgroundTasks đơn thuần là cơ chế job bền vững.
 - Polling/callback, worker runtime, endpoint/schema cụ thể, retry policy, authorization và activation contract vẫn PENDING; nhóm AI/RAG sở hữu thực thi nội bộ.
+
+## DOC-D03 — Đồng bộ trạng thái xử lý (ACCEPTED)
+
+**Phương án A — Polling cho Increment 1.** Product Owner đồng ý ngày 25/11/2026.
+
+- Document Service chủ động polling trạng thái job qua internal REST API của AI; không phụ thuộc trình duyệt, lưu trạng thái bền vững và phục hồi sau restart.
+- Hỗ trợ backoff khi lỗi hoặc job kéo dài; xác minh job/version và điều kiện activation trước READY. Không coi lỗi kết nối là kết quả xử lý thất bại.
+- Không yêu cầu callback trong Increment 1; có thể nâng cấp Hybrid sau này. Chu kỳ polling, scheduler, endpoint/schema và retry policy cụ thể vẫn PENDING.
