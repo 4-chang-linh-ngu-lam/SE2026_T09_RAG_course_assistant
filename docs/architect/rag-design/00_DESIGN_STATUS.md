@@ -61,3 +61,12 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 - RAG-D01 giữ ACCEPTED. RAG-D02 (Canonical v1/v2) DEFERRED, giao nhóm AI/RAG quyết định nội bộ; hợp đồng dữ liệu liên service vẫn cần hai bên thống nhất.
 - Thứ tự review tiếp theo: Document–AI integration contract; authorization Core/Document/AI; Learning–AI; lifecycle tài liệu/index; public API/frontend; lỗi/retry/timeout; integration tests/deployment.
 - Không phê duyệt trước các contract hoặc thuật toán chưa được thảo luận.
+
+## DOC-D01 — Ranh giới xử lý tài liệu (ACCEPTED)
+
+**Phương án A — Document quản lý, AI xử lý nội dung.** Product Owner phê duyệt ngày 25/11/2026.
+
+- Document Service sở hữu file gốc, metadata, DocumentVersion, grants/revocation, kiểm tra upload, điều phối ingestion jobs và theo dõi trạng thái xử lý; yêu cầu AI xử lý hoặc xóa index khi cần.
+- AI Service sở hữu thực thi trích xuất/OCR/Canonical/chunking/embedding/indexing và dữ liệu index dẫn xuất; báo cáo kết quả xử lý cho Document.
+- Quyết định này cụ thể hóa RAG-D01: Document sở hữu nghiệp vụ ingestion, AI thực thi pipeline nội dung. Đề xuất trước đây về thực thi IDP/chunking trong Document worker không được chọn cho phạm vi này.
+- Canonical v1/v2 và thuật toán nội bộ vẫn thuộc nhóm AI/RAG (RAG-D02 DEFERRED). Giao thức REST/queue, schema, retry, idempotency, activation và authorization contract vẫn PENDING.
