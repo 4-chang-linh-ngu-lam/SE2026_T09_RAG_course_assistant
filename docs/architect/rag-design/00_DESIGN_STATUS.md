@@ -105,3 +105,12 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 - Giữ phiên bản RAG cũ hợp lệ trong khi phiên bản mới đang xử lý hoặc thất bại; chỉ chuyển con trỏ bằng transaction trong Document khi index mới đúng version, đã xác minh và đủ điều kiện activation.
 - Kết quả job cũ đến muộn không được kích hoạt nhầm phiên bản. Thu hồi quyền/xóa phải chặn truy vấn mà không chờ xóa index. Citation tham chiếu đúng phiên bản đã dùng.
 - Document quyết định version được phép truy vấn; AI bảo đảm index tương ứng tồn tại và truy vấn được. Retention phiên bản cũ, rollback, giao thức xác nhận index và authorization chi tiết vẫn PENDING.
+
+## DOC-D06 — Quyền truy cập tài liệu và thu hồi quyền (ACCEPTED)
+
+**Phương án B — Core + Document xác minh quyền hiện hành.** Product Owner đồng ý ngày 25/11/2026.
+
+- Core sở hữu membership và quyền sử dụng AI trong lớp; Document sở hữu grant/revocation và phạm vi DocumentVersion đang hoạt động. AI/RAG thực thi retrieval chỉ trong phạm vi đã xác minh.
+- Không tin quyền/danh sách tài liệu từ frontend hoặc metadata index như nguồn authorization. Kiểm tra trước retrieval và trước khi trả nội dung; fail closed nếu không xác minh được quyền hiện hành.
+- Thu hồi quyền/xóa chặn truy vấn mới mà không chờ xóa index. Streaming revocation cần contract riêng; nội dung đã gửi không thể thu hồi.
+- Service-to-service authentication, endpoint/schema, consistency/race handling, streaming và Learning D6 contract vẫn PENDING. Không áp đặt cách bố trí vector index nội bộ.
