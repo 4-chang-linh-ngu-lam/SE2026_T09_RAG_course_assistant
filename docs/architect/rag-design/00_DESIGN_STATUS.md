@@ -191,3 +191,13 @@ DOC-D01 đến DOC-D07 ACCEPTED. Chuyển sang technical design: database/ERD, p
 - AC-43–48: real PDF indexing, scoped QA, exact-version citation, version replacement, grant revocation, deletion cleanup.
 - Gates: static, unit, contract/integration, applicable AC, Technical Lead review. DoD: scope/accepted decisions, no unauthorized contract change, tests pass, no secrets/data exposure, config/test instructions, mock vs real evidence, no unexplained skip, review. IMPLEMENTED != VERIFIED != INTEGRATION_ACCEPTED.
 - CI proposal: static/unit/contract on push/PR; relevant integration on service PR; cross-service before integration merge; E2E/real AI smoke before demo; AC/performance before increment acceptance. 358 concurrent users requires explicit workload, not 358 simultaneous inference requests. Exact tooling/layout, quantitative performance, streaming revocation, Learning D6 remain pending. No tests executed by this approval.
+
+## DOC-T07 — Implementation Roadmap (ACCEPTED)
+
+**Phương án B — Incremental Implementation with Technical Lead Review.** Product Owner đồng ý ngày 25/11/2026.
+
+- Roadmap sơ bộ 14 task: DOC-00 discovery; DOC-01 database/migrations; DOC-02 storage; DOC-03 service JWT; DOC-04 DTO/OpenAPI/errors; DOC-05 document/version CRUD; DOC-06 Core authorization/grants; DOC-07 internal file/scope; DOC-08 mock AI/client; DOC-09 durable worker; DOC-10 resilience; DOC-11 activation/deletion; DOC-12 integration/security/fault isolation; DOC-13 real AI acceptance.
+- Dependencies: 01–04 sau 00; 05 sau 01/02/04; 06 sau 01/03/04; 07 sau 05/06; 08 sau 03/04; 09 sau 05/07/08; 10 sau 09; 11 sau 09/10; 12 sau 01–11; 13 sau 12 và AI thật. Backlog cuối cùng phải review sau discovery; security prerequisites bắt buộc trước expose API.
+- DOC-00 read-only application code: khảo sát Document/Core/AI boundaries, DB/migrations, auth, storage, compose, frontend, tests/CI, business rules. Phân loại EXISTS_COMPATIBLE / EXISTS_NEEDS_CHANGE / MISSING / CONFLICT, evidence file/line, đề xuất reuse và backlog/AC mapping. Không review lại thuật toán RAG. Không tự giải quyết conflict kiến trúc.
+- Mỗi task: preflight Git, scope file, implementation, verification, evidence, Engineering Review, Technical Lead approval; không tự commit/push/merge/deploy. Mock không thay thế real integration acceptance. Mapping AC theo DOC-T06, hoàn thiện sau DOC-00.
+- Milestone: DOC-D01–07 và DOC-T01–07 ACCEPTED về thiết kế; implementation/verification chưa bắt đầu theo roadmap mới. RAG-D02 deferred; AI compatibility, exact contracts/configuration và các pending decisions vẫn mở. Tiếp theo DOC-00 discovery.
