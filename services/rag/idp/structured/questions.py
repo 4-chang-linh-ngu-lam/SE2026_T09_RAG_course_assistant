@@ -6,10 +6,11 @@ single/multiple-answer mode, or correctness are inferred.
 from __future__ import annotations
 
 import re
+import unicodedata
 from idp.documents.layout import is_reading_alternative
 
-QUESTION_VERSION = "idp-questions-7"
-QUESTION_PRODUCERS = {QUESTION_VERSION, "idp-questions-1", "idp-questions-2", "idp-questions-3", "idp-questions-4", "idp-questions-5", "idp-questions-6"}
+QUESTION_VERSION = "idp-questions-8"
+QUESTION_PRODUCERS = {QUESTION_VERSION, "idp-questions-7", "idp-questions-1", "idp-questions-2", "idp-questions-3", "idp-questions-4", "idp-questions-5", "idp-questions-6"}
 START = re.compile(r"(?im)^\s*(?:(?:Câu|Question|Bài)\s+)?(\d+)[.):](?=\s|$|[^\W\d_])")
 BARE_START = re.compile(r"(?m)^\s*(\d+)\s+(?=[^\W\d_])")
 OPTION = re.compile(r"(?<!\S)([A-Ha-h])[.)]")
@@ -32,8 +33,55 @@ def question_markers(text):
     return re.sub(r'(?<=[.):])(\*{1,2}|_{1,2})(?=\s|$)', lambda m: ' '*len(m.group()), marked)
 
 
+NUMBERED_HEADING = re.compile(r'^\s*\d+(?:\.\d+)*\s*[.)]?\s*(?P<title>\S.*)$', re.S)
+
+
+def numbered_heading(text):
+    """A numbered all-capitals title line ("1. MỆNH ĐỀ, MỆNH ĐỀ CHỨA BIẾN").
+
+    Textbooks number their sections like questions; an OCR page has no
+    SectionHeader type to tell them apart. A title is short, mostly capital
+    letters (OCR may lose a diacritic or lower one letter) and asks nothing.
+    """
+    match = NUMBERED_HEADING.match(text or '')
+    if not match or '?' in text or '\n' in text.strip():
+        return False
+    letters = [c for c in match['title'] if c.isalpha()]
+    words = re.findall(r'[^\W\d_]{2,}', match['title'])
+    return (
+        len(letters) >= 6 and len(words) >= 2 and len(match['title'].split()) <= 14
+        and sum(c.isupper() for c in letters) / len(letters) >= .8
+    )
+
+
+# Vietnamese textbook activity labels open a new exercise or example. OCR
+# often reads the icon before them as a digit ("3 Luyện tập 2.", "3 ví dụ 4."),
+# which is not a question number.
+# Matched without diacritics: OCR drops them ("3 Vận dung.").
+ACTIVITY_LABEL = re.compile(
+    r'^\W{0,4}(?:\d{1,2}\s+)?(?:HD\s*\d+|Vi\s+du|Luyen\s+tap|Van\s+dung|Thao\s+luan|Cau\s+hoi|'
+    r'Tranh\s+luan|Thu\s+thach|Em\s+co\s+biet|Trai\s+nghiem|Bai\s+tap\s+cuoi\s+chuong)'
+    # A label is numbered or punctuated: "Ví dụ 1.", "Vận dụng.", not "Ví dụ như".
+    r'(?=\s*\d*\s*[.:?](?:\s|$))', re.I)
+
+
+def _unaccented(text):
+    text = unicodedata.normalize('NFD', text or '').replace('đ', 'd').replace('Đ', 'D')
+    return ''.join(c for c in text if not unicodedata.combining(c))
+
+
+def textbook_boundary(text):
+    """A section title or an activity label: closes a group, never starts one."""
+    return numbered_heading(text) or bool(ACTIVITY_LABEL.match(_unaccented(text)))
+
+
 def question_section_boundary(block):
-    return block.get('block_type')=='SectionHeader' or bool(SECTION_BOUNDARY.match(question_markers(block.get('text') or '')))
+    text = block.get('text') or ''
+    return (
+        block.get('block_type') == 'SectionHeader'
+        or bool(SECTION_BOUNDARY.match(question_markers(text)))
+        or textbook_boundary(text)
+    )
 
 
 def shared_question_numbers(text):
@@ -260,7 +308,9 @@ def analyze_questions(pages, *, max_pages=2, max_chars=32000):
                 'code':'QUESTION_SHARED_CONTEXT_LIMIT','severity':'warning','producer':QUESTION_VERSION})
         if active and (page["page_id"]-active["pages"][0]>=max_pages or active["chars"]>max_chars):
             close("page_gap" if page["page_id"]-active["pages"][0]>=max_pages else "size_limit")
-        if question_section_boundary(block) and not events:
+        # A numbered capitals title matches START ("1. MỆNH ĐỀ") but opens a
+        # section, not a question: it must close, never start, a group.
+        if question_section_boundary(block) and (not events or textbook_boundary(text)):
             close("section_break")
             context, shared = [], []
             explicit_shared = None

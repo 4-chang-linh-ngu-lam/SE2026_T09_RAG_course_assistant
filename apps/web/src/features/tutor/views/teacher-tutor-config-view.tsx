@@ -80,30 +80,30 @@ export function TeacherTutorConfigView({ data, params, reload }: Props) {
   };
 
   return (
-    <div className="teacher-tutor-config-container space-y-6">
+    <div className="teacher-tutor-config-container">
       {/* Top Description and Class Info */}
-      <div className="card p-6">
-        <div className="flex items-start justify-between gap-4">
+      <div className="card tutor-config-card">
+        <div className="tutor-config-header">
           <div>
-            <h2 className="text-lg font-bold">Chỉ dẫn sư phạm cho Trợ lý Lumi</h2>
-            <p className="text-sm muted mt-1">
+            <h2 className="tutor-config-title">Chỉ dẫn sư phạm cho Trợ lý Lumi</h2>
+            <p className="tutor-config-meta">
               Lớp: <strong>{classSummary?.name ?? params.classId}</strong> · Cập nhật gần nhất: {config.updatedAt}
             </p>
           </div>
-          <span className="badge primary">D08 · Cấu hình lớp</span>
+          <span className="tutor-config-badge">Cấu hình lớp</span>
         </div>
 
         {/* Student Privacy Notice under Rules M2, C5, C6 */}
-        <div className="notice-box info mt-4">
+        <div className="notice-box info">
           <Icon name="info" />
-          <p className="text-xs">
+          <p>
             <strong>Bảo vệ quyền riêng tư học sinh:</strong> {config.disclaimer}
           </p>
         </div>
       </div>
 
       {/* Main Config Form */}
-      <form onSubmit={handleSave} className="card p-6 space-y-4">
+      <form onSubmit={handleSave} className="card tutor-config-form">
         {saveSuccess && (
           <div className="notice success" role="status">
             Đã lưu cấu hình chỉ dẫn sư phạm thành công. Lumi sẽ áp dụng định hướng này cho các phản hồi trong lớp.
@@ -116,16 +116,16 @@ export function TeacherTutorConfigView({ data, params, reload }: Props) {
           </div>
         )}
 
-        <div>
-          <label htmlFor="tutorInstructionsArea" className="label font-semibold block mb-1">
+        <div className="tutor-config-field">
+          <label htmlFor="tutorInstructionsArea" className="tutor-config-label">
             Nội dung chỉ dẫn phương pháp sư phạm:
           </label>
-          <p className="text-xs muted mb-2">
+          <p className="tutor-config-hint">
             Gợi ý: Hướng dẫn Lumi ưu tiên cách tiếp cận từng bước, khuyến khích học sinh tự tìm tòi công thức, hoặc tập trung vào các dạng bài tập trọng tâm trong học kỳ.
           </p>
           <textarea
             id="tutorInstructionsArea"
-            className="input w-full"
+            className="tutor-config-textarea"
             rows={8}
             maxLength={maxChars}
             value={instructions}
@@ -136,15 +136,15 @@ export function TeacherTutorConfigView({ data, params, reload }: Props) {
             placeholder="ví dụ: Khuyến khích học sinh tự tính toán tọa độ đỉnh và tự lập bảng biến thiên. Không giải tắt hoặc đưa ngay đáp án cuối cùng…"
             disabled={isPending}
           />
-          <div className="flex justify-between items-center text-xs muted mt-1">
+          <div className="tutor-config-counter-row">
             <span>{isDirty ? '• Bạn có thay đổi chưa lưu' : 'Chưa có thay đổi mới'}</span>
-            <span className={instructions.length > maxChars * 0.9 ? 'text-amber-600 font-semibold' : ''}>
+            <span className={`tutor-config-char-count ${instructions.length > maxChars * 0.9 ? 'is-near-limit' : ''}`}>
               {instructions.length} / {maxChars} ký tự
             </span>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t">
+        <div className="tutor-config-actions">
           <button
             type="button"
             className="button secondary"
@@ -155,7 +155,7 @@ export function TeacherTutorConfigView({ data, params, reload }: Props) {
           </button>
           <button
             type="submit"
-            className="button primary"
+            className="button primary tutor-action-primary"
             disabled={isPending || !isDirty}
           >
             {isPending ? 'Đang lưu…' : 'Lưu chỉ dẫn'}

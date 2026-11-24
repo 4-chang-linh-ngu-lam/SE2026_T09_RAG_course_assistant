@@ -52,7 +52,9 @@ class RecoveryOptions:
 def cli_recovery_options(parser, args):
     if getattr(args, "layout_policy", "default") != "default" and not args.layout_model_dir:
         parser.error("--layout-policy requires --layout-model-dir")
-    if args.no_region_recovery and args.layout_model_dir and not getattr(args, "structured_regions", False):
+    if args.no_region_recovery and args.layout_model_dir and not (
+        getattr(args, "structured_regions", False) or getattr(args, "cpu_tables", False)
+    ):
         parser.error("--layout-model-dir requires region recovery")
     try:
         return RecoveryOptions(page_budget_seconds=args.region_budget)
@@ -122,9 +124,9 @@ def detect_panels(image_path: str | Path) -> list[dict]:
 
 
 class PaddleLayoutDetector:
-    """Optional local CPU adapter. One model instance serves the entire run."""
+    """Optional local Paddle adapter. One model instance serves the entire run."""
 
-    def __init__(self, model_dir: str | Path, cpu_threads: int = 2, *, layout_policy="default"):
+    def __init__(self, model_dir: str | Path, cpu_threads: int = 2, *, layout_policy="default", device="cpu"):
         from idp.input.filetypes import InputError
 
         self.model_dir = Path(model_dir).resolve()
@@ -152,10 +154,10 @@ class PaddleLayoutDetector:
         try:
             self.model = LayoutDetection(
                 model_name=model_name, model_dir=str(self.model_dir),
-                device="cpu", cpu_threads=cpu_threads, enable_mkldnn=False, **postprocess,
+                device=device, cpu_threads=cpu_threads, enable_mkldnn=False, **postprocess,
             )
         except Exception as exc:
-            raise InputError("LAYOUT_ENGINE_FAILED", "local CPU layout engine could not initialize") from exc
+            raise InputError("LAYOUT_ENGINE_FAILED", f"local layout engine could not initialize on {device}") from exc
         def digest(path):
             sha = hashlib.sha256()
             with path.open("rb") as stream:
@@ -164,7 +166,7 @@ class PaddleLayoutDetector:
             return sha.hexdigest()
 
         self.identity = {
-            "name": model_name, "device": "cpu",
+            "name": model_name, "device": device,
             "layout_policy": layout_policy, "postprocess": json.loads(json.dumps(postprocess)), "cpu_threads": cpu_threads,
             "predict_options": dict(self.predict_options),
             "files_sha256": {path.name: digest(path) for path in required},
@@ -190,7 +192,9 @@ class PaddleLayoutDetector:
         return self
 
     def __exit__(self, *args):
-        self.model.close()
+        close = getattr(self.model, "close", None)
+        if close is not None:
+            close()
 
 
 def _overlapping_line(a, b):
@@ -234,6 +238,8 @@ def recover_text_regions(
         "detector": getattr(detector, "identity", {"name": "colour_panels"}),
         "regions": [], "flags": [], "lines_added": 0,
         "baseline_lines": len(baseline), "candidate_regions": 0,
+        # Lets the canonical stage place held placeholders for unread regions.
+        "image_size": [image.width, image.height],
     }
 
     def flag(code):
@@ -276,14 +282,16 @@ def recover_text_regions(
     report["candidate_regions"] = len(candidates)
     for index, (box, coverage, kind) in enumerate(candidates):
         remaining = options.page_budget_seconds - (time.perf_counter() - started)
-        if index >= options.max_regions or remaining <= 0:
-            flag("OCR_REGION_BUDGET_EXHAUSTED")
-            break
         x1, y1, x2, y2 = box
         pad = options.padding
         bounds = [max(0, int(x1) - pad), max(0, int(y1) - pad), min(image.width, math.ceil(x2) + pad), min(image.height, math.ceil(y2) + pad)]
         entry = {"region_id": f"r{index:03d}", "bbox": box, "crop_bbox": bounds, "kind": kind, "baseline_coverage": coverage, "status": "unresolved", "lines_added": 0, "alternatives": []}
         report["regions"].append(entry)
+        if index >= options.max_regions or remaining <= 0:
+            # Recorded, not dropped: every skipped region becomes a held gap.
+            entry["status"] = "budget_limit"
+            flag("OCR_REGION_BUDGET_EXHAUSTED")
+            continue
         if (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]) > options.max_crop_pixels:
             entry["status"] = "pixel_limit"
             flag("OCR_REGION_UNRESOLVED")
@@ -320,6 +328,7 @@ def recover_text_regions(
                 # as ordinary prose or claim it has been validated.
                 operators = sum(c in "=+−-×÷/^<>" for c in text)
                 if operators >= 2 and operators / len(text) >= .15:
+                    entry["complex_skipped"] = entry.get("complex_skipped", 0) + 1
                     flag("OCR_REGION_COMPLEX_CONTENT")
                     continue
                 overlaps = [old for old in result if _overlapping_line(old, reading)]

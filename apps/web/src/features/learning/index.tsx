@@ -7,6 +7,7 @@ import { StudentPracticeAttemptView } from './views/student-practice-attempt-vie
 import { StudentPracticeResultView } from './views/student-practice-result-view';
 import { TeacherActivitiesView } from './views/teacher-activities-view';
 import { TeacherPracticeEditorView } from './views/teacher-practice-editor-view';
+import './learning-workspace.css';
 
 type Props = {
   route: RouteDefinition;

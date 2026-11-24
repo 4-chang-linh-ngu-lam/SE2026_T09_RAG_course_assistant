@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
+import Link from '@/components/available-link';
 import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { WorkspaceData } from '@/lib/domain';
@@ -135,9 +135,14 @@ export function TeacherClassesFeature({ route: _route, data, reload }: Props) {
           {filteredClasses.map(cls => {
             const isPrimary = cls.teachingRole === 'PRIMARY';
             return (
-              <article key={cls.id} className="card class-card teacher-class-card">
-                <div className="class-card-top" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                  {cls.code && <span className="tag primary">{cls.code}</span>}
+              <article key={cls.id} className={`card class-card teacher-class-card ${cls.status === 'ARCHIVED' ? 'is-archived' : isPrimary ? 'is-primary' : cls.teachingRole === 'ASSISTING' ? 'is-assisting' : ''}`}>
+                <div className="class-card-top">
+                  <div className="class-card-ident">
+                    <span className="class-card-emblem" aria-hidden="true">
+                      <Icon name="book" />
+                    </span>
+                    {cls.code && <span className="tag primary">{cls.code}</span>}
+                  </div>
                   <span className={`badge ${isPrimary ? 'primary' : 'secondary'}`}>
                     {cls.teachingRole ? (isPrimary ? 'Giáo viên chính' : 'Giáo viên phối hợp') : 'Được phân công'}
                   </span>

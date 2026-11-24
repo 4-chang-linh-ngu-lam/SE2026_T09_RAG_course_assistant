@@ -49,6 +49,8 @@ function decodeClass(value: unknown): ClassSummary {
   if (!['ACTIVE', 'ARCHIVED'].includes(String(source.status))) return invalid();
   if (!['AUTO', 'MANUAL'].includes(String(source.enrollment_mode))) return invalid();
   const teachingRole = source.teaching_role;
+  const membershipStatus = source.membership_status;
+  if (membershipStatus != null && !['ACTIVE', 'ENDED'].includes(String(membershipStatus))) return invalid();
   if (teachingRole !== undefined && teachingRole !== null && !['PRIMARY', 'ASSISTING'].includes(String(teachingRole))) return invalid();
   return {
     id: string(source.id),
@@ -56,6 +58,9 @@ function decodeClass(value: unknown): ClassSummary {
     name: string(source.name),
     status: source.status as ClassSummary['status'],
     metadata: `Khối ${grade} · ${source.enrollment_mode === 'AUTO' ? 'Tự động' : 'Quản lý'}`,
+    teacherName: optionalString(source.primary_teacher_name),
+    ...(membershipStatus ? { membershipStatus: membershipStatus as ClassSummary['membershipStatus'] } : {}),
+    studentCount: source.student_count == null ? undefined : typeof source.student_count === 'number' && Number.isInteger(source.student_count) && source.student_count >= 0 ? source.student_count : invalid(),
     ...(teachingRole ? { teachingRole: teachingRole as ClassSummary['teachingRole'] } : {}),
   };
 }
@@ -209,6 +214,17 @@ export function createLiveCore(session: LiveIdentitySession) {
     return session.authenticated(async request => decodeClass(await request('classDetail', { pathParams: { classId }, signal })));
   }
 
+  async function readClassMembers(classId: string, signal?: AbortSignal) {
+    return session.authenticated(async request => {
+      const values = await request('classMembers', { pathParams: { classId }, signal });
+      if (!Array.isArray(values)) return invalid();
+      return values.map(value => {
+        const source = record(value);
+        return { id: string(source.student_id), displayName: optionalString(source.student_display_name) };
+      }).sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? '', 'vi') || a.id.localeCompare(b.id));
+    });
+  }
+
   async function readPosts(classId: string, cursor?: string, signal?: AbortSignal): Promise<Page<FeedPost>> {
     return session.authenticated(async request => {
       const current = await actor();
@@ -245,7 +261,7 @@ export function createLiveCore(session: LiveIdentitySession) {
       const first = snapshot.items[0];
       if (!first) return null;
       const post = decodePost(first, current);
-      return post.authorId === current.id ? null : {
+      return {
         id: post.id,
         studentName: post.authorName,
         className: cls.name,
@@ -253,7 +269,7 @@ export function createLiveCore(session: LiveIdentitySession) {
         createdAt: post.createdAt,
         content: post.content,
       };
-    }))).then(items => items.filter((item): item is NonNullable<typeof item> => item !== null));
+    }))).then(items => items.filter((item): item is NonNullable<typeof item> => item !== null).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   }
 
   function localDayRange() {
@@ -276,18 +292,29 @@ export function createLiveCore(session: LiveIdentitySession) {
       const classes = (await readClasses(signal)).filter(isCurrentlyAssignedTeacher);
       if (routeId === 't.home') {
         const range = localDayRange();
-        const [todaySchedule, recentDiscussions] = await Promise.all([
+        const [todaySchedule, recentDiscussions, rosters] = await Promise.all([
           Promise.all(classes.filter(cls => cls.status === 'ACTIVE').map(cls => readEvents(cls.id, cls.name, signal, range))).then(rows => rows.flat()),
           readRecentClassPosts(classes, current, signal),
+          Promise.all(classes.filter(cls => cls.status === 'ACTIVE').map(cls => readClassMembers(cls.id, signal))),
         ]);
-        return { kind: 'ready', classes, pendingCapabilities, teacherHome: { assignedClasses: classes, recentDiscussions, todaySchedule } };
+        return { kind: 'ready', classes, pendingCapabilities, teacherHome: { assignedClasses: classes, recentDiscussions, todaySchedule, stats: { totalClasses: classes.length, totalStudents: new Set(rosters.flat().map(member => member.id)).size } } };
       }
       return { kind: 'ready', classes, pendingCapabilities };
     }
     if (routeId === 's.overview' || routeId === 't.overview') {
       const classId = params.classId;
       if (!classId) return { kind: 'unavailable', message: 'Thiếu mã lớp trong đường dẫn.' };
-      return { kind: 'ready', classSummary: await readClass(classId, signal), pendingCapabilities };
+      const [classSummary, posts] = await Promise.all([
+        readClass(classId, signal),
+        session.authenticated(request => request('posts', { pathParams: { classId }, query: { limit: 1 }, signal })).then(value => page(value, item => decodePost(item, current))),
+      ]);
+      const latest = posts.items[0];
+      const classMembers = routeId === 't.overview' ? await readClassMembers(classId, signal) : undefined;
+      return { kind: 'ready', classSummary, classMembers, pendingCapabilities, classOverview: {
+        summary: classSummary,
+        ...(latest ? { announcement: { id: latest.id, authorName: latest.authorName, authorRole: '', authorInitials: latest.authorName.trim().split(/\s+/).slice(-2).map(part => part[0]).join(''), timeAgo: new Date(latest.createdAt).toLocaleString('vi-VN'), title: 'Bài viết mới nhất', content: latest.content } } : {}),
+        recentMaterials: [], upcomingActivities: [],
+      } };
     }
     if (routeId === 's.feed' || routeId === 't.feed') {
       const classId = params.classId;
@@ -316,7 +343,7 @@ export function createLiveCore(session: LiveIdentitySession) {
       const notifications = inbox.items.map(item => decodeNotification(item, current, classNames));
       return { kind: 'ready', notifications, notificationUnreadCount: inbox.unreadCount, pendingCapabilities };
     }
-    return { kind: 'unavailable', message: 'Luồng này chưa có adapter Core được triển khai.' };
+    return { kind: 'unavailable', message: 'Chức năng này chưa khả dụng ở phiên bản hiện tại. Bạn có thể tiếp tục sử dụng lớp học, bảng tin và lịch.' };
   }
 
   return {

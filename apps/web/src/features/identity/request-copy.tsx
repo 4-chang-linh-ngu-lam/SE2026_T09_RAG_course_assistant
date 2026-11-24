@@ -18,5 +18,5 @@ export function RequestCopy({ requestId }: { requestId: string }) {
     } catch (error) { if (mounted.current) setError(errorMessage(error)); }
     finally { if (mounted.current) setBusy(false); }
   }
-  return <div><button className="button small" disabled={busy} onClick={() => void download()}>{busy ? 'Đang kiểm tra bản sao…' : 'Nhận bản sao dữ liệu'}</button>{error && <p className="muted" role="status">{error}</p>}</div>;
+  return <div className="data-request-copy"><button className="button small secondary data-request-copy-button" disabled={busy} onClick={() => void download()}>{busy ? 'Đang kiểm tra bản sao…' : 'Nhận bản sao dữ liệu'}</button>{error && <p className="data-request-copy-error" role="status">{error}</p>}</div>;
 }

@@ -171,6 +171,7 @@ def ingest_file(
     layout_detector=None,
     recovery_options=None,
     region_enricher=None,
+    dual_reader=None,
 ) -> dict:
     source = Path(input_path).resolve()
     out = Path(out_dir).resolve()
@@ -204,6 +205,8 @@ def ingest_file(
     parser_name = f"{kind}:{resolved.name}"
     if registry_path and region_enricher and not region_enricher.cacheable:
         raise InputError("STRUCTURED_IDENTITY_REQUIRED", "all structured readers need stable identities for registry caching")
+    if registry_path and dual_reader is not None and not getattr(dual_reader, "cacheable", False):
+        raise InputError("DUAL_READER_IDENTITY_REQUIRED", "the dual reader needs a stable revision for registry caching")
     if registry_path and region_recovery and layout_detector is not None and not getattr(layout_detector, "identity", None):
         raise InputError("LAYOUT_IDENTITY_REQUIRED", "a custom layout detector must expose a stable identity when registry caching is enabled")
     config = {
@@ -216,6 +219,7 @@ def ingest_file(
         "layout_detector": getattr(layout_detector, "identity", None),
         "recovery_options": vars(recovery_options) if recovery_options is not None else None,
         "structured_enrichment": region_enricher.identity if region_enricher else None,
+        "dual_reader": getattr(dual_reader, "identity", None) if dual_reader else None,
         "markers": {str(p): sha256_file(path) for p, path in (marker_json_by_page or {}).items()} if registry_path else {},
         "images": {str(p): sha256_file(path) for p, path in (page_images_by_page or {}).items()} if registry_path else {},
     }
@@ -292,6 +296,7 @@ def ingest_file(
                     region_recovery=region_recovery, layout_detector=layout_detector,
                     recovery_options=recovery_options,
                     region_enricher=region_enricher,
+                    dual_reader=dual_reader,
                 )
             except RuntimeError as exc:
                 if "text layer" not in str(exc):
@@ -349,6 +354,8 @@ def main() -> int:
     parser.add_argument("--layout-model-dir", type=Path)
     parser.add_argument("--layout-policy", choices=("default", "v3_vl16"), default="default")
     parser.add_argument("--region-budget", type=float, default=15)
+    parser.add_argument("--dual-read-gguf-url", help="loopback PaddleOCR-VL llama-server re-reading OCR lines as verification")
+    parser.add_argument("--dual-read-revision", help="immutable model revision of the dual reader")
     from idp.structured.enrichment import add_structured_arguments, structured_context
     add_structured_arguments(parser)
     args = parser.parse_args()
@@ -356,8 +363,13 @@ def main() -> int:
         from idp.ocr.recovery import PaddleLayoutDetector, cli_recovery_options
 
         options = cli_recovery_options(parser, args)
+        dual_reader = None
+        if args.dual_read_gguf_url:
+            from idp.ocr.local_region import PaddleGGUFTextReader
+
+            dual_reader = PaddleGGUFTextReader(args.dual_read_gguf_url, revision=args.dual_read_revision)
         with (
-            (PaddleLayoutDetector(args.layout_model_dir, layout_policy=args.layout_policy) if args.layout_model_dir else nullcontext(None)) as detector,
+            (PaddleLayoutDetector(args.layout_model_dir, layout_policy=args.layout_policy, device=args.layout_device) if args.layout_model_dir else nullcontext(None)) as detector,
             structured_context(args, parser, detector, args.language or "vie") as enricher,
         ):
             result = ingest_file(
@@ -367,7 +379,7 @@ def main() -> int:
                 figure_cmd=args.figure_cmd, figure_timeout=args.figure_timeout,
                 registry_path=args.registry, region_recovery=not args.no_region_recovery,
                 layout_detector=detector, recovery_options=options,
-                region_enricher=enricher,
+                region_enricher=enricher, dual_reader=dual_reader,
             )
     except InputError as exc:
         print(json.dumps(exc.as_dict(), ensure_ascii=False))

@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import Link from '@/components/available-link';
 import type { RouteDefinition } from '@/config/routes';
 import { routeHref } from '@/config/routes';
 import type { WorkspaceData } from '@/lib/domain';
@@ -56,13 +56,13 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
         <div className="card stat-card">
           <span className="stat-label muted text-sm">Tổng số học sinh</span>
           <div className="stat-value">{stats.totalStudents ?? <span className="muted text-sm">Chưa có dữ liệu</span>}</div>
-          <span className="muted text-xs">Phân bổ qua các lớp</span>
+          <span className="muted text-xs">Không trùng học sinh giữa các lớp đang hoạt động</span>
         </div>
-        <div className="card stat-card highlight">
+        {!data.pendingCapabilities?.includes('Learning') && (<div className="card stat-card highlight">
           <span className="stat-label muted text-sm">Bài nộp chờ chấm</span>
           <div className="stat-value text-primary">{stats.pendingGrading ?? <span className="muted text-sm">Chưa có dữ liệu</span>}</div>
           <span className="muted text-xs">Cần phản hồi hoặc duyệt</span>
-        </div>
+        </div>)}
       </section>
 
       {/* Assigned Classes Section */}
@@ -86,9 +86,14 @@ export function TeacherHomeFeature({ route: _route, data, reload }: Props) {
             {assignedClasses.map(cls => {
               const isPrimary = cls.teachingRole === 'PRIMARY';
               return (
-                <article key={cls.id} className="card class-card teacher-class-card">
-                  <div className="class-card-top" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                    {cls.code && <span className="tag primary">{cls.code}</span>}
+                <article key={cls.id} className={`card class-card teacher-class-card ${cls.status === 'ARCHIVED' ? 'is-archived' : isPrimary ? 'is-primary' : cls.teachingRole === 'ASSISTING' ? 'is-assisting' : ''}`}>
+                  <div className="class-card-top">
+                    <div className="class-card-ident">
+                      <span className="class-card-emblem" aria-hidden="true">
+                        <Icon name="book" />
+                      </span>
+                      {cls.code && <span className="tag primary">{cls.code}</span>}
+                    </div>
                     <span className={`badge ${isPrimary ? 'primary' : 'secondary'}`}>
                       {cls.teachingRole ? (isPrimary ? 'Giáo viên chính' : 'Giáo viên phối hợp') : 'Được phân công'}
                     </span>

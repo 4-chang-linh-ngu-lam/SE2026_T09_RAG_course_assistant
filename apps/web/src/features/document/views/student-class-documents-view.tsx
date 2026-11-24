@@ -77,15 +77,15 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
   };
 
   return (
-    <div className="student-docs-container space-y-6">
+    <div className="student-docs-container">
       {/* Header and Toolbar */}
-      <div className="card p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-        <div className="flex-1 flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+      <div className="card student-docs-toolbar">
+        <div className="student-docs-filters">
           <input
             id="docSearchInput"
             type="search"
             aria-label="Tìm kiếm tài liệu học tập"
-            className="input search-input"
+            className="input student-docs-search"
             placeholder="Tìm kiếm tài liệu học tập..."
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -93,7 +93,7 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
 
           <select
             id="formatFilter"
-            className="input select-input"
+            className="input student-docs-select"
             value={formatFilter}
             onChange={e => setFormatFilter(e.target.value)}
             aria-label="Lọc theo định dạng"
@@ -108,7 +108,7 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
 
           <select
             id="sortFilter"
-            className="input select-input"
+            className="input student-docs-select"
             value={sortFilter}
             onChange={e => setSortFilter(e.target.value as 'newest' | 'oldest' | 'name')}
             aria-label="Sắp xếp"
@@ -119,22 +119,28 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
           </select>
         </div>
 
-        <span className="text-xs muted shrink-0">
+        <span className="student-docs-count">
           Tổng số: <strong>{filteredDocs.length}</strong> tài liệu
         </span>
       </div>
 
+      {actionError && (
+        <p className="notice error" role="alert">
+          {actionError}
+        </p>
+      )}
+
       {/* Document Grid Cards */}
       {filteredDocs.length === 0 ? (
-        <div className="card p-8 text-center empty-panel">
-          <p className="muted text-sm">
+        <div className="card student-docs-empty-panel">
+          <p className="muted">
             {search.trim() || formatFilter !== 'all'
               ? 'Không tìm thấy tài liệu nào phù hợp với bộ lọc.'
               : 'Lớp học hiện chưa có tài liệu nào được chia sẻ.'}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="student-docs-grid">
           {filteredDocs.map(doc => {
             const readerHref =
               routeHref('s.reader', { classId: params.classId, documentId: doc.id }) ??
@@ -142,17 +148,17 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
             const isBookmarked = Boolean(doc.isBookmarked);
 
             return (
-              <article
-                key={doc.id}
-                className="card doc-card p-5 flex flex-col justify-between hover:shadow-md transition-shadow relative"
-              >
-                <div>
-                  <div className="flex justify-between items-start gap-2 mb-3">
-                    <span className="badge primary uppercase text-xs">{doc.format}</span>
+              <article key={doc.id} className="card student-doc-card">
+                <div className="student-doc-card-body">
+                  <div className="student-doc-card-top">
+                    <span className="doc-format-pill" data-format={doc.format.toLowerCase()}>
+                      {doc.format}
+                    </span>
                     <button
                       type="button"
-                      className="bookmark-btn p-1.5 rounded-full hover:bg-surface-container-high transition-colors"
+                      className="student-doc-bookmark-btn"
                       data-bookmarked={isBookmarked ? 'true' : 'false'}
+                      aria-pressed={isBookmarked}
                       aria-label={isBookmarked ? 'Bỏ lưu tài liệu' : 'Lưu tài liệu vào danh sách ghi nhớ'}
                       onClick={() => handleToggleBookmark(doc.id)}
                     >
@@ -160,22 +166,22 @@ export function StudentClassDocumentsView({ data, params, reload }: Props) {
                     </button>
                   </div>
 
-                  <h3 className="text-base font-bold text-on-surface line-clamp-2 hover:text-primary transition-colors">
+                  <h3 className="student-doc-card-title">
                     <Link href={readerHref}>{doc.title}</Link>
                   </h3>
 
-                  {doc.description && <p className="text-xs muted line-clamp-2 mt-2">{doc.description}</p>}
+                  {doc.description && <p className="student-doc-card-desc">{doc.description}</p>}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-outline-variant/30 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
+                <div className="student-doc-card-footer">
+                  <div className="student-doc-card-meta">
                     {doc.locatorCountLabel && (
-                      <span className="tag default text-xs">{doc.locatorCountLabel}</span>
+                      <span className="student-doc-locator-chip">{doc.locatorCountLabel}</span>
                     )}
-                    <span className="muted">v{doc.currentVersion}</span>
+                    <span className="student-doc-version">v{doc.currentVersion}</span>
                   </div>
 
-                  <Link href={readerHref} className="button small primary flex items-center gap-1">
+                  <Link href={readerHref} className="button small primary student-doc-open-btn">
                     <span>Xem tài liệu</span>
                     <Icon name="chevronRight" />
                   </Link>

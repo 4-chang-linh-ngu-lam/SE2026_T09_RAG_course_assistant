@@ -1,0 +1,211 @@
+[
+  {
+    "id": "native",
+    "filename": "native.pdf",
+    "category": "native",
+    "sha256": "07bb1fcb3af28a1044a4f3f3e737e84078ed4730f5f6f2f4ca70987216989938",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 1,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "scan",
+    "filename": "scan.pdf",
+    "category": "scan",
+    "sha256": "7b49c05b63d566781a5740c9b4992390c6b3ed4e5fc33dfa2bce871f608d0206",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 1,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "mixed",
+    "filename": "mixed.pdf",
+    "category": "mixed",
+    "sha256": "c1c56fd9fd491bf0a1afd109ea41f2013568054e03f1283f56da7ee5076a734d",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 2,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "columns",
+    "filename": "columns.pdf",
+    "category": "columns",
+    "sha256": "f702eeac74394fad762c1fccc9da06f046e6423ebd253e883811309d367f95c6",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 1,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "table",
+    "filename": "table.pdf",
+    "category": "table",
+    "sha256": "f34d56c2e2f06eb3b8229c35f0f2bd9f7d35186273e3b068ae17752a5ce952a5",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 1,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "formula",
+    "filename": "formula.pdf",
+    "category": "formula",
+    "sha256": "27b8252344735fbb0a0b1b45ea05c37cf6c68ab00a02f43735d5e5431986c4ac",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 1,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "figure",
+    "filename": "figure.pdf",
+    "category": "figure",
+    "sha256": "3f88510766d3a00a61ee62a51b224a5d1fddf316a0d08c2080e9dbfd5de1f628",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 1,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "vietnamese",
+    "filename": "vietnamese.pdf",
+    "category": "vietnamese",
+    "sha256": "07bb620e63151f17981c0b2885ef42b46752a476f614393318037bc5b55a3b35",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 1,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "encoding",
+    "filename": "encoding.pdf",
+    "category": "encoding",
+    "sha256": "2085447e328b231f82bf824bd25ebe7f05b2ca5307405044587c00356cff8970",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 1,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "rotated_cropbox",
+    "filename": "rotated_cropbox.pdf",
+    "category": "rotated_cropbox",
+    "sha256": "d20ee01893c5c466d0e312064a29e229f838524978ac7fb3377fbf5760ff672b",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 1,
+    "expected_properties": {
+      "page_size_pt": [
+        560,
+        360
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "multipage",
+    "filename": "multipage.pdf",
+    "category": "multipage",
+    "sha256": "ecc551d7d891d82059c335a6dbed616bb7a38ca19206d809157fe9485ef079d0",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": 20,
+    "expected_properties": {
+      "page_size_pt": [
+        400,
+        600
+      ]
+    },
+    "ground_truth": null
+  },
+  {
+    "id": "plain.txt",
+    "filename": "plain.txt",
+    "category": "non_pdf",
+    "sha256": "de778d826b499f546121ff79d76011228797e3f0a5643d16a637601473504c2d",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": null,
+    "expected_properties": {},
+    "ground_truth": null
+  },
+  {
+    "id": "plain.md",
+    "filename": "plain.md",
+    "category": "non_pdf",
+    "sha256": "b3b3f6fbd9b0c0bc6772435ad40044043ba8fd5fabe017fbeff615b46b0f6c36",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": null,
+    "expected_properties": {},
+    "ground_truth": null
+  },
+  {
+    "id": "broken.pdf",
+    "filename": "broken.pdf",
+    "category": "corrupt",
+    "sha256": "66e3f4bb0ff900e4e19beeacac2384669fbe240cdce5e24dcc59233bc9d2c3ea",
+    "generator": "tests/fixtures/generate.py",
+    "license": "Project synthetic test fixture",
+    "pages": null,
+    "expected_properties": {},
+    "ground_truth": null
+  }
+]
