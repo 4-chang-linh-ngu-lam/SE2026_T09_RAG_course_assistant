@@ -177,3 +177,17 @@ DOC-D01 đến DOC-D07 ACCEPTED. Chuyển sang technical design: database/ERD, p
 - Resend cùng job/key; AI lưu mapping bền vững, trả job cũ cho payload giống nhau, 409 nếu cùng key khác payload. Retry execution đã xác nhận FAILED tạo job/key mới. Không cam kết exactly-once execution; index publication phải an toàn khi chạy lại.
 - Worker claim transaction ngắn (FOR UPDATE SKIP LOCKED hoặc tương đương), lease token/expiry, fencing khi ghi kết quả; HTTP ngoài DB transaction. Restart/lease expiry phục hồi cùng job/key. Frontend chỉ poll Document.
 - Cấu hình khởi điểm chưa benchmark: backoff base 5s cap 300s, equal jitter [d/2,d]; polling theo tuổi job 3s (0–30s), 5s (30s–2m), 15s (2–10m), 30s (>10m); dependency errors backoff. Circuit mở sau 5 lỗi dependency liên tiếp, 30s cooldown, một probe half-open; không tính lỗi nghiệp vụ/validation. Connect 3s, authorization/scope/status 5s, submit 10s, file download 120s tổng, AI query 60s tổng, cảnh báo ingestion 30m. Retry budgets, concurrency/lease limits, benchmark và AI compatibility vẫn PENDING.
+
+## DOC-T06 — Integration Test và Acceptance Criteria (ACCEPTED)
+
+**Phương án B — Contract-First Testing + Mock AI + Real Integration Test.** Product Owner đồng ý ngày 25/11/2026.
+
+- Unit, contract, integration, E2E và performance tests; mock AI để phát triển song song, real AI bắt buộc trước nghiệm thu tích hợp. Test DB/storage riêng, không dùng production data.
+- AC-01–07: upload hợp lệ, giới hạn kích thước, file invalid, persistence restart, orphan cleanup, concurrent version numbering, checksum mismatch.
+- AC-08–15: durable acceptance, lost response dedup, conflicting payload 409, worker recovery, stale lease fencing, retry history, polling timeout không FAILED, AI restart sau 202.
+- AC-16–22: activate V1, giữ V1 khi V2 processing/failed, activate V2 khi ready, stale result không overwrite, delete during ingestion không resurrect, SUCCEEDED chưa ready không activate.
+- AC-23–34: outsider denied, spoof owner denied, user JWT denied internal, expired service JWT denied, wrong audience/scope denied, file outside job denied, Core unavailable fail closed, scope unavailable fail closed, revoke before retrieval, revoke before response, spoof document denied, internal gateway blocked.
+- AC-35–42: upload/download khi AI offline, recovery pending jobs, circuit breaker 503, 429 retry policy, bounded concurrency, Document restart recovery, long job alert không duplicate.
+- AC-43–48: real PDF indexing, scoped QA, exact-version citation, version replacement, grant revocation, deletion cleanup.
+- Gates: static, unit, contract/integration, applicable AC, Technical Lead review. DoD: scope/accepted decisions, no unauthorized contract change, tests pass, no secrets/data exposure, config/test instructions, mock vs real evidence, no unexplained skip, review. IMPLEMENTED != VERIFIED != INTEGRATION_ACCEPTED.
+- CI proposal: static/unit/contract on push/PR; relevant integration on service PR; cross-service before integration merge; E2E/real AI smoke before demo; AC/performance before increment acceptance. 358 concurrent users requires explicit workload, not 358 simultaneous inference requests. Exact tooling/layout, quantitative performance, streaming revocation, Learning D6 remain pending. No tests executed by this approval.
