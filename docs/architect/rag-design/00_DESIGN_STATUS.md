@@ -96,3 +96,12 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 - Trạng thái dự kiến: Document ACTIVE/DELETING/DELETED; DocumentVersion UPLOADING/STORED/FAILED; IngestionJob PENDING/PROCESSING/SUCCEEDED/FAILED. Tên enum và schema cụ thể vẫn PENDING.
 - AI lỗi không làm mất khả năng quản lý/tải file đã lưu nếu quyền hiện hành cho phép. Retry bảo toàn lịch sử thực thi; SUCCEEDED không đồng nghĩa index đã activation.
 - Query chỉ được phép với phiên bản/index hợp lệ đã kích hoạt và quyền hiện hành; chính sách version activation, reindex, deletion và authorization chi tiết vẫn PENDING.
+
+## DOC-D05 — Quản lý phiên bản tài liệu và kích hoạt index (ACCEPTED)
+
+**Phương án B — Chuyển đổi tự động khi phiên bản mới sẵn sàng.** Product Owner phê duyệt ngày 25/11/2026.
+
+- Mỗi DocumentVersion có ID riêng, không ghi đè file gốc. Phân biệt latest_version_id (file mới nhất đã lưu) và active_rag_version_id (phiên bản được phép dùng cho RAG); tên trường/schema cụ thể vẫn là đề xuất.
+- Giữ phiên bản RAG cũ hợp lệ trong khi phiên bản mới đang xử lý hoặc thất bại; chỉ chuyển con trỏ bằng transaction trong Document khi index mới đúng version, đã xác minh và đủ điều kiện activation.
+- Kết quả job cũ đến muộn không được kích hoạt nhầm phiên bản. Thu hồi quyền/xóa phải chặn truy vấn mà không chờ xóa index. Citation tham chiếu đúng phiên bản đã dùng.
+- Document quyết định version được phép truy vấn; AI bảo đảm index tương ứng tồn tại và truy vấn được. Retention phiên bản cũ, rollback, giao thức xác nhận index và authorization chi tiết vẫn PENDING.
