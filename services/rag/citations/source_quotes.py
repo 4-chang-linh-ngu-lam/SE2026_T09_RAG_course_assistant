@@ -1,6 +1,6 @@
 """Source-bound quote candidate generation for the staged RAG profile.
 
-It constrains quote strings to
+This module is staged outside the repository. It constrains quote strings to
 exact substrings of each supplied record; it does not certify that a claim is
 supported by its quote.
 """
@@ -9,7 +9,6 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 
-from .span_mapping import quote_spans
 
 MIN_QUOTE_CHARS = 3
 MAX_QUOTE_CHARS = 160
@@ -68,23 +67,18 @@ def _window_slices(text: str, start: int, end: int):
     index = 0
     while index < len(words):
         window_start = words[index][0]
-        if words[index][1] - window_start > MAX_QUOTE_CHARS:
-            # An unbroken token cannot be cited under this schema. Preserve
-            # the exact windows around it without truncating the token.
-            index += 1
-            continue
         window_end_index = index
         while (window_end_index + 1 < len(words)
                and words[window_end_index + 1][1] - window_start <= MAX_QUOTE_CHARS):
             window_end_index += 1
         window_end = words[window_end_index][1]
+        if window_end - window_start > MAX_QUOTE_CHARS:
+            raise SourceBoundSchemaError(
+                "unsupported_unbroken_token_over_quote_limit"
+            )
         yield window_start, window_end
         if window_end_index == len(words) - 1:
             break
-        next_word_start, next_word_end = words[window_end_index + 1]
-        if next_word_end - next_word_start > MAX_QUOTE_CHARS:
-            index = window_end_index + 1
-            continue
 
         # Start the next window at a word boundary close to the overlap target.
         # Advancing by at least one word guarantees progress for dense text.
@@ -108,7 +102,7 @@ def _record_text(item: Mapping) -> tuple[str, str]:
     return item_id, text
 
 
-def _snippets_for(text: str) -> list[str]:
+def _snippets_for(text: str, item_id: str) -> list[str]:
     snippets = []
     seen = set()
     for segment_start, segment_end in _sentence_and_clause_ranges(text):
@@ -125,10 +119,8 @@ def _snippets_for(text: str) -> list[str]:
                 snippets.append(quote)
                 if len(snippets) > MAX_SNIPPETS:
                     raise SourceBoundSchemaError("snippet_budget_exceeded")
-    # Formula and list fragments can consist entirely of short lines. Offer
-    # the exact multiline text if it fits, rather than rewriting its spacing.
-    if not snippets and MIN_QUOTE_CHARS <= len(text.strip()) <= MAX_QUOTE_CHARS:
-        snippets.append(text.strip())
+    if not snippets:
+        raise SourceBoundSchemaError(f"no_eligible_quote_snippet:{item_id}")
     return snippets
 
 
@@ -153,19 +145,7 @@ def source_quote_enums(evidence) -> dict[str, list[str]]:
         if total_source_chars > MAX_SOURCE_CHARS:
             raise SourceBoundSchemaError("source_work_budget_exceeded")
 
-        snippets = _snippets_for(source_text)
-        record = item.get("record")
-        if isinstance(record, Mapping) and "source_spans" in record:
-            mapped_snippets = []
-            for quote in snippets:
-                try:
-                    quote_spans({"text": source_text, "record": record}, quote)
-                except ValueError:
-                    continue
-                mapped_snippets.append(quote)
-            snippets = mapped_snippets
-        if not snippets:
-            continue
+        snippets = _snippets_for(source_text, item_id)
         total_snippets += len(snippets)
         total_quoted_chars += sum(map(len, snippets))
         if total_snippets > MAX_SNIPPETS:
@@ -173,8 +153,6 @@ def source_quote_enums(evidence) -> dict[str, list[str]]:
         if total_quoted_chars > MAX_QUOTED_CHARS:
             raise SourceBoundSchemaError("quoted_character_budget_exceeded")
         quotes_by_id[item_id] = snippets
-    if not quotes_by_id:
-        raise SourceBoundSchemaError("no_eligible_quote_snippet")
     return quotes_by_id
 
 
@@ -183,8 +161,8 @@ def source_bound_schema(evidence):
 
     Each enum value is an exact 3–160 character substring of that source's
     record text. All sentence/clause slices and overlapping long-text windows
-    must fit the explicit caps. Items without an eligible quote are excluded
-    from citation branches. If no item is quotable, the schema cannot answer.
+    must fit the explicit caps; over-cap or unrepresentable input raises instead
+    of silently omitting evidence.
     """
     quotes_by_id = source_quote_enums(evidence)
     branches = [

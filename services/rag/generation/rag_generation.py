@@ -11,6 +11,61 @@ import urllib.request
 from ..embedding.bge_embedding import file_sha256
 
 
+class BudgetOnlyGenerator:
+    """Local pipeline adapter for reader-owned answer policies.
+
+    ``RagPipeline`` keeps one generator-shaped contract so retrieval/context
+    packing can use a deterministic message budget.  The ``vi_mrc`` policy
+    never calls ``generate``; ``ViMrcReader`` owns answer extraction instead.
+    This adapter makes that path usable without a hosted generation API or a
+    second model, while failing closed if a non-reader policy accidentally
+    tries to use it for generation.
+    """
+
+    def __init__(self, counter, *, context_tokens=8192, max_new_tokens=1024,
+                 template_overhead_per_message=4):
+        if not callable(getattr(counter, "count", None)):
+            raise ValueError("budget-only generator requires a tokenizer counter")
+        if not isinstance(getattr(counter, "identity", None), dict) \
+                or counter.identity.get("unit") != "tokens":
+            raise ValueError("budget-only generator requires a token counter")
+        if type(context_tokens) is not int or not 512 <= context_tokens <= 32768:
+            raise ValueError("context_tokens must be an int in [512, 32768]")
+        if type(max_new_tokens) is not int or not 16 <= max_new_tokens <= 2048:
+            raise ValueError("max_new_tokens must be an int in [16, 2048]")
+        if max_new_tokens + 64 >= context_tokens:
+            raise ValueError("max_new_tokens + reserve must fit context_tokens")
+        if type(template_overhead_per_message) is not int \
+                or not 0 <= template_overhead_per_message <= 64:
+            raise ValueError("template_overhead_per_message must be an int in [0, 64]")
+        self.counter = counter
+        self.context_tokens = context_tokens
+        self.max_new_tokens = max_new_tokens
+        self.template_overhead_per_message = template_overhead_per_message
+        self.identity = {
+            "adapter": "idp-budget-only-generator-1",
+            "counter": dict(counter.identity),
+            "context_tokens": context_tokens,
+            "max_new_tokens": max_new_tokens,
+            "template_overhead_per_message": template_overhead_per_message,
+            "external_inference": False,
+            "generation_disabled": True,
+        }
+
+    def count_messages(self, messages):
+        if not isinstance(messages, (list, tuple)):
+            raise ValueError("messages must be a sequence")
+        total = 0
+        for message in messages:
+            if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+                raise ValueError("messages must contain string content")
+            total += self.counter.count(message["content"])
+        return total + self.template_overhead_per_message * len(messages)
+
+    def generate(self, messages, schema):  # pragma: no cover - defensive contract guard
+        raise RuntimeError("budget-only generator cannot generate; use answer_policy='vi_mrc'")
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *_args, **_kwargs):
         raise ValueError("local generation does not follow redirects")
@@ -34,7 +89,7 @@ class LlamaTokenCounter:
 
 class LlamaGenerator:
     def __init__(self, origin, *, model_path, server_path, provenance,
-                 context_tokens=4096, max_new_tokens=512, timeout=180, output_ceiling=None):
+                 context_tokens=4096, max_new_tokens=512, timeout=180):
         parsed = urllib.parse.urlsplit(origin)
         if (parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
                 or parsed.username or parsed.password or parsed.path not in {"", "/"}
@@ -44,12 +99,6 @@ class LlamaGenerator:
                 or type(max_new_tokens) is not int or not 16 <= max_new_tokens <= 2048
                 or max_new_tokens + 64 >= context_tokens):
             raise ValueError("invalid generator context/output budget")
-        # Per-call max_new_tokens may not exceed this adapter-level ceiling.
-        output_ceiling = max_new_tokens if output_ceiling is None else output_ceiling
-        if (type(output_ceiling) is not int or not max_new_tokens <= output_ceiling <= 2048
-                or output_ceiling + 64 >= context_tokens):
-            raise ValueError("invalid generator output ceiling")
-        self.output_ceiling = output_ceiling
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or not 0 < timeout <= 600:
             raise ValueError("timeout must be in (0, 600]")
         if not isinstance(provenance, dict) or any(not isinstance(provenance.get(k), str)
@@ -68,7 +117,6 @@ class LlamaGenerator:
             "server_executable_sha256": file_sha256(server_path), "build_info": props["build_info"],
             "artifact_provenance": {k: provenance[k] for k in ("repo", "revision", "variant")},
             "context_tokens": context_tokens, "max_new_tokens": max_new_tokens,
-            "output_ceiling": output_ceiling,
             "sampling": {"temperature": .7, "top_p": .8, "top_k": 20, "min_p": 0,
                          "presence_penalty": 1.5, "seed": 42, "thinking": False},
             "external_inference": False, "verifies_cpu_offload": False}
@@ -108,37 +156,18 @@ class LlamaGenerator:
             raise ValueError("chat template did not return a prompt")
         return self.counter.count(prompt)
 
-    def generate(self, messages, schema, *, profile=None, max_new_tokens=None, seed=None):
-        """Generate one grammar-constrained completion.
-
-        Without keyword arguments the request is byte-identical to the original
-        adapter (legacy sampling, seed 42, ``self.max_new_tokens``). ``profile``
-        is a ``runtime.sampling.SamplingProfile``; ``max_new_tokens`` may not
-        exceed ``self.output_ceiling``.
-        """
-        max_new = self.max_new_tokens if max_new_tokens is None else max_new_tokens
-        if type(max_new) is not int or not 16 <= max_new <= self.output_ceiling:
-            raise ValueError("per-call max_new_tokens outside adapter ceiling")
-        if profile is None:
-            if seed is not None:
-                raise ValueError("seed requires an explicit sampling profile")
-            sampling = {"temperature": .7, "top_p": .8, "top_k": 20, "min_p": 0,
-                        "presence_penalty": 1.5, "seed": 42}
-            cache_prompt = False
-        else:
-            fields = profile.request_fields(42 if seed is None else seed)
-            cache_prompt = fields.pop("cache_prompt")
-            sampling = fields
+    def generate(self, messages, schema):
         props = self._props()
         if props["model_alias"] != self.model or props["build_info"] != self.identity["build_info"]:
             raise ValueError("generator runtime changed after binding")
         tokens = self.count_messages(messages)
-        if tokens + max_new + 64 > self.context_tokens:
+        if tokens + self.max_new_tokens + 64 > self.context_tokens:
             raise ValueError("complete chat prompt exceeds budget; truncation forbidden")
         started = time.perf_counter()
         response = self._request("/v1/chat/completions", {"model": self.model, "messages": messages,
-            "max_tokens": max_new, **sampling, "stream": False,
-            "cache_prompt": cache_prompt, "chat_template_kwargs": {"enable_thinking": False},
+            "max_tokens": self.max_new_tokens, "temperature": .7, "top_p": .8, "top_k": 20,
+            "min_p": 0, "presence_penalty": 1.5, "seed": 42, "stream": False,
+            "cache_prompt": False, "chat_template_kwargs": {"enable_thinking": False},
             "response_format": {"type": "json_object", "schema": schema}})
         choices = response.get("choices")
         if not isinstance(choices, list) or len(choices) != 1:
@@ -150,5 +179,4 @@ class LlamaGenerator:
             raise ValueError("generator returned no text")
         return {"text": text, "finish_reason": choice.get("finish_reason"),
             "usage": response.get("usage", {}), "server_timings": response.get("timings", {}),
-            "prompt_tokens_preflight": tokens, "seconds": time.perf_counter() - started,
-            "max_new_tokens": max_new, "sampling": {**sampling, "cache_prompt": cache_prompt}}
+            "prompt_tokens_preflight": tokens, "seconds": time.perf_counter() - started}

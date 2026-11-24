@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-TEXT_UNITS_VERSION = "idp-text-units-2"
+TEXT_UNITS_VERSION = "idp-text-units-1"
 _NUMBER = r"\d+(?:\.\d+)*"
 _NAMED = re.compile(
     rf"^(?P<name>bài tập|bài|câu hỏi|câu|ví dụ|hoạt động|luyện tập|vận dụng|"
@@ -133,7 +133,7 @@ def plan_units(blocks, nodes, assignments):
         for line in block["text"].splitlines(keepends=True):
             value = _visible(line)
             info = _named(value, practice=practice)
-            bare = re.match(rf"^({_NUMBER})[.)]\s+\S", value)
+            bare = re.match(r"^(\d+)[.)]\s+\S", value)
             top_level = not re.match(r"^[ \t]{2,}\S", line)
             # Inside a named task, numbered substeps are not new exercises.
             if (not info and bare and practice and not solution_mode and top_level

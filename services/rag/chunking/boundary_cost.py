@@ -20,13 +20,6 @@ _DEPENDENT = re.compile(
 _ABBREVIATION = re.compile(r"(?:\b(?:mr|mrs|ms|dr|prof|sr|jr|ts|ths|pgs)|\bv\.v|\be\.g|\bi\.e)\.$", re.I)
 _SENTENCE_END = re.compile(r"[.!?。！？](?:[\"'’”»\)\]]*)\s+")
 _PARAGRAPH_END = re.compile(r"\n[ \t>]*\n+")
-# A line-initial enumerator or task label ("1.", "1.2.", "A.", "iv.", "Câu 2.")
-# ends with a period but is not a sentence. Cutting there emits a chunk that
-# holds only the marker and detaches it from its content.
-_ENUMERATOR = re.compile(
-    r"[ \t>]*(?:(?:bài tập|bài|câu hỏi|câu|ví dụ|hoạt động|luyện tập|vận dụng|hình|bảng|"
-    r"exercise|problem|question|example|activity|figure|table)\s+)?"
-    r"(?:\d{1,4}(?:\.\d{1,4})*|[A-Za-z]|[ivxlcdmIVXLCDM]{1,6})\.", re.I)
 
 
 def normalize_policy(values, limit):
@@ -80,15 +73,10 @@ def candidate_points(text, protected=()):
     points = {0, len(text)}
     for match in _PARAGRAPH_END.finditer(text):
         points.add(match.end())
-    segment_start = 0
     for match in _SENTENCE_END.finditer(text):
-        head_start = max(segment_start, text.rfind("\n", 0, match.start()) + 1)
-        if _ENUMERATOR.fullmatch(unicodedata.normalize("NFC", text[head_start:match.start() + 1])):
-            continue
         preceding = text[max(0, match.start() - 16):match.start() + 1]
         if not _ABBREVIATION.search(unicodedata.normalize("NFC", preceding)):
             points.add(match.end())
-            segment_start = match.end()
     return sorted(p for p in points if p in {0, len(text)} or (
         not unicodedata.combining(text[p]) and text[p] not in {"\u200d", "\ufe0e", "\ufe0f"}
         and text[p - 1] != "\u200d" and not any(a < p < b for a, b in protected)))
