@@ -1,6 +1,6 @@
 # Lumi RAG — Biên bản Technical Lead Review 01
 
-**Trạng thái:** PROPOSED / PENDING PRODUCT OWNER APPROVAL  
+**Trạng thái:** RAG-D01 ACCEPTED / CÁC CONTRACT CHI TIẾT PENDING  
 **Source commit:** `2d975514c4d017fe135b38df13652714b33433eb` (`codex/rag-technical-discovery`)  
 **Nguồn:** `docs/architect/rag-discovery/00..09`, `docs/architect/microservices-v1/ADR-001.md`, `docs/architect/microservices-v1/ARCHITECTURE.md`, `docs/architect/BUSINESS_RULES.md`, `services/rag/README.md`.
 
@@ -18,11 +18,11 @@
 
 Các báo cáo phù hợp để làm tài liệu khảo sát và lập danh sách rủi ro; chúng **không phải approved implementation/API contract**. Không tự đổi trạng thái của `09_OPEN_DECISIONS.md` thành ACCEPTED.
 
-## ADR-001 và ranh giới dự kiến (chưa duyệt)
+## ADR-001 và ranh giới đã duyệt (RAG-D01)
 
-**Đề xuất RAG-OD-01:** Giữ 5 microservices như ADR-001. `services/rag` là Python library/engine được AI Service sử dụng cho index/query/generation, không mở thêm RAG microservice thứ sáu.
+**Ranh giới được duyệt (RAG-OD-01):** Giữ 5 microservices như ADR-001. `services/rag` là Python library/engine được AI Service sử dụng cho index/query/generation, không mở thêm RAG microservice thứ sáu.
 
-**Đề xuất kết hợp RAG-OD-01 và RAG-OD-03:** Document Service sở hữu upload/source files/DocumentVersion/class grants/revocation/processing jobs; có thể sử dụng `idp`/chunking như Python library trong worker của chính Document. AI Service sở hữu conversation/message, derived search index và Tutor orchestration, gọi Core current classroom access, Document current grants/versions, Learning official assessment D6. Mọi truy hồi phải fail closed khi chưa kiểm chứng quyền.
+**Ranh giới sở hữu được duyệt (RAG-OD-01 và RAG-OD-03):** Document Service sở hữu upload/source files/DocumentVersion/class grants/revocation/processing jobs; có thể sử dụng `idp`/chunking như Python library trong worker của chính Document. AI Service sở hữu conversation/message, derived search index và Tutor orchestration, gọi Core current classroom access, Document current grants/versions, Learning official assessment D6. Mọi truy hồi phải fail closed khi chưa kiểm chứng quyền.
 
 **Chưa chốt:** ranh giới thực thi embedding/indexing, chuẩn canonical adapter, API endpoints, storage, event contract, inference provider, model runtime và chính sách vận hành.
 
@@ -36,7 +36,11 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 - B — Muốn RAG thành microservice HTTP riêng (cần giải trình thay đổi ADR-001 và chi phí vận hành).
 - C — Chưa chốt; cần đánh giá thêm.
 
-**Trạng thái quyết định:** PENDING PRODUCT OWNER APPROVAL.
+**Trạng thái quyết định:** ACCEPTED — Phương án A.
+
+**Ngày phê duyệt:** 25/11/2026 (Product Owner).
+
+**Phạm vi:** Chấp thuận ranh giới sở hữu và mô hình 5 microservices; không thêm RAG service thứ sáu. Các contract chi tiết và quyết định mở trong discovery vẫn cần review riêng; không phải phê duyệt triển khai hoặc deploy.
 
 ## Các quyết định tiếp theo
 
