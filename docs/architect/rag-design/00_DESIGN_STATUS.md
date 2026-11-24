@@ -134,3 +134,17 @@ DOC-D01 đến DOC-D07 ACCEPTED. Chuyển sang technical design: database/ERD, p
 - Database, credential và migration riêng theo service; không truy vấn trực tiếp, SQL JOIN hoặc foreign key xuyên service. Tham chiếu owner_id/classroom_id tới Core là tham chiếu logic, xác minh qua API.
 - Chấp nhận PostgreSQL instance là điểm lỗi chung trong Increment 1; không áp đặt PostgreSQL cho vector index hoặc persistence nội bộ của AI/RAG.
 - Chỉ phê duyệt database ownership; schema bốn bảng, kiểu dữ liệu, constraints, indexes và transaction chi tiết vẫn PENDING.
+
+## DOC-T02 — Database Schema, ERD và Constraints (ACCEPTED)
+
+**Phương án B — Bốn bảng, mỗi lần thực thi ingestion là một job riêng.** Product Owner đồng ý ngày 25/11/2026.
+
+- documents: id, owner_id, title, status, latest_version_id, active_rag_version_id, created_at, updated_at, deleted_at.
+- document_versions: id, document_id, version_number, storage_key, original_filename, mime_type, size_bytes, sha256, file_status, created_at, stored_at.
+- document_grants: id, document_id, classroom_id, granted_by, granted_at, revoked_by, revoked_at.
+- ingestion_jobs: id, version_id, ai_job_id, idempotency_key, status, attempt_number, index_ref, next_action_at, error_code, created_at, updated_at, completed_at, lease_until, lease_token.
+- UUID nội bộ, ID ngoài theo contract, TIMESTAMPTZ, BIGINT dung lượng, INTEGER version/attempt, CHAR(64) SHA-256, VARCHAR + CHECK cho trạng thái. Hai con trỏ version nullable, composite FK bảo đảm cùng document. Unique document/version_number, document/id, storage_key, idempotency_key; version_number dương, size không âm, STORED yêu cầu metadata đầy đủ. Không unique SHA-256 toàn cục.
+- Partial unique active grant theo document/classroom với revoked_at IS NULL; bảo toàn lịch sử. Index phục vụ owner/status, version history, active classroom grants, job version/attempt, status/next_action_at. Worker lease có token và thời hạn.
+- Retry execution đã xác nhận FAILED tạo job và key mới; resend/polling lỗi giữ nguyên job/key. Không tạo nhiều job đang hoạt động cho cùng version; bảo toàn lịch sử.
+- Transaction T1 hoàn tất upload: STORED, latest pointer, PENDING job; T2 khóa document, xác minh index/version/job và chống stale activation; T3 revoke grant; T4 retry kiểm tra eligibility và tạo job mới. File storage không nằm trong DB transaction: yêu cầu reconciliation và cleanup file mồ côi.
+- Trước migration phải đối chiếu schema/migrations/ID hiện tại; báo xung đột để review, không tự thay đổi quyết định. Chi tiết contract AI, lease/retry policy, cleanup và migration implementation chưa được xác minh.
