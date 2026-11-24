@@ -28,10 +28,10 @@ generation/
 ## Dùng
 
 ```python
-from rag.generation.rag_generation import LlamaGenerator
-from rag.generation.pipeline import GroundedTaskPipeline
-from rag.generation.contracts.evidence import evidence_items
-from rag.generation.tasks.qa.quick import answer_quick
+from services.rag.generation.rag_generation import LlamaGenerator
+from services.rag.generation.pipeline import GroundedTaskPipeline
+from services.rag.generation.contracts.evidence import evidence_items
+from services.rag.generation.tasks.qa.quick import answer_quick
 
 generator = LlamaGenerator("http://127.0.0.1:8080", model_path=..., server_path=..., provenance=...,
                            output_ceiling=768)          # >= spec lớn nhất (true_false_4 = 768)

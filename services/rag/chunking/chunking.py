@@ -24,7 +24,7 @@ from .text_source import TEXT_SOURCE_VERSION, parse_text
 from .text_units import TEXT_UNITS_VERSION, plan_units
 from .token_budget import LocalTokenizer, PrefixCounter, Utf8Budget, contextualize
 
-CHUNKING_VERSION = "idp-text-chunking-5"
+CHUNKING_VERSION = "idp-text-chunking-7"
 _PROTECTED = re.compile(r"(?<!\\)\$\$[\s\S]*?(?<!\\)\$\$|(?<!\\)\$[^$\n]+?(?<!\\)\$|\\\([\s\S]*?\\\)|`[^`\n]+`")
 
 

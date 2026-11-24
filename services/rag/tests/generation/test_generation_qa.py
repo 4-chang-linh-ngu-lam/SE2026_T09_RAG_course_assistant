@@ -3,20 +3,20 @@ import threading
 import time
 
 import pytest
-from rag.generation.contracts.evidence import evidence_items
-from rag.generation.contracts.schema_subset import SchemaViolation, check
-from rag.generation.pipeline import GroundedTaskPipeline
-from rag.generation.policy.config import TutorConfig
-from rag.generation.runtime.budget import TRIM_SENTENCES, BudgetError, BudgetPlanner
-from rag.generation.runtime.scheduler import (
+from services.rag.generation.contracts.evidence import evidence_items
+from services.rag.generation.contracts.schema_subset import SchemaViolation, check
+from services.rag.generation.pipeline import GroundedTaskPipeline
+from services.rag.generation.policy.config import TutorConfig
+from services.rag.generation.runtime.budget import TRIM_SENTENCES, BudgetError, BudgetPlanner
+from services.rag.generation.runtime.scheduler import (
     P0_INTERACTIVE,
     P2_BACKGROUND,
     SchedulerBusy,
     SlotScheduler,
 )
-from rag.generation.tasks.qa import condense as condense_mod
-from rag.generation.tasks.qa.quick import QUICK, answer_quick, build_schema
-from rag.generation.tasks.qa.render import mask_revoked, render_answer
+from services.rag.generation.tasks.qa import condense as condense_mod
+from services.rag.generation.tasks.qa.quick import QUICK, answer_quick, build_schema
+from services.rag.generation.tasks.qa.render import mask_revoked, render_answer
 
 TEXT = ("Quang hợp là quá trình cây xanh sử dụng năng lượng ánh sáng để tổng hợp chất hữu cơ. "
         "Quá trình này diễn ra chủ yếu ở lá, trong lục lạp. Nhiệt độ thích hợp khoảng 25 °C.")

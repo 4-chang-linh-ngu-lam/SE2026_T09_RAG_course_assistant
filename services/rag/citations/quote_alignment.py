@@ -51,7 +51,7 @@ def align_quotes(answer, evidence):
             source_id, original_quote = citation.get("id"), citation.get("quote")
             if (not isinstance(source_id, str) or source_id not in by_id
                     or not isinstance(original_quote, str)
-                    or original_quote not in quote_enums[source_id]):
+                    or original_quote not in quote_enums.get(source_id, ())):
                 raise ValueError("invalid_source_quote_for_alignment")
 
             original_spans = quote_spans(by_id[source_id], original_quote)

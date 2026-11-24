@@ -1,5 +1,24 @@
 # RAG subsystem
 
+## Verify the current RAG branch
+
+From the repository root, install the lightweight test dependencies and run the
+offline regression suite:
+
+```sh
+python -m pip install -r services/rag/requirements-test.txt
+python -m pytest services/rag/tests -q -p no:cacheprovider
+```
+
+The suite covers multi-hop orchestration, the offline generation tasks imported
+from PR #46, and `retrieval.text_pipeline.TextRagPipeline`, which connects PR #47
+retrieval to that generation engine with source quotes and current-access checks.
+One integration test builds an index from two sample documents, loads the real
+retriever, and checks that the new generation bridge cites only an authorized
+source. Encoder and generator are deterministic fixtures. The suite does not
+yet exercise PDF ingestion, real model artifacts, or an AI Service endpoint;
+those need separate integration and quality gates.
+
 `services/rag/` is the bounded RAG codebase. The packages below it are stages of
 one pipeline; they are not separate microservices.
 

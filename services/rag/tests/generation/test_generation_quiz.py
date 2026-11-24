@@ -1,19 +1,19 @@
 import pytest
-from rag.generation import registry
-from rag.generation.contracts.evidence import evidence_items
-from rag.generation.contracts.schema_subset import SchemaViolation, check
-from rag.generation.eval.metrics import qa_report, quiz_report
-from rag.generation.grounding.lexical import unsupported_numbers
-from rag.generation.grounding.safe_math import MathError, evaluate, parse_number
-from rag.generation.pipeline import GroundedTaskPipeline
-from rag.generation.tasks.qa import step as step_mod
-from rag.generation.tasks.qa.explain import explain_mistake
-from rag.generation.tasks.quiz import review
-from rag.generation.tasks.quiz.assemble import assemble, near_duplicates, parallel_forms
-from rag.generation.tasks.quiz.blueprint import parse_quiz_spec
-from rag.generation.tasks.quiz.items import build_schema as item_schema
-from rag.generation.tasks.quiz.job import regenerate, run_job
-from rag.generation.tasks.quiz.knowledge_units import build_knowledge_units
+from services.rag.generation import registry
+from services.rag.generation.contracts.evidence import evidence_items
+from services.rag.generation.contracts.schema_subset import SchemaViolation, check
+from services.rag.generation.eval.metrics import qa_report, quiz_report
+from services.rag.generation.grounding.lexical import unsupported_numbers
+from services.rag.generation.grounding.safe_math import MathError, evaluate, parse_number
+from services.rag.generation.pipeline import GroundedTaskPipeline
+from services.rag.generation.tasks.qa import step as step_mod
+from services.rag.generation.tasks.qa.explain import explain_mistake
+from services.rag.generation.tasks.quiz import review
+from services.rag.generation.tasks.quiz.assemble import assemble, near_duplicates, parallel_forms
+from services.rag.generation.tasks.quiz.blueprint import parse_quiz_spec
+from services.rag.generation.tasks.quiz.items import build_schema as item_schema
+from services.rag.generation.tasks.quiz.job import regenerate, run_job
+from services.rag.generation.tasks.quiz.knowledge_units import build_knowledge_units
 
 PHYS = ("Vận tốc cho biết mức độ nhanh hay chậm của chuyển động. "
         "Công thức tính vận tốc là v = s / t, trong đó s là quãng đường và t là thời gian. "
