@@ -126,3 +126,11 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 ## Mốc hoàn thành lựa chọn kiến trúc nền tảng Document Service
 
 DOC-D01 đến DOC-D07 ACCEPTED. Chuyển sang technical design: database/ERD, public API, internal API, retry/timeout/idempotency, integration tests/acceptance criteria và implementation tasks. Các thiết kế chi tiết chưa được phê duyệt; RAG-D02 vẫn DEFERRED cho nhóm AI/RAG.
+
+## DOC-T01 — Database Ownership (ACCEPTED)
+
+**Phương án B — Một PostgreSQL instance, database riêng cho mỗi service có nhu cầu dữ liệu quan hệ.** Product Owner phê duyệt ngày 25/11/2026.
+
+- Database, credential và migration riêng theo service; không truy vấn trực tiếp, SQL JOIN hoặc foreign key xuyên service. Tham chiếu owner_id/classroom_id tới Core là tham chiếu logic, xác minh qua API.
+- Chấp nhận PostgreSQL instance là điểm lỗi chung trong Increment 1; không áp đặt PostgreSQL cho vector index hoặc persistence nội bộ của AI/RAG.
+- Chỉ phê duyệt database ownership; schema bốn bảng, kiểu dữ liệu, constraints, indexes và transaction chi tiết vẫn PENDING.
