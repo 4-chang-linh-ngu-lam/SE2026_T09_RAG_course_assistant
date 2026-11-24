@@ -70,3 +70,12 @@ Có đồng ý giữ RAG là thư viện nội bộ của **AI Service** (không
 - AI Service sở hữu thực thi trích xuất/OCR/Canonical/chunking/embedding/indexing và dữ liệu index dẫn xuất; báo cáo kết quả xử lý cho Document.
 - Quyết định này cụ thể hóa RAG-D01: Document sở hữu nghiệp vụ ingestion, AI thực thi pipeline nội dung. Đề xuất trước đây về thực thi IDP/chunking trong Document worker không được chọn cho phạm vi này.
 - Canonical v1/v2 và thuật toán nội bộ vẫn thuộc nhóm AI/RAG (RAG-D02 DEFERRED). Giao thức REST/queue, schema, retry, idempotency, activation và authorization contract vẫn PENDING.
+
+## DOC-D02 — Cơ chế giao tiếp Document–AI (ACCEPTED)
+
+**Phương án B — REST API bất đồng bộ cho Increment 1.** Product Owner phê duyệt ngày 25/11/2026.
+
+- Document gửi yêu cầu xử lý; AI trả HTTP 202 Accepted cùng job ID sau khi tiếp nhận bền vững, xử lý pipeline bất đồng bộ.
+- Job phải bền vững qua restart, hỗ trợ idempotency và retry; Document vẫn hoạt động khi AI offline, không đánh dấu READY khi chưa xác minh index đúng phiên bản và đủ điều kiện kích hoạt.
+- Không bổ sung message broker cho tích hợp này trong Increment 1; giữ khả năng chuyển đổi sau này. Không coi FastAPI BackgroundTasks đơn thuần là cơ chế job bền vững.
+- Polling/callback, worker runtime, endpoint/schema cụ thể, retry policy, authorization và activation contract vẫn PENDING; nhóm AI/RAG sở hữu thực thi nội bộ.
