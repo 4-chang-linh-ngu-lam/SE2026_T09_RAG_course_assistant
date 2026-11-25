@@ -1,0 +1,4 @@
+# Nghiệp vụ — CORE-T05/T08
+Transaction T1 register user+profile; T2 create classroom+owner membership; T3 join kiểm tra invite, membership, usage; T4 transfer owner cập nhật owner_id và hai role; T5 remove member + outbox; T6 create post + outbox; T7 rotate refresh; T8 deletion pending + revoke + jobs/events. Không HTTP trong transaction.
+Classroom ACTIVE/ARCHIVED/DELETED, archived chỉ đọc, restore được; owner chuyển quyền trước khi rời. Invite hết hạn/thu hồi không join; membership bị loại mất quyền yêu cầu mới. Feed/comment kiểm tra quyền lớp, tác giả và moderation.
+Account ACTIVE/SUSPENDED/DELETION_PENDING/DELETED. Chặn truy cập ngay khi suspend/delete hợp lệ; mỗi service xử lý dữ liệu riêng; theo dõi hoàn tất từng đích; chỉ DELETED khi nghĩa vụ bắt buộc hoàn tất. Policy owner khi xóa, retention điểm/bình luận/lớp, moderation cần chốt trước triển khai liên quan.
