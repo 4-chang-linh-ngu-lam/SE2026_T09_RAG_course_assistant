@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     admin_invitation_expire_hours: int = Field(default=24, gt=0)
     student_activation_expire_hours: int = Field(default=24, gt=0)
     internal_service_secret: SecretStr | None = Field(default=None, min_length=32)
+    service_jwt_identity: str | None = None
+    service_jwt_issuer: str | None = None
+    service_jwt_key_id: str | None = None
+    service_jwt_private_key_file: str | None = None
+    service_jwt_trusted_keys_json: str | None = None
+    service_jwt_expected_audience: str | None = None
+    service_jwt_issued_audiences: list[str] = Field(default_factory=list)
+    service_jwt_issued_scopes: list[str] = Field(default_factory=list)
+    service_jwt_ttl_seconds: int = Field(default=300, gt=0, le=300)
+    service_jwt_clock_skew_seconds: int = Field(default=30, ge=0, le=30)
     cookie_secure: bool = True
     cookie_httponly: Literal[True] = True
     cookie_samesite: Literal["lax"] = "lax"

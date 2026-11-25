@@ -16,7 +16,9 @@ services:
       retries: 10
   migrate:
     image: ${CORE_IMAGE:-rag-course-core:local}
-    build: ./services/core
+    build:
+      context: .
+      dockerfile: services/core/Dockerfile
     command: ["python", "-m", "alembic", "upgrade", "head"]
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_course:change-me-local-only@db:5432/rag_course}
@@ -33,7 +35,9 @@ services:
       - ALL
   core:
     image: ${CORE_IMAGE:-rag-course-core:local}
-    build: ./services/core
+    build:
+      context: .
+      dockerfile: services/core/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_course:change-me-local-only@db:5432/rag_course}
       CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
@@ -43,6 +47,16 @@ services:
       DATABASE_POOL_TIMEOUT_SECONDS: ${DATABASE_POOL_TIMEOUT_SECONDS:-3}
       SECRET_KEY:
       INTERNAL_SERVICE_SECRET:
+      SERVICE_JWT_IDENTITY: ${SERVICE_JWT_IDENTITY:-}
+      SERVICE_JWT_ISSUER: ${SERVICE_JWT_ISSUER:-}
+      SERVICE_JWT_KEY_ID: ${SERVICE_JWT_KEY_ID:-}
+      SERVICE_JWT_PRIVATE_KEY_FILE: ${SERVICE_JWT_PRIVATE_KEY_FILE:-}
+      SERVICE_JWT_TRUSTED_KEYS_JSON: ${SERVICE_JWT_TRUSTED_KEYS_JSON:-}
+      SERVICE_JWT_EXPECTED_AUDIENCE: ${SERVICE_JWT_EXPECTED_AUDIENCE:-}
+      SERVICE_JWT_ISSUED_AUDIENCES: ${SERVICE_JWT_ISSUED_AUDIENCES:-[]}
+      SERVICE_JWT_ISSUED_SCOPES: ${SERVICE_JWT_ISSUED_SCOPES:-[]}
+      SERVICE_JWT_TTL_SECONDS: ${SERVICE_JWT_TTL_SECONDS:-300}
+      SERVICE_JWT_CLOCK_SKEW_SECONDS: ${SERVICE_JWT_CLOCK_SKEW_SECONDS:-30}
       COOKIE_SECURE:
       STUDENT_ACTIVATION_EXPIRE_HOURS: ${STUDENT_ACTIVATION_EXPIRE_HOURS:-24}
       SMTP_HOST:
@@ -74,7 +88,9 @@ services:
       start_period: 10s
   notification-worker:
     image: ${CORE_IMAGE:-rag-course-core:local}
-    build: ./services/core
+    build:
+      context: .
+      dockerfile: services/core/Dockerfile
     command: ["python", "-m", "app.background_worker"]
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_course:change-me-local-only@db:5432/rag_course}

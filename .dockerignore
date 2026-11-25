@@ -1,0 +1,21 @@
+# Root context is used only for the Core image; keep the context minimal.
+**
+!packages/
+!packages/service-auth/
+!packages/service-auth/pyproject.toml
+!packages/service-auth/src/
+!packages/service-auth/src/lumi_service_auth/
+!packages/service-auth/src/**
+!services/
+!services/core/
+!services/core/pyproject.toml
+!services/core/app/
+!services/core/app/**
+!services/core/migrations/
+!services/core/migrations/**
+!services/core/alembic.ini
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.env
+**/.env.*

@@ -7,12 +7,13 @@ scenarios remain pending until those services have approved implementations.
 
 ## Run and retain evidence
 
-From `services/core`, install `.[dev]` and set `TEST_DATABASE_URL` to a disposable
+From `services/core`, install `../../packages/service-auth` and `.[dev]`, then set `TEST_DATABASE_URL` to a disposable
 PostgreSQL 16 server/account with CREATEDB. The integration fixtures create/drop
 their own databases; older Identity/Classroom fixtures also use transactions in
 the specified test database. Never point this variable at an operational server.
 
 ```sh
+python -m pytest ../../packages/service-auth/tests -q -W error
 python -m pytest -q -W error -p no:cacheprovider --cov=app --cov-branch --cov-report=xml --junitxml=test-results.xml
 python tests/security/evidence.py --junit test-results.xml --output rule-evidence.json
 python -m pytest tests/identity/test_public.py -q -W error -p no:cacheprovider --cov=app.modules.identity.public --cov-branch --cov-fail-under=100

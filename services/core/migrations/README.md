@@ -1,6 +1,6 @@
 # Core migrations và dữ liệu dev/test — TASK-014
 
-Chạy các lệnh từ `services/core`, trong môi trường đã cài `.[dev]`; đặt
+Chạy các lệnh từ `services/core`, trong môi trường đã cài `../../packages/service-auth` và `.[dev]`; đặt
 `DATABASE_URL` qua môi trường của tiến trình. PostgreSQL 16 là đích kiểm thử.
 Không dùng database đang phục vụ người dùng để thử seed hoặc downgrade.
 

@@ -6,7 +6,7 @@ Chuẩn bị môi trường theo `.env.example` tại root repo (chỉ mẫu loc
 - Readiness (kiểm tra DB): http://localhost:8000/health/ready
 - OpenAPI: http://localhost:8000/docs
 - Migration: `docker compose exec core alembic upgrade head`
-- Test cục bộ: `cd services/core && pip install -e '.[dev]' && pytest -q`
+- Test cục bộ: `cd services/core && pip install -e ../../packages/service-auth && pip install -e '.[dev]' && pytest -q` (cài package bằng đường dẫn nội bộ trước Core để tránh tìm distribution cùng tên trên package registry).
 
 Health contract: `/health/live` trả `{status:"live"}` (thay `{status:"ok"}` từ skeleton theo TASK-016); `/health/ready` trả `{status:"ready",db:"connected"}` khi kết nối và quyền USAGE schema `core` hợp lệ, ngược lại trả 503 error envelope. Liveness không phụ thuộc DB. Timeout kết nối/pool cấu hình bằng `DATABASE_CONNECT_TIMEOUT_SECONDS` và `DATABASE_POOL_TIMEOUT_SECONDS` (mặc định 3 giây).
 
@@ -106,7 +106,7 @@ và [chi tiết phạm vi](tests/README.md); chưa có remote CI/review.
 - Cấu hình qua biến môi trường: `DATABASE_URL`, `CORS_ORIGINS` (JSON array), `SECRET_KEY`, `ALGORITHM=HS256`, `ACCESS_TOKEN_EXPIRE_MINUTES=15`, `REFRESH_TOKEN_EXPIRE_DAYS=7`, `INTERNAL_SERVICE_SECRET`, `COOKIE_SECURE=true`, `COOKIE_HTTPONLY=true`, `COOKIE_SAMESITE=lax`.
 - Hai secret phải được cung cấp riêng, tối thiểu 32 ký tự; không có secret mặc định. Health/migration vẫn chạy khi thiếu key; xác thực từ chối an toàn. Chỉ dùng `COOKIE_SECURE=false` cho HTTP local. Identity API áp dụng cấu hình cookie và kiểm tra Origin/Referer ở TASK-003.
 - `get_current_user` dùng `get_user_lookup` để lấy `CurrentUser` hiện hành. Bootstrap đã nối dependency này với `identity.public.get_identity_user_lookup` truy vấn DB. Ứng dụng không dùng bootstrap vẫn fail closed khi chưa nối lookup. `require_roles` dùng role hiện hành từ lookup; quyền theo lớp vẫn do Classroom kiểm tra.
-- Request nội bộ dùng `X-Service-Key`, so sánh constant-time với `INTERNAL_SERVICE_SECRET`; dependency trả scope `core:check_access`. Endpoint nội bộ phải kiểm tra action/quyền lớp; không dùng JWT người dùng thay credential service.
+- Legacy GET internal access hiện dùng X-Service-Key, constant-time với INTERNAL_SERVICE_SECRET, scope core:check_access. SYS-02 package `lumi-service-auth` cung cấp RS256 signer/verifier; Core adapter và `require_service_scopes` dùng cho CORE-04. Token có service identity, issuer, audience, scope, token_type, iat/exp, optional integer nbf và kid. User JWT không được dùng cho internal API. Legacy route chưa migrate và không có fallback khi JWT lỗi.
 - Mọi response có `X-Correlation-ID` UUID; giữ UUID hợp lệ từ request hoặc sinh mới. Lỗi HTTP/validation/server trả envelope `error` và không phản chiếu input nhạy cảm. Resource ngoài quyền cần chủ động trả `AppError(404)`.
 - `get_pagination` giới hạn 1..100 (mặc định 20). Cursor mã hóa UUID cuối. Truy vấn sắp UUID trực tiếp lọc `id > cursor`; consumer có thứ tự nghiệp vụ khác phải tra UUID trong đúng scope để lấy tuple sắp xếp ổn định (Social dùng thời gian + ID). Luôn lấy `limit + 1` để xác định `next_cursor`; cursor không cấp quyền truy cập.
 - `get_db` cung cấp session; `transaction(session)` commit/rollback unit of work do caller sở hữu. Không lồng transaction này vào transaction khác. UUID dùng `uuid4` phía Python và `gen_random_uuid()` có sẵn trên PostgreSQL 16, không cần extension `uuid-ossp`.
@@ -115,6 +115,15 @@ và [chi tiết phạm vi](tests/README.md); chưa có remote CI/review.
 Kiểm tra tại `services/core`: `ruff check app/common/`, `pytest tests/test_common.py -W error`; kiểm tra toàn Core: `ruff check app tests migrations`, `pytest -W error`.
 
 Test PostgreSQL tại `tests/integration/test_common_db.py` chạy khi có `TEST_DATABASE_URL` trỏ đến database test riêng có thể bỏ đi. Test áp dụng migration, kiểm tra schema drift, lưu audit/UUID/timestamp và rollback; không dùng database production. Khi thiếu biến này, test DB được skip và không được coi là đã kiểm chứng.
+
+## Service JWT foundation (SYS-02)
+
+- Contract/sign/verify thuần Python nằm trong package độc lập [`lumi-service-auth`](../../packages/service-auth/README.md); Core khai báo PyJWT cho User Authentication và pin `lumi-service-auth==0.1.0` cho shared Service JWT. Cài package từ đường dẫn monorepo trước khi cài Core; Consumer service không import `app.common` của Core.
+- Optional settings: SERVICE_JWT_IDENTITY, SERVICE_JWT_ISSUER, SERVICE_JWT_KEY_ID, SERVICE_JWT_PRIVATE_KEY_FILE, SERVICE_JWT_TRUSTED_KEYS_JSON, SERVICE_JWT_EXPECTED_AUDIENCE, SERVICE_JWT_ISSUED_AUDIENCES, SERVICE_JWT_ISSUED_SCOPES, SERVICE_JWT_TTL_SECONDS (max 300), SERVICE_JWT_CLOCK_SKEW_SECONDS (max 30).
+- Each service has its own private signing key. Trusted-key JSON maps kid to issuer, subject, audiences, scopes and public-key file. Rotation accepts old/new kids concurrently; switch signer, keep old public key for at least max TTL + skew, then retire it.
+- Example trusted-key entry: {"document-key-1":{"issuer":"urn:lumi:service:document","subject":"document","public_key_file":"/run/secrets/document-public.pem","audiences":["core"],"scopes":["core:check_access"]}}. This uses public-key paths only; provision actual keys outside Git.
+- Keep settings unset until provisioned via secret mount/secret manager. Key mount/provisioning is not implemented on a runtime environment. Settings are loaded at process start, so rotating key ID, trust map or key-file reference requires restart/redeploy; an approved overlap/reload runbook and consumer rollout are pending. Missing trust config makes the new Service JWT dependency return 503; malformed/invalid tokens fail closed. Never put PEM content in .env.example, source or logs.
+- SYS-02 does not add CORE-T03 POST or migrate the legacy GET; existing GET continues X-Service-Key until a separately approved migration.
 
 ## Identity auth core (TASK-002)
 

@@ -11,8 +11,16 @@ from pydantic import BaseModel, ConfigDict
 from app.common.config import settings
 from app.common.errors import AppError
 from app.common.security import SYSTEM_ROLES, decode_access_token
+from app.common.service_jwt import (
+    InsufficientServiceScope,
+    InvalidServiceJwt,
+    ServiceJwtConfigurationError,
+    ServicePrincipal,
+    verify_service_jwt,
+)
 
 bearer = HTTPBearer(auto_error=False)
+service_bearer = HTTPBearer(auto_error=False, scheme_name="ServiceJWT")
 
 
 class CurrentUser(BaseModel):
@@ -94,3 +102,30 @@ def verify_internal_service_key(
     ):
         raise AppError(401)
     return frozenset({"core:check_access"})
+
+
+def require_service_scopes(*required_scopes: str, audience: str | None = None) -> Callable:
+    """Build a fail-closed dependency for the shared SYS-02 Service JWT contract."""
+    scopes = frozenset(required_scopes)
+    if not scopes or any(not scope for scope in scopes):
+        raise ValueError("At least one non-empty service scope is required")
+
+    def check_service(
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(service_bearer)],
+    ) -> ServicePrincipal:
+        if credentials is None:
+            raise AppError(401)
+        try:
+            return verify_service_jwt(
+                credentials.credentials,
+                required_scopes=scopes,
+                audience=audience,
+            )
+        except ServiceJwtConfigurationError as exc:
+            raise AppError(503, "Internal authentication unavailable") from exc
+        except InsufficientServiceScope as exc:
+            raise AppError(403) from exc
+        except InvalidServiceJwt as exc:
+            raise AppError(401) from exc
+
+    return check_service

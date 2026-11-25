@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lumi-service-auth"
+version = "0.1.0"
+description = "Shared Service JWT signing and verification for Lumi services"
+requires-python = ">=3.10"
+dependencies = ["PyJWT[crypto]>=2.10,<3"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10", "setuptools>=69"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
