@@ -15,3 +15,14 @@ Ngày phê duyệt: 25/11/2026. CORE-D01–08 ACCEPTED theo xác nhận của ng
 
 ## Giới hạn
 Thiết kế mục tiêu, chưa xác minh đầy đủ implementation hiện tại. Không thay đổi application code. Chi tiết schema, DTO, key management, retention, role policy và backlog còn chờ technical design/đối chiếu repository. Kế thừa DOC-T01/T04/T05/T06 khi phù hợp.
+
+## Technical Design — ACCEPTED 25/11/2026
+CORE-T01: PostgreSQL riêng database/credential, 11 bảng logic, constraints và tái sử dụng schema hiện có.
+CORE-T02: Public API /api/v1, tương thích frontend.
+CORE-T03: Internal authorization, user/classroom lookup và action registry.
+CORE-T04: JWT, refresh rotation, service credentials, audit, fail closed.
+CORE-T05: Transaction boundaries cho 8 nghiệp vụ.
+CORE-T06: Versioned event envelope, outbox, theo dõi từng đích, dedup.
+CORE-T07: Fault isolation, durable retry, lease, circuit breaker.
+CORE-T08: Account deletion phân tán, revoke ngay, chỉ hoàn tất khi đủ nghĩa vụ.
+Chi tiết trong các tài liệu 01–08. Acceptance criteria và roadmap là đề xuất triển khai, chưa kiểm thử; policy retention, quyền đồng giáo viên, tương thích code và key management cần xác minh.
