@@ -155,7 +155,7 @@ Mọi route trên dùng Bearer với role/status hiện hành. Ngoài role ADMIN
 
 **Public boundaries:** Identity `admin_actor`, `admin_update_user_roles`, `admin_check_student_import`, `admin_list_data_requests`, `admin_get_data_request`, `admin_resolve_data_request` trả DTO; hỗ trợ `session=` caller sở hữu. Classroom `admin_preview_roster(...,session,lock=False) -> RosterImportSnapshot` và `admin_append_roster(...,expected_roster_version,actor_id,correlation_id,reason_code,session)` không commit. Administration không import model/repository Identity/Classroom hoặc SQL sang service khác.
 
-Credential nội bộ hiện dùng header `X-Service-Key` so với `INTERNAL_SERVICE_SECRET`, cấp scope `core:check_access`. Không dùng Bearer JWT của người dùng thay service credential; `user_id` chỉ được tin sau khi xác thực service, và endpoint vẫn phải kiểm tra quyền hiện hành/action.
+Credential nội bộ của legacy GET class-access hiện dùng X-Service-Key so với INTERNAL_SERVICE_SECRET, cấp scope core:check_access. Package độc lập `lumi-service-auth` cung cấp RS256 Service JWT contract/signer/verifier; Core có adapter và FastAPI dependency để chuẩn bị CORE-T03. SYS-02 chưa thêm POST route hoặc chuyển consumer. Không dùng User JWT thay service credential; endpoint vẫn phải kiểm tra quyền hiện hành/action.
 
 Python public interface Identity cho consumer Core được đặc tả tại [Core README](../../../../services/core/README.md#identity-public-interface-và-data-requests-task-004). Admin mutation bắt buộc actor/correlation ID, trả DTO thay ORM và ghi audit cùng transaction; consumer không import model/repository Identity hoặc ghi audit trùng.
 

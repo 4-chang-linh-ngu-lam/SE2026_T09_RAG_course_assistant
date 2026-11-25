@@ -6,9 +6,9 @@ Chưa chạy test; kế thừa DOC-T06. Unit, contract, integration PostgreSQL t
 | C-AC02 | Login đúng/sai, rate limit, không lộ hash |
 | C-AC03 | Refresh rotation concurrent, reuse detection, logout revoke |
 | C-AC04 | Suspend/delete pending chặn quyền dù JWT cũ còn hạn |
-| C-AC05 | Tạo lớp atomic với đúng một owner |
-| C-AC06 | Invite hợp lệ/hết hạn/thu hồi, join trùng không nhân membership |
-| C-AC07 | Transfer owner atomic, owner không rời trước transfer |
+| C-AC05 | Admin creates class atomically with exactly one active PRIMARY TeachingAssignment; no OWNER class role |
+| C-AC06 | Only actor allowed by Business Rules mutates roster; self-join/join-code denied with permission test |
+| C-AC07 | Admin changes PRIMARY/ASSISTING per H1; replacement-before-exit per H2; no owner-transfer API |
 | C-AC08 | Remove member thu hồi quyền mới tại Document/Learning/AI |
 | C-AC09 | Archive chỉ đọc, restore đúng quyền |
 | C-AC10 | Outsider và student không leo quyền |
@@ -23,3 +23,7 @@ Chưa chạy test; kế thừa DOC-T06. Unit, contract, integration PostgreSQL t
 | C-AC19 | Không truy cập DB xuyên service, không leak secrets |
 | C-AC20 | Real integration authorization và event delivery |
 DoD: static/unit/contract/integration phù hợp, không skip vô lý, evidence mock/real riêng, TL review. Load test 358 user theo workload được chốt, không đồng nhất với 358 inference.
+
+## CORE-CR01/02 AC supersession
+
+C-AC05/06/07 text above supersedes the old owner/invite/transfer checks. Preserve IDs for traceability. C-AC01 register-valid remains a separate mismatch with Business Rules/API Contract; it is not changed by CORE-CR01/02 and needs Technical Lead disposition.

@@ -10,8 +10,13 @@
 
 ## 2. Cây thư mục mục tiêu (comment từng khu vực)
 
+Trong monorepo, `packages/service-auth/` là Python package độc lập dùng chung cho Service JWT; package chỉ chứa contract/cryptographic trust logic, không phụ thuộc Core. Core ánh xạ Settings và cung cấp FastAPI dependency qua `app/common/`.
+
 ```text
-services/core/                         # Một service FastAPI; build/chạy/test độc lập với service khác
+packages/service-auth/                 # Package dùng chung, có thể cài độc lập trong từng consumer
+├── pyproject.toml
+└── src/lumi_service_auth/              # Claims, signer/verifier, trust policy và exceptions thuần Python
+services/core/                         # Một service FastAPI; image được build từ monorepo root context
 ├── app/                               # Mã Python chạy trong Core
 │   ├── __init__.py
 │   ├── main.py                        # Khởi tạo FastAPI, middleware, đăng ký router; file shared, ít sửa
@@ -22,7 +27,8 @@ services/core/                         # Một service FastAPI; build/chạy/tes
 │   │   ├── config.py                  # Đọc/cấu hình biến môi trường, không hardcode secret
 │   │   ├── db.py                      # Engine, session, transaction và dependency DB
 │   │   ├── admission.py               # Queue async trước dependency DB sync; health bypass
-│   │   ├── security.py                # JWT, hash mật khẩu, refresh-token helpers
+│   │   ├── security.py                # User JWT, hash mật khẩu, refresh-token helpers
+│   │   ├── service_jwt.py             # Adapter config Core → shared lumi_service_auth package
 │   │   ├── auth_dependencies.py       # Lấy người dùng hiện tại; kiểm tra trạng thái tài khoản/phiên
 │   │   ├── errors.py                  # Cấu trúc lỗi HTTP thống nhất, correlation ID
 │   │   ├── pagination.py              # Quy ước phân trang dùng chung

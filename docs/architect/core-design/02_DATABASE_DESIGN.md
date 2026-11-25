@@ -1,16 +1,22 @@
 # Database logic — CORE-T01
-Schema mục tiêu, không bắt buộc tạo bảng trùng hiện có. Kiểu ID theo Core hiện hành, timestamps TIMESTAMPTZ.
-| Bảng | Trường chính |
-|---|---|
-| users | id, email, password_hash, system_role, status |
-| user_profiles | user_id, display_name, avatar_url |
-| refresh_sessions | id, user_id, token_hash, family_id, expires_at, revoked_at |
-| classrooms | id, owner_id, name, description, status |
-| classroom_memberships | id, classroom_id, user_id, role, joined_at, left_at |
-| classroom_invites | id, classroom_id, code_hash, role, expires_at, status |
-| posts | id, classroom_id, author_id, content, status |
-| comments | id, post_id, author_id, content, status |
-| content_reports | id, reporter_id, target_type, target_id, reason, status |
-| outbox_events | id, event_type, payload, status, attempt_count, next_action_at, lease_token, lease_until |
-| account_deletion_jobs | id, user_id, target_service, status, attempt_count, next_action_at |
-Email chuẩn hóa unique; FK nội bộ; partial unique membership hiện hành (classroom_id,user_id); đúng một owner hiện hành, owner_id đồng nhất role, chuyển quyền atomic; token hash unique, rotation đồng thời an toàn. Index membership theo user/lớp, post/comment theo parent/time, job theo status/next_action_at. Đề xuất bổ sung delivery records unique(event_id,target_service) để đáp ứng CORE-T06, lease cho deletion jobs; cần review migration và schema cụ thể trước code. Không FK xuyên DB.
+
+CORE-T01 về database/credential riêng và reuse schema hiện có vẫn giữ. CORE-CR01/02 supersede class owner/invite entries trong logical draft. Physical truth là ORM và Alembic hiện hành; không sửa applied migration.
+
+## Class entities hiện tại
+
+| Table | Trường/quan hệ chính | Quy tắc |
+|---|---|---|
+| subject_classes | school_id, academic_year_id, semester_id, course_id, homeroom_class_id, grade_level, enrollment_mode, status, version | Class entity; không owner_id |
+| class_memberships | class_id, student_id, source AUTO/MANUAL, status ACTIVE/ENDED, joined_at, ended_at | Student roster/history; không role OWNER/TEACHER |
+| teaching_assignments | class_id, lecturer_id, role PRIMARY/ASSISTING, assigned_at, ended_at | Teacher assignment hiện tại và history |
+| homeroom_rosters | homeroom_class_id, student_id, joined_at, ended_at | Roster hành chính do Admin quản lý |
+
+Các entity trên được tạo trong migration 0008; Core hiện tới migration 0014. Identity, school/course/calendar, Social, Notification, audit và outbox tiếp tục thuộc schema Core hiện có.
+
+## Draft class schema bị supersede
+
+- classrooms.owner_id và invariant “một owner”: không có trong physical SubjectClass model; dùng TeachingAssignment PRIMARY/ASSISTING theo H1.
+- classroom_memberships.role: physical ClassMembership chỉ giữ student/source/status; teacher role nằm trong teaching_assignments.
+- classroom_invites/code_hash: không phù hợp BR-A6, không tạo bảng/API join.
+- account_deletion_jobs là CORE-D08 design concept, chưa có model/migration hiện hành; cần CORE-07 và retention/completion decision.
+- CORE-T01 không yêu cầu tạo bảng trùng hoặc sửa lịch sử migration; mọi schema delta cần task/AC được duyệt.

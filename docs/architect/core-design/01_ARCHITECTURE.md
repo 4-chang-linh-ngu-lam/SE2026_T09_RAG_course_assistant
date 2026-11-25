@@ -1,2 +1,9 @@
 # Kiến trúc Core
-CORE-D01–08 ACCEPTED. Core sở hữu user/profile, auth, RBAC, classroom/membership/invite, feed/comment/report. Document sở hữu grants/file; Learning sở hữu bài tập/điểm; AI sở hữu RAG; Notification sở hữu thông báo. PostgreSQL riêng database và credential trên instance chung; không SQL/FK xuyên service. REST nội bộ, outbox bền vững, không broker Increment 1. Tái sử dụng code hiện có sau discovery. Core xác minh quyền hiện hành, service đích kiểm tra tài nguyên riêng. USER/ADMIN toàn hệ thống; OWNER/TEACHER/STUDENT theo lớp. Owner quản lý lớp/thành viên/chuyển quyền; Owner/Teacher chia sẻ tài liệu, tạo bài, chấm điểm; Student làm bài; thành viên dùng AI/feed theo policy. Quyền đồng giáo viên cần đối chiếu business rules.
+
+CORE-D01–08 ACCEPTED và được hiệu chỉnh bởi CORE-CR01–04. Core sở hữu Identity, School, Course/SubjectClass, student membership, teaching assignments, Social, Notification hiện hành, Administration và audit. Mỗi service khác sở hữu database/credential riêng; không SQL/FK xuyên service. Core cung cấp current user/class authorization; service sở hữu resource vẫn kiểm tra quyền local.
+
+System roles là ADMIN/LECTURER/STUDENT. Student roster dùng AUTO/MANUAL; Lecturer assignment dùng PRIMARY/ASSISTING. Chỉ Admin tạo lớp chính khóa, chỉnh roster/teaching assignment, archive/restore. Lecturer chỉ dạy trong lớp được phân công. Không có class OWNER role, join code, invitation self-join, Student self-leave hoặc teacher owner-transfer trong Lumi MVP.
+
+Document sở hữu file/version/grant; Learning sở hữu question/attempt/grade; AI sở hữu index/retrieval/generation/conversation; Notification là service độc lập trong target architecture nhưng hiện còn là module/worker trong Core. Core outbox là producer boundary; service khác không truy cập Core DB.
+
+CORE-CR01–04 supersede các phần mâu thuẫn trong CORE-D03/D04 và CORE-T01–03/T05/T06/T08. BUSINESS_RULES.md và Core API Contract là nguồn nghiệp vụ.
