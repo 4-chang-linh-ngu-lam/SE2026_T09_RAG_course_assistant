@@ -1,0 +1,2 @@
+# Kiến trúc
+Core/Document/Learning/AI gửi event qua async REST từ outbox. Notification durable inbox -> worker -> recipient resolution -> notifications -> frontend polling. Không broker Increment 1. Notification không sở hữu lớp, điểm, file, bài tập. In-app only; email xác thực thuộc Core. PostgreSQL database/credential riêng trên instance chung. Không cross-service SQL/FK. Poll 30s đề xuất, jitter, pause tab nền, refresh khi mở/focus; 358/30 ~12 request/s trung bình chưa benchmark.
