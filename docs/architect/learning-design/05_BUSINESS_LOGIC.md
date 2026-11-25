@@ -1,0 +1,6 @@
+# Nghiệp vụ — LRN-T02/T04/T07
+Question DRAFT/ACTIVE/ARCHIVED; Assessment DRAFT/PUBLISHED/ARCHIVED; Assignment DRAFT/PUBLISHED/CLOSED/CANCELLED; Attempt IN_PROGRESS/SUBMITTED/GRADING/GRADED/PUBLISHED; AI job PENDING/PROCESSING/SUCCEEDED/FAILED.
+Policy max_attempts,time_limit_seconds,opens_at,due_at,allow_late_submission,shuffle_questions,shuffle_options,answer_visibility,ai_policy. Server clock; lưu shuffle per attempt. Local draft không vượt deadline. Snapshot version bất biến; submit idempotent, khóa bài, chỉ mở lại theo quyền/policy.
+T1 question+version; T2 publish snapshot; T3 start kiểm tra lượt/deadline; T4 autosave revision; T5 submit lock; T6 auto grade; T7 grade change+audit; T8 publish+outbox. Không HTTP trong transaction.
+Single/multiple choice exact set match, đúng toàn bộ hoặc 0, không partial credit Increment 1. Essay teacher xác nhận AI suggestion. Điểm thang 10 = 10*sum(score)/sum(max_score), decimal, rounding khi publish; audit old/new/reason/actor/time. Không công bố sớm.
+Analytics SQL: completion = submitted students/assigned students; average published score; accuracy đúng/câu đã chấm phù hợp; topic mastery, activity, difficult questions. Recommendation rule-based chủ đề yếu đủ dữ liệu; thiếu dữ liệu không đồng nghĩa yếu. Policy chọn lượt điểm, mẫu số, late/expiry/reopen, rounding, retention cần chốt.
