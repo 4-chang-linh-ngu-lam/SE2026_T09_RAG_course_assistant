@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Brand } from '@/components/ui';
+import { LumiWolfMascot } from './lumi-wolf-mascot';
 import './landing-page.css';
 
 // SVG Icon Helper following Phosphor / Solar style
@@ -204,12 +205,12 @@ function TaglineReveal() {
             {TAGLINE_WORDS.map((word, idx) => {
               const isActive = prefersReducedMotion || idx < activeCount;
               return (
-                <span
-                  key={`${word}-${idx}`}
-                  className={`landing-reveal-word ${isActive ? 'is-active' : ''}`}
-                >
-                  {word}{' '}
-                </span>
+                <React.Fragment key={`${word}-${idx}`}>
+                  <span className={`landing-reveal-word ${isActive ? 'is-active' : ''}`}>
+                    {word}
+                  </span>
+                  {idx < TAGLINE_WORDS.length - 1 ? ' ' : ''}
+                </React.Fragment>
               );
             })}
           </h2>
@@ -536,6 +537,10 @@ export function LandingPage() {
         <section className="landing-hero-section" aria-labelledby="hero-title">
           <div className="landing-container">
             <div className="landing-hero-head">
+              <div className="landing-hero-mascot">
+                <LumiWolfMascot size={120} />
+              </div>
+
               <div className="landing-badge">
                 <LandingIcon name="sparkles" className="badge-icon" />
                 <span>KHÔNG GIAN LỚP HỌC PHỔ THÔNG CHÍNH KHÓA</span>
@@ -897,6 +902,9 @@ export function LandingPage() {
         <section className="landing-final-cta-section" aria-labelledby="final-cta-heading">
           <div className="landing-container">
             <div className="landing-final-card">
+              <div className="landing-final-mascot">
+                <LumiWolfMascot size={120} />
+              </div>
               <span className="landing-eyebrow-accent">MÔI TRƯỜNG HỌC TẬP THÂN THIỆN</span>
               <h2 id="final-cta-heading">
                 Sẵn sàng bước vào không gian học tập Lumi?

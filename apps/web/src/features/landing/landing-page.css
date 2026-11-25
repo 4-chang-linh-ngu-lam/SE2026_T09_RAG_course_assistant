@@ -191,6 +191,94 @@
   margin-bottom: 48px;
 }
 
+.landing-hero-mascot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 34px;
+  background-color: #ffffff;
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.12);
+  margin-bottom: 20px;
+}
+
+.landing-final-mascot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 34px;
+  background-color: #ffffff;
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.12);
+  margin: 0 auto 20px;
+}
+
+.lumi-wolf-svg {
+  display: block;
+}
+
+.lumi-wolf-waving-arm {
+  transform-box: view-box;
+  transform-origin: 378px 445px;
+  animation: lumiWolfWave 1.5s ease-in-out infinite;
+}
+
+.lumi-wolf-head-bob {
+  transform-box: view-box;
+  transform-origin: 256px 370px;
+  animation: lumiWolfHeadBob 3s ease-in-out infinite;
+}
+
+.lumi-wolf-right-ear {
+  transform-box: view-box;
+  transform-origin: 330px 160px;
+  animation: lumiWolfEarWiggle 3s ease-in-out infinite;
+}
+
+.lumi-wolf-eye-blink {
+  transform-box: view-box;
+  transform-origin: 256px 222px;
+  animation: lumiWolfBlink 4s ease-in-out infinite;
+}
+
+.lumi-wolf-sparkle {
+  animation: lumiWolfTwinkle 2.2s ease-in-out infinite;
+}
+
+.lumi-wolf-sparkle-delay {
+  animation: lumiWolfTwinkle 2.2s ease-in-out 1.1s infinite;
+}
+
+@keyframes lumiWolfWave {
+  0%, 100% { transform: rotate(-6deg); }
+  25% { transform: rotate(15deg); }
+  50% { transform: rotate(-4deg); }
+  75% { transform: rotate(13deg); }
+}
+
+@keyframes lumiWolfHeadBob {
+  0%, 100% { transform: rotate(0deg) translateY(0px); }
+  50% { transform: rotate(-1.5deg) translateY(-3px); }
+}
+
+@keyframes lumiWolfEarWiggle {
+  0%, 75%, 100% { transform: rotate(0deg); }
+  82% { transform: rotate(7deg); }
+  89% { transform: rotate(-2deg); }
+}
+
+@keyframes lumiWolfBlink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.1); }
+}
+
+@keyframes lumiWolfTwinkle {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
 .landing-badge {
   display: inline-flex;
   align-items: center;
