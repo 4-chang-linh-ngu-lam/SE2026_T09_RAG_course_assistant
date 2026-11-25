@@ -2,9 +2,9 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 
-export function Brand() {
+export function Brand({ href = '/' }: { href?: string }) {
   return (
-    <Link href="/" className="brand" aria-label="Lumi — Trang chủ">
+    <Link href={href} className="brand" aria-label="Lumi — Trang chủ">
       <svg viewBox="0 0 34 34" width="34" height="34" fill="none" aria-hidden="true">
         <rect width="34" height="34" rx="10" fill="#2563EB"/>
         <rect x="0.75" y="0.75" width="32.5" height="32.5" rx="9.25" stroke="white" strokeOpacity="0.16" strokeWidth="1.5"/>
