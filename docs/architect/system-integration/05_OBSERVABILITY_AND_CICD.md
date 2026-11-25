@@ -1,0 +1,3 @@
+# Observability và CI/CD
+Structured JSON logs, X-Request-ID propagation, /health/live và /health/ready, request count/latency/errors, job depth/age/retry, CPU/RAM/disk/restarts. Readiness theo dependency thiết yếu của service, không đánh dấu toàn hệ thống down vì AI. Prometheus/Grafana optional. Không log secrets, bài làm, tài liệu nhạy cảm.
+GitHub Actions: push static/unit; PR contract/integration liên quan; cross-service compatibility trước merge; TL review; merge commit main; build images theo SHA, full integration; testing deploy smoke; production approval/migration/health/rollback gate. Path filter phải chạy consumers khi shared contract đổi. Không auto merge/deploy ngoài phê duyệt. Kiểm tra workflow hiện có trước sửa.
