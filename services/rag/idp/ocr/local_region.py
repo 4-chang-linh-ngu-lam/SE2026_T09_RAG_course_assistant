@@ -11,9 +11,9 @@ import json
 import math
 import os
 import sys
-from pathlib import Path
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 from PIL import Image
 
@@ -134,11 +134,15 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         raise LocalRegionError("ORIGIN", "local region reader does not follow redirects")
 
 
-def read_region(image_path, kind, *, base_url="http://127.0.0.1:8081", timeout=8, max_tokens=1024, model=None, prompt_profile="generic"):
+def _require_loopback(base_url):
     parsed = urllib.parse.urlsplit(base_url)
     if (parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
             or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in {"", "/"}):
         raise LocalRegionError("ORIGIN", "local region URL must be a loopback HTTP server origin")
+
+
+def read_region(image_path, kind, *, base_url="http://127.0.0.1:8081", timeout=8, max_tokens=1024, model=None, prompt_profile="generic"):
+    _require_loopback(base_url)
     if not math.isfinite(timeout) or timeout <= 0 or type(max_tokens) is not int or not 1 <= max_tokens <= 4096:
         raise LocalRegionError("LIMITS", "invalid local region limits")
     if kind not in {"Text", "Table", "Equation", "Picture", "Diagram", "Chart", "PictureGroup"}:
@@ -204,6 +208,52 @@ def read_region(image_path, kind, *, base_url="http://127.0.0.1:8081", timeout=8
         return _visual_facts(text)
     key = {"Text": "text", "Table": "table_html", "Equation": "latex"}.get(kind, "description")
     return {key: text}
+
+
+class PaddleGGUFFormulaReader:
+    """Read a formula crop using an existing, loopback-only llama-server."""
+
+    def __init__(self, base_url, *, model="paddleocr-vl-1.6", revision=None):
+        _require_loopback(base_url)
+        self.base_url = base_url
+        self.model = model
+        self.cacheable = bool(revision)
+        self.identity = {
+            "name": "paddleocr_vl_gguf", "model": model, "revision": revision,
+            "adapter_version": LOCAL_REGION_VERSION, "max_tokens": 512,
+        }
+
+    def __call__(self, crop, timeout):
+        return read_region(
+            crop, "Equation", base_url=self.base_url, timeout=timeout,
+            max_tokens=self.identity["max_tokens"], model=self.model, prompt_profile="paddleocr",
+        )
+
+
+class PaddleGGUFTextReader:
+    """Read a text-line crop with PaddleOCR-VL ("OCR:") on a loopback llama-server.
+
+    Used as the second reader of ``idp.ocr.dual_read``; its text is evidence
+    for agreement, never a replacement of the primary OCR.
+    """
+
+    def __init__(self, base_url, *, model="paddleocr-vl-1.6", revision=None, timeout=60):
+        _require_loopback(base_url)
+        self.base_url = base_url
+        self.model = model
+        self.timeout = timeout
+        self.cacheable = bool(revision)
+        self.identity = {
+            "name": "paddleocr_vl_gguf_text", "model": model, "revision": revision,
+            "adapter_version": LOCAL_REGION_VERSION, "max_tokens": 256,
+        }
+
+    def __call__(self, crop):
+        value = read_region(
+            crop, "Text", base_url=self.base_url, timeout=self.timeout,
+            max_tokens=self.identity["max_tokens"], model=self.model, prompt_profile="paddleocr",
+        )
+        return value.get("text", "") if isinstance(value, dict) else str(value)
 
 
 def main():

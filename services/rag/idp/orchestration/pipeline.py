@@ -21,7 +21,7 @@ from idp.structured.enrichment import enrichment_summary
 import html as html_lib
 import re
 
-PIPELINE_VERSION = "idp-poc-0.49"
+PIPELINE_VERSION = "idp-poc-0.52"
 
 
 def _utc_now() -> str:
@@ -234,8 +234,15 @@ def pdf_page_count(pdf_path: str | Path) -> int:
         return doc.page_count
 
 
-def ensure_page_image(pdf_path: str | Path, page_id: int, out_path: Path, dpi: int = 300) -> Path:
-    provenance = {"source_sha256": sha256_file(pdf_path), "page_id": page_id, "dpi": dpi}
+def ensure_page_image(
+    pdf_path: str | Path,
+    page_id: int,
+    out_path: Path,
+    dpi: int = 300,
+    source_sha256: str | None = None,
+) -> Path:
+    source_sha256 = sha256_file(pdf_path) if source_sha256 is None else source_sha256
+    provenance = {"source_sha256": source_sha256, "page_id": page_id, "dpi": dpi}
     sidecar = out_path.with_name(out_path.name + ".source.json")
     if out_path.exists() and sidecar.exists():
         try:

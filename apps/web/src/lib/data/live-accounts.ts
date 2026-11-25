@@ -72,7 +72,7 @@ async function listAccounts(request: HttpRequest, filters: UserFilters = {}, sig
   while (true) {
     const response = decodePage(await request('adminUsers', { query: { limit: 100, cursor, ...filters }, signal }));
     result.push(...response.items);
-    if (!response.next_cursor) return result;
+    if (!response.next_cursor) return result.sort((a, b) => (a.username ?? a.email ?? '').localeCompare(b.username ?? b.email ?? '', 'vi', { numeric: true }) || a.id.localeCompare(b.id));
     if (seen.has(response.next_cursor)) throw new ApiError('CONTRACT_MISMATCH', 'Core trả cursor lặp khi tải danh sách tài khoản.', 502);
     seen.add(response.next_cursor);
     cursor = response.next_cursor;

@@ -5,11 +5,14 @@ import Link from 'next/link';
 export function Brand({ href = '/' }: { href?: string }) {
   return (
     <Link href={href} className="brand" aria-label="Lumi — Trang chủ">
-      <svg viewBox="0 0 32 32" width="32" height="32" fill="none" aria-hidden="true">
-        <rect width="32" height="32" rx="9" fill="#2563EB"/>
-        <path d="M7 9h6a5 5 0 0 1 3 1 5 5 0 0 1 3-1h6v14h-6a5 5 0 0 0-3 1 5 5 0 0 0-3-1H7V9Zm9 1v14" stroke="white" strokeWidth="1.7" strokeLinejoin="round"/>
+      <svg viewBox="0 0 34 34" width="34" height="34" fill="none" aria-hidden="true">
+        <rect width="34" height="34" rx="10" fill="#2563EB"/>
+        <rect x="0.75" y="0.75" width="32.5" height="32.5" rx="9.25" stroke="white" strokeOpacity="0.16" strokeWidth="1.5"/>
+        <path d="M7.5 10h6a4.5 4.5 0 0 1 3.5 1.5A4.5 4.5 0 0 1 20.5 10h6v13.5h-6a4.5 4.5 0 0 0-3.5 1.5 4.5 4.5 0 0 0-3.5-1.5h-6V10Z" stroke="white" strokeWidth="1.75" strokeLinejoin="round"/>
+        <path d="M17 11.5v13.5" stroke="white" strokeWidth="1.75" strokeLinecap="round"/>
+        <path d="M22.2 10v4.2l-1.45-1-1.45 1V10" fill="#5EEAD4"/>
       </svg>
-      <span>
+      <span className="brand-copy">
         <strong>Lumi</strong>
         <small>Học sáng hơn mỗi ngày</small>
       </span>
@@ -71,8 +74,8 @@ export function Icon({ name = 'grid' }: { name?: string }) {
 export function StatePanel({ title, message, busy = false, children }: { title: string; message?: string; busy?: boolean; children?: ReactNode }) {
   return (
     <section className="state-panel card" role={busy ? 'status' : undefined} aria-live="polite">
-      <div className={busy ? 'loader' : 'state-icon'}>
-        {!busy && <Icon name="book"/>}
+      <div className={busy ? 'state-icon is-busy' : 'state-icon'} aria-hidden="true">
+        {busy ? <span className="loader"/> : <Icon name="book"/>}
       </div>
       <h2>{title}</h2>
       {message && <p>{message}</p>}

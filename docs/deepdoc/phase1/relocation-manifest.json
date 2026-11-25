@@ -1,0 +1,247 @@
+[
+  {
+    "source": "parser/pdf/analysis.py",
+    "target": "idp/pdf/native/analysis.py",
+    "source_sha256": "29def469a220a8b033dcfc0bb2a843717f42f2d78035645acc951a1912c94330",
+    "relocation_sha256": "95db4f3997fe79935bcd42a274cb846d3b7ee9ac46cacdc99bfb6cd611e12126",
+    "dependencies": [
+      "parser.pdf.preflight",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/budget.py",
+    "target": "idp/pdf/native/budget.py",
+    "source_sha256": "52467f0cb4e7b3581f8959d5e32feffa3ef3d2d2da92caa93f2cbb1aaf960ac4",
+    "relocation_sha256": "66f806d674f1188a22ebc473ca3f08eaee21f45efa0b693b18982af697858542",
+    "dependencies": [
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/contracts.py",
+    "target": "idp/pdf/native/contracts.py",
+    "source_sha256": "006fde67a5258fde1e50c7f5b6ee3633887b0ec1b25d8d8792c00748e7ef8176",
+    "relocation_sha256": "5004060c5cbee50205f729522ac9490f8f88723da1efb5a1bc40fc441c77bd71",
+    "dependencies": [
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/engine.py",
+    "target": "idp/pdf/native/engine.py",
+    "source_sha256": "9e30ec2c2a5cc6fbe2312c09669b85d48249e3e4b018ff7a758043b0d364c6c3",
+    "relocation_sha256": "10d495a4179830cb42f2fcbf2b7f05361bf94121468de17c2975fe9de5ef6577",
+    "dependencies": [
+      "parser.pdf.analysis",
+      "parser.pdf.budget",
+      "parser.pdf.contracts",
+      "parser.pdf.evidence",
+      "parser.pdf.extractors.figure",
+      "parser.pdf.extractors.text",
+      "parser.pdf.layout",
+      "parser.pdf.preflight",
+      "parser.pdf.quality",
+      "parser.pdf.reconcile",
+      "parser.pdf.structures",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/evidence.py",
+    "target": "idp/pdf/native/evidence.py",
+    "source_sha256": "c42dea5846615aabc85782989b97015d213e5d3b9a5d2537bd08a6882a4de3e0",
+    "relocation_sha256": "f1f3dd16967a0dd77eb60c5283252dc2518c113355fb3710e16419ceabc83b6b",
+    "dependencies": [
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/extractors/figure.py",
+    "target": "idp/pdf/native/extractors/figure.py",
+    "source_sha256": "92ea3dd90c9969c62706f439751266231dcfa51c55698502d1c17e123ec7dadb",
+    "relocation_sha256": "b9819a55a92eb0ccd7b07c2689767ef0648cc8024128ecd16e64353e132f8d6d",
+    "dependencies": [
+      "parser.pdf.contracts",
+      "parser.pdf.geometry",
+      "parser.pdf.preflight",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/extractors/math.py",
+    "target": "idp/pdf/native/extractors/math.py",
+    "source_sha256": "9eadfd9f71b00b9cd7937f0a4c8d1731d3fc427d8aefab68b1db488795e93845",
+    "relocation_sha256": "1b22d32fb2179e7b9aef3898243cd6e27900db4867035aa97f8f0a5fd278f2b7",
+    "dependencies": [
+      "parser.pdf.extractors.math_geometry",
+      "parser.pdf.structures",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/extractors/math_geometry.py",
+    "target": "idp/pdf/native/extractors/math_geometry.py",
+    "source_sha256": "7898ee6a73c4ab727066f6c33dfb00b64ab1b626373acd525c94ae1e7d779c08",
+    "relocation_sha256": "c62c37fac1167d4f0f6d8571791f41db5a16545a6f3b17cc3f7a4c11a365105c",
+    "dependencies": [
+      "parser.pdf.preflight",
+      "parser.pdf_glyph_backend",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/extractors/table.py",
+    "target": "idp/pdf/native/extractors/table.py",
+    "source_sha256": "5ebb8ad7ead945b61e636a69c5716e2ba3f7a558e84214e2d6fdca473682f77d",
+    "relocation_sha256": "c9f8dad04fb8d6e38b898fb63174fa021bd12913ce8cd63ef1f51804df7f557f",
+    "dependencies": [
+      "parser.pdf.preflight",
+      "parser.pdf.structures",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/extractors/text.py",
+    "target": "idp/pdf/native/extractors/text.py",
+    "source_sha256": "7657502643f7702d5bdc67f76dd07eb0f0885dbca94fac44f5850fd8e0d1f8d5",
+    "relocation_sha256": "89343a850c7fd8d84270972c1d2c729017022f66dce6d37a46a2ee50fd160835",
+    "dependencies": [
+      "parser.pdf.contracts",
+      "parser.pdf.geometry",
+      "parser.pdf.preflight",
+      "parser.pdf_glyph_backend",
+      "parser.pdf_glyph_inspector",
+      "parser.pdf_glyph_repair",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/fusion.py",
+    "target": "idp/pdf/native/fusion.py",
+    "source_sha256": "d12eed2dc1c16daccd952c7179d26cdbac4a418c7e8841665d85e24199bb7713",
+    "relocation_sha256": "fd85865bd8872ce8bea4bc399ca2af21507ccea4ffc8eda099b682a80547825b",
+    "dependencies": [
+      "parser.pdf.contracts",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/geometry.py",
+    "target": "idp/pdf/native/geometry.py",
+    "source_sha256": "86ad5937e5ee907a934c0929784df65583779fc228317af541944f3195846ec4",
+    "relocation_sha256": "86ad5937e5ee907a934c0929784df65583779fc228317af541944f3195846ec4",
+    "dependencies": []
+  },
+  {
+    "source": "parser/pdf/layout.py",
+    "target": "idp/pdf/native/layout.py",
+    "source_sha256": "c6f0b92ca5f357bd86500c03131f70806676fdf9a176486e98dac51989a88b81",
+    "relocation_sha256": "f8d1329283fbd8f89b632099a08e1f741eda65344b04abe76ae5a8b6c84fd5be",
+    "dependencies": [
+      "parser.pdf.regions",
+      "parser.pdf.routing",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/preflight.py",
+    "target": "idp/pdf/native/preflight.py",
+    "source_sha256": "f766ff968f8d5a7b660915cb0861f653be6e6e8ef877b57644f350667c436f24",
+    "relocation_sha256": "b4f03ccb7618d4b79e51a3bf04f4a3d7e529637e30347241833a41c5a751942c",
+    "dependencies": [
+      "parser.pdf.geometry",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/quality.py",
+    "target": "idp/pdf/native/quality.py",
+    "source_sha256": "cfa043e200e270cd8851e3ab4c39c0c3d91b9a38bb3ac65bfdd615ffed44b3a0",
+    "relocation_sha256": "5e0e0d4f60bad0aea858d5118f39bca5fc19f4ea0700eb0ac03a0a53157a929e",
+    "dependencies": [
+      "parser.pdf.contracts",
+      "parser.pdf.evidence",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/reconcile.py",
+    "target": "idp/pdf/native/reconcile.py",
+    "source_sha256": "0819fb0237e8d6993b6b9aa4de6eb4a2f39d986510ad49582036ccfc0e771d73",
+    "relocation_sha256": "8f9c35bc31728d781760cfaa997251158609c9d9d7396e6bd098022eebb557dd",
+    "dependencies": [
+      "parser.pdf.contracts",
+      "parser.pdf.fusion",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/regions.py",
+    "target": "idp/pdf/native/regions.py",
+    "source_sha256": "5a39d78ae7d4633b59933c8d39803a0a5a1f2c0a428e9ceec074de7acae91563",
+    "relocation_sha256": "0041d0e0d682e2a0aaf4cb7654ee97c7d8185e5503bc6a06d147eff693f11067",
+    "dependencies": [
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/routing.py",
+    "target": "idp/pdf/native/routing.py",
+    "source_sha256": "965e13d25e7dcc0ff1c9881441689295e4a89636de2e9f69b658b9836fb63eb3",
+    "relocation_sha256": "3517a6dbba1ab8e64ef1ca6b0a04e1bb05e1f69047854822fdcbda45a8b99ec0",
+    "dependencies": [
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf/structures.py",
+    "target": "idp/pdf/native/structures.py",
+    "source_sha256": "18cd0054f5576dccd11e3bdbab791c70f67cef05881c4d6cf65a497ac2ca6a5d",
+    "relocation_sha256": "d8e055fb189a40e85539c61f7d49210f301df481377a0d94febf40402196ab59",
+    "dependencies": [
+      "parser.pdf.contracts",
+      "parser.pdf.extractors.math",
+      "parser.pdf.extractors.table",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf_glyph_backend.py",
+    "target": "idp/pdf/native/glyph/backend.py",
+    "source_sha256": "4ca89fd5d668c87838d164039c3ca8f031d9a2ab44cd7419cbd9f890e26a7972",
+    "relocation_sha256": "b3dc1448fef5057c3b2091fd0794a9fabf1121427f6d0e8b3d5a852875f2fc8f",
+    "dependencies": [
+      "parser.pdf.geometry",
+      "parser.pdf.preflight"
+    ]
+  },
+  {
+    "source": "parser/pdf_glyph_inspector.py",
+    "target": "idp/pdf/native/glyph/inspector.py",
+    "source_sha256": "1208e51c895ca983dc152be9afd87879c0c7c2084161885786cc62ef5f191b5c",
+    "relocation_sha256": "d72da54e0f73395f8ced5311dcc29cc337acfb8584f52835552246fa13504d10",
+    "dependencies": [
+      "parser.pdf.preflight",
+      "parser.pdf_glyph_backend",
+      "parser.pdf_glyph_repair",
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/pdf_glyph_repair.py",
+    "target": "idp/pdf/native/glyph/repair.py",
+    "source_sha256": "09caebb488d32883a056a72b7d85161301bf5ac8933638edf5ffb993d79a094c",
+    "relocation_sha256": "7ab76000bd9f4ce0d679c34305b466254fe5d2d1dd729358938bee8a2afa7cd6",
+    "dependencies": [
+      "parser.source_observation"
+    ]
+  },
+  {
+    "source": "parser/source_observation.py",
+    "target": "idp/evidence/contracts.py",
+    "source_sha256": "b28ff457fcdf98e0351d26570f1c56c7829de2936f696ce203486b9dd0e8bb6b",
+    "relocation_sha256": "b28ff457fcdf98e0351d26570f1c56c7829de2936f696ce203486b9dd0e8bb6b",
+    "dependencies": []
+  }
+]

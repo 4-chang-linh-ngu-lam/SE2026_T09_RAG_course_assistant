@@ -3,9 +3,13 @@
 .student-history-container .card.empty-card,
 .teacher-home-container .card.empty-card,
 .teacher-overview-container .card.empty-card {
-  padding: 16px;
+  padding: 20px;
   box-sizing: border-box;
   overflow-wrap: break-word;
+  background: #fafbfd;
+  border-style: dashed;
+  border-color: var(--border-strong);
+  box-shadow: none;
 }
 
 .student-home-container .card.empty-card p,
@@ -14,6 +18,7 @@
 .teacher-home-container .card.empty-card p,
 .teacher-overview-container .card.empty-card p {
   margin: 0;
+  line-height: 1.55;
 }
 
 .student-home-container .card.empty-card p + *,

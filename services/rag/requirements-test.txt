@@ -1,0 +1,6 @@
+pytest==8.4.2
+jsonschema==4.25.1
+numpy==2.3.5
+opencv-python-headless==5.0.0.93
+Pillow==13.0.0
+PyMuPDF==2.1

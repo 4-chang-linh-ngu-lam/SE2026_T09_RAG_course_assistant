@@ -206,21 +206,21 @@ export function TeacherLibraryView({ data, reload }: Props) {
         >
           <table className="library-table" aria-label="Bảng danh sách tài liệu">
             <thead>
-              <tr >
-                <th className="p-3">Tên tài liệu</th>
-                <th className="p-3">Định dạng</th>
-                <th className="p-3">Phiên bản</th>
-                <th className="p-3">Trạng thái</th>
-                <th className="p-3">Lớp chia sẻ</th>
-                <th className="p-3">Ngày cập nhật</th>
-                <th className="p-3 library-table-actions">Thao tác</th>
+              <tr>
+                <th>Tên tài liệu</th>
+                <th>Định dạng</th>
+                <th>Phiên bản</th>
+                <th>Trạng thái</th>
+                <th>Lớp chia sẻ</th>
+                <th>Ngày cập nhật</th>
+                <th className="library-table-actions">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="text-sm">
+            <tbody>
               {filtered.map(doc => {
                 const detailHref = routeHref('t.libraryDocument', { documentId: doc.id }) ?? `/teacher/library/${doc.id}`;
                 return (
-                  <tr key={doc.id} >
+                  <tr key={doc.id}>
                     <td className="library-table-title-cell">
                       <Link href={detailHref} className="library-title-link">
                         <Icon name="file" />
@@ -228,41 +228,48 @@ export function TeacherLibraryView({ data, reload }: Props) {
                       </Link>
                       {doc.description && <p className="library-table-desc">{doc.description}</p>}
                     </td>
-                    <td className="p-3">
-                      <span className="badge primary text-xs">{doc.format}</span>
+                    <td>
+                      <span className="doc-format-pill" data-format={doc.format.toLowerCase()}>
+                        {doc.format}
+                      </span>
                     </td>
-                    <td className="p-3 text-xs">v{doc.currentVersion}</td>
-                    <td className="p-3">
-                      {doc.processingStatus === 'READY' && <span className="badge success text-xs">Sẵn sàng</span>}
+                    <td className="library-table-version">v{doc.currentVersion}</td>
+                    <td>
+                      {doc.processingStatus === 'READY' && <span className="badge success">Sẵn sàng</span>}
                       {doc.processingStatus === 'PROCESSING' && (
-                        <span className="badge info text-xs animate-pulse">Đang xử lý</span>
+                        <span className="badge info animate-pulse">Đang xử lý</span>
                       )}
-                      {doc.processingStatus === 'PENDING' && <span className="badge warning text-xs">Chờ xử lý</span>}
+                      {doc.processingStatus === 'PENDING' && <span className="badge warning">Chờ xử lý</span>}
                       {doc.processingStatus === 'FAILED' && (
-                        <span className="badge danger text-xs" title={doc.processingError}>
-                          Thất bại
-                        </span>
+                        <>
+                          <span className="badge danger" title={doc.processingError}>
+                            Thất bại
+                          </span>
+                          {doc.processingError && <p className="library-table-error">{doc.processingError}</p>}
+                        </>
                       )}
                     </td>
-                    <td className="p-3 text-xs">
+                    <td className="library-table-share-count">
                       {doc.sharedClassCount ? `${doc.sharedClassCount} lớp` : <span className="muted">Chưa chia sẻ</span>}
                     </td>
-                    <td className="p-3 text-xs muted">{doc.updatedAt}</td>
-                    <td className="p-3 library-table-actions">
-                      {doc.processingStatus === 'FAILED' && (
-                        <button
-                          type="button"
-                          data-ux-document-action="retry"
-                          className="button small warning"
-                          onClick={() => handleRetry(doc.id)}
-                          disabled={isPending}
-                        >
-                          Thử lại
-                        </button>
-                      )}
-                      <Link href={detailHref} className="button small secondary">
-                        Quản lý nguồn
-                      </Link>
+                    <td className="library-table-date muted">{doc.updatedAt}</td>
+                    <td className="library-table-actions">
+                      <div className="library-row-actions">
+                        {doc.processingStatus === 'FAILED' && (
+                          <button
+                            type="button"
+                            data-ux-document-action="retry"
+                            className="button small warning"
+                            onClick={() => handleRetry(doc.id)}
+                            disabled={isPending}
+                          >
+                            Thử lại
+                          </button>
+                        )}
+                        <Link href={detailHref} className="button small secondary">
+                          Quản lý nguồn
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -291,7 +298,7 @@ export function TeacherLibraryView({ data, reload }: Props) {
 
           <div className="lumi-library-form-group">
             <label htmlFor="ux-doc-title" className="lumi-library-label">
-              Tiêu đề tài liệu <span className="text-red-500">*</span>
+              Tiêu đề tài liệu <span className="lumi-library-required" aria-hidden="true">*</span>
             </label>
             <input
               id="ux-doc-title"
@@ -307,21 +314,52 @@ export function TeacherLibraryView({ data, reload }: Props) {
 
           <div className="lumi-library-form-group">
             <label htmlFor="ux-doc-description" className="lumi-library-label">Mô tả ngắn (tùy chọn)</label>
-            <textarea id="ux-doc-description" className="lumi-library-input" rows={3}
-              placeholder="Mô tả nội dung và mục đích sử dụng" value={description}
-              onChange={e => setDescription(e.target.value)} disabled={isPending}/>
+            <textarea
+              id="ux-doc-description"
+              className="lumi-library-textarea"
+              rows={3}
+              placeholder="Mô tả nội dung và mục đích sử dụng"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              disabled={isPending}
+            />
           </div>
           <div className="lumi-library-form-group">
-            <label htmlFor="ux-doc-file" className="lumi-library-label">Tệp tài liệu <span aria-hidden="true">*</span></label>
-            <input id="ux-doc-file" ref={fileInput} type="file" className="lumi-library-input"
-              accept={capability?.allowedExtensions.join(',')} onChange={handleFileChange} disabled={isPending}
-              aria-describedby="ux-doc-file-help" aria-invalid={Boolean(uploadError)}/>
-            <p id="ux-doc-file-help" className="muted">Hỗ trợ {capability?.allowedExtensions.join(', ') ?? 'chưa xác định'}.
-              {capability && ` Tối đa ${(capability.maxSizeBytes / 1024 / 1024).toFixed(0)} MB.`} Chọn tệp khác để thay thế.</p>
-            {selectedFile && <div className="lumi-library-selected-file">
-              <div><strong>{selectedFile.name}</strong><p className="muted">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p></div>
-              <button id="ux-doc-remove" type="button" className="button small danger" disabled={isPending} onClick={clearSelectedFile}>Gỡ tệp</button>
-            </div>}
+            <label htmlFor="ux-doc-file" className="lumi-library-label">
+              Tệp tài liệu <span className="lumi-library-required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="ux-doc-file"
+              ref={fileInput}
+              type="file"
+              className="lumi-library-file-input"
+              accept={capability?.allowedExtensions.join(',')}
+              onChange={handleFileChange}
+              disabled={isPending}
+              aria-describedby="ux-doc-file-help"
+              aria-invalid={Boolean(uploadError)}
+            />
+            <p id="ux-doc-file-help" className="lumi-library-file-hint">
+              Hỗ trợ {capability?.allowedExtensions.join(', ') ?? 'chưa xác định'}.
+              {capability && ` Tối đa ${(capability.maxSizeBytes / 1024 / 1024).toFixed(0)} MB.`} Chọn tệp khác để thay thế.
+            </p>
+            {selectedFile && (
+              <div className="lumi-library-selected-file">
+                <div className="lumi-library-selected-file-info">
+                  <strong className="lumi-library-selected-file-name">{selectedFile.name}</strong>
+                  <p className="lumi-library-selected-file-size">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                </div>
+                <button
+                  id="ux-doc-remove"
+                  type="button"
+                  className="button small danger"
+                  disabled={isPending}
+                  onClick={clearSelectedFile}
+                >
+                  Gỡ tệp
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="lumi-library-dialog-actions">

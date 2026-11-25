@@ -16,6 +16,16 @@ Access tokens stay in memory. Refresh cookies remain HttpOnly under `/api/v1/aut
 
 Staff invitation and password-reset emails link to `/staff/invitation` or `/reset-password` with a one-time token in the URL fragment. The client reads the fragment and removes it from browser history before submission. The existing one-time-code field remains available as a fallback. Student activation and recovery stay Admin-issued codes and are not emailed.
 
+## Shared presentation contract
+
+`src/styles/lumi-foundation.css` is the canonical source for shared design tokens, typography, buttons, form controls, notices, shell, native-dialog surfaces and authentication layouts. Root layout imports it after `app/globals.css`; feature styles own their scoped layouts. Lumi blue and teal remain the main and Tutor accents. Class navigation retains its compact summary and underline selection; official attempts retain the focused shell.
+
+Controls use visible keyboard focus and native disabled semantics. Radio/checkbox controls stay separate from text-input styling. Account-type and calendar-view selectors are groups of pressed buttons. The skip link targets `main-content` on authentication, session/access boundaries, loading and error pages as well as authenticated shells. Wide tables and calendars scroll locally; page overflow must not be hidden to mask missing responsive layout.
+
+Feed mutation controls require the matching current active class membership or teaching assignment in the loaded class summary; missing context and archived classes are read-only in the UI. Core still authorizes every request. Saved-note/bookmark links retain the captured version and page, and note editing preserves those locators. Dirty note edits use the existing unsaved-change guard; note deletion is confirmed and operation errors stay inside the active dialog. These are refinements of existing flows and do not extend any backend contract or capability.
+
+The route coverage and current verification limits for this refinement are recorded in [UI_UX_REFINEMENT.md](UI_UX_REFINEMENT.md).
+
 ## One data source, no fallback
 
 `src/lib/data/port.ts` is the frontend port. Only `src/lib/data/index.ts` imports `@data-adapter`. `next.config.mjs` binds that alias to `src/lib/data/live.ts` for live builds, or `dev/mocks/adapter.ts` for explicit development preview. TypeScript checks both against the same port through an ambient declaration; tsconfig must not map this alias to a concrete adapter, because that overrides runtime selection. Preview compiles into `.next-preview`; live uses `.next` to keep artifacts separate. Product pages never import fixtures and never call fetch directly.
