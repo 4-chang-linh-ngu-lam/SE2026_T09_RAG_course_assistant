@@ -1,0 +1,10 @@
+# Hiệu chỉnh thiết kế Core — 25/11/2026
+Trạng thái: ACCEPTED bởi Technical Lead. Tài liệu này có ưu tiên hơn các nội dung mâu thuẫn trong thiết kế Core và contract liên service trước đó. Không xác nhận implementation.
+- CORE-CR01 B: Admin quản lý roster; không join code, invitation self-join. Thay thế nội dung tương ứng CORE-D04, CORE-T01/T02/T05 và C-AC06. C-AC06 mới: chỉ actor được Business Rules cho phép thay đổi roster; self-join bị từ chối, có kiểm thử quyền.
+- CORE-CR02 B: giữ Lecturer và teaching assignment PRIMARY/ASSISTING theo Business Rules/H1; không thêm OWNER hoặc owner-transfer tùy ý. Hiệu chỉnh CORE-D03/D04, T01–T03/T05/T06/T08 và AC liên quan. Chuyển giao giảng viên theo H1; xác minh nguyên văn trước khi triển khai. Không suy diễn quyền từ tên role.
+- CORE-CR03 B: giữ check_class_action; thêm POST /internal/v1/authorization/check theo CORE-T03. Mapping từng action theo bằng chứng; thiếu hoặc không rõ thì deny. Giữ GET legacy trong giai đoạn chuyển đổi có kiểm soát. Không import Core từ service khác.
+- CORE-CR04 B: CORE-01/02/05 reuse+verify; CORE-03 reuse+extend theo nghiệp vụ; CORE-04 extend; CORE-06 extend; CORE-07 implement sau khi chốt deletion; CORE-08/09 verify. Không rewrite schema/migrations 0001–0014.
+## Tác động liên service
+Document: quyền lớp theo teaching assignment/roster, quyền grant/resource do Document kiểm tra riêng. Learning: quyền tạo/chấm bài theo nghiệp vụ, D6 giữ nguyên. Notification: recipient theo roster/teaching assignment; không phát event owner-transfer hoặc self-join nếu không có nghiệp vụ tương ứng. System: cập nhật allowlist và contract theo route thực tế, không expose endpoint bị cấm. Không đổi kiến trúc 5 service.
+## Trạng thái
+CORE-00/R1 được duyệt ở cấp discovery theo báo cáo; 4 tài liệu local chưa được kiểm tra trực tiếp. 70 test mục tiêu theo báo cáo, không phải full acceptance. Agent cần đối chiếu nguyên văn Business Rules, cập nhật các tài liệu bị ảnh hưởng và giữ traceability AC trước khi đóng discovery. SERVER-01 blocked do SSH host key mismatch. Retention/deletion còn mở.
