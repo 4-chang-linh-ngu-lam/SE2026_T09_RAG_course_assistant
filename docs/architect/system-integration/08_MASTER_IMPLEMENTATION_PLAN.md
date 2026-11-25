@@ -1,0 +1,16 @@
+# Master Implementation Plan
+## Phase 0 — Discovery & Contract Freeze (P0)
+DOC-00 engineering review đang pending; CORE-00/LRN-00/NTF-00 và SYS-00 inventory hiện trạng, QA/business rules, frontend routing, migrations, CI/Compose. AI/RAG team song song xác nhận contracts. Chốt blocker trong 09. Không rewrite code tương thích.
+## Phase 1 — Foundation (P0)
+CORE-01–04: schema/auth/classroom/current authorization; SYS-01 DB isolation/Compose; SYS-02 service JWT/key management; SYS-03 gateway route contract. Dependency: discovery + approved contract; auth trước expose API.
+## Phase 2 — Independent services (P0)
+Document DOC-01–08 (storage, CRUD, grants, internal file/scope, mock AI); Learning LRN-01–08 (schema, auth, question/assessment/assignment/attempt/grading/practice); Notification NTF-01–05 (inbox, worker, recipient, public API); Core CORE-05–07 (feed, outbox, deletion). Parallel khi dependency đủ. Outbox bắt buộc trước nghiệm thu publication; deletion policy trước implementation liên quan.
+## Phase 3 — AI integration (P0)
+DOC-09–13 durable worker/resilience/activation/deletion/real AI; LRN-09–10 AI jobs/D6; LRN-11–12 analytics/outbox. AI team sở hữu RAG internals, adapters/index readiness/scope enforcement; TL hỗ trợ endpoint thiếu sau review. Mock trước, real integration bắt buộc.
+## Phase 4 — Frontend integration (P0)
+CORE-08, LRN-13, NTF-06, Document UI integration; SYS-04 route/DTO/error/loading/recovery, end-to-end vertical slices. Có thể làm song song phase 2–3 với contract ổn định.
+## Phase 5 — Acceptance (P0/P1)
+CORE-09, LRN-14, NTF-07, DOC-12/13; SYS-05 cross-service E2E/security/fault; SYS-06 load; SYS-07 backup/restore; SYS-08 CI/deploy gates; SYS-09 final acceptance. P1 observability nâng cao/recommendation optimization sau P0.
+## Ưu tiên và phân công
+TL: Core/Document/Learning/Notification/system integration, contract review, adapters thiếu nếu cần. Nhóm AI/RAG: AI internals và contract implementation; phân công cá nhân còn lại chưa chốt. Critical path: discovery -> Core auth/service JWT -> Document scope + Learning D6 -> real AI -> E2E/load/acceptance. Notification độc lập sau auth/event freeze. Demo mỗi 3 ngày theo vertical slice; không cam kết ngày hoàn thành khi chưa estimate sau discovery.
+47 service tasks (14 DOC +10 CORE +15 LRN +8 NTF), cộng 10 SYS tasks đề xuất =57; discovery có thể gộp để tránh trùng. Mỗi task preflight Git, scope, test, evidence, TL review, explicit approval trước commit/push/merge/deploy. Status phân biệt ACCEPTED/IMPLEMENTED/VERIFIED/INTEGRATION_ACCEPTED. Không coi roadmap là code đã làm.
