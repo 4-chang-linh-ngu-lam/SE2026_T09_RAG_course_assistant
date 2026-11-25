@@ -1,0 +1,6 @@
+# Internal API — CORE-T03/T06
+Service JWT riêng, audience/scope/issuer/expiry; không expose gateway.
+POST /internal/v1/authorization/check: user_id, resource_type, resource_id, action -> allowed boolean. Core kiểm tra user active và membership/role hiện hành; không thay thế kiểm tra tài nguyên tại service sở hữu. Fail closed khi lỗi.
+GET /internal/v1/users/{id}; POST /internal/v1/users/batch; GET /internal/v1/classrooms/{id}; GET /internal/v1/classrooms/{id}/members. Chỉ dữ liệu tối thiểu theo scope.
+Actions: DOCUMENT_READ, DOCUMENT_SHARE, DOCUMENT_MANAGE, AI_QUERY, PRACTICE_ACCESS, ASSIGNMENT_CREATE, ASSIGNMENT_SUBMIT, ASSESSMENT_MANAGE, GRADE_MANAGE, ANALYTICS_VIEW.
+Event envelope: event_id UUID, event_type, event_version=1, source=core, occurred_at ISO8601, request_id, payload. Events classroom.member_joined, member_removed, owner_transferred, archived, post_created, comment_created (prefix classroom.) -> Notification; user.deletion_requested -> Document/Learning/AI/Notification. Theo dõi từng đích; dedup event_id; durable ack không đồng nghĩa hoàn tất xóa. Endpoint nhận event và completion contract cần thống nhất liên service.
