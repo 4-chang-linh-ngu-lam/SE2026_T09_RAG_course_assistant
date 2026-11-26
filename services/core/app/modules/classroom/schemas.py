@@ -27,6 +27,23 @@ class ClassAccessAction(StrEnum):
     GRADE_SUBMITTED_WORK = "grade_submitted_work"
 
 
+class AuthorizationResourceType(StrEnum):
+    CLASS = "class"
+
+
+class AuthorizationAction(StrEnum):
+    DOCUMENT_READ = "DOCUMENT_READ"
+    DOCUMENT_SHARE = "DOCUMENT_SHARE"
+    DOCUMENT_MANAGE = "DOCUMENT_MANAGE"
+    AI_QUERY = "AI_QUERY"
+    PRACTICE_ACCESS = "PRACTICE_ACCESS"
+    ASSIGNMENT_CREATE = "ASSIGNMENT_CREATE"
+    ASSIGNMENT_SUBMIT = "ASSIGNMENT_SUBMIT"
+    ASSESSMENT_MANAGE = "ASSESSMENT_MANAGE"
+    GRADE_MANAGE = "GRADE_MANAGE"
+    ANALYTICS_VIEW = "ANALYTICS_VIEW"
+
+
 class CourseCreateRequest(RequestModel):
     code: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1, max_length=200)
@@ -244,6 +261,17 @@ class ClassAccessDTO(BaseModel):
 class InternalAccessResponse(ClassAccessDTO):
     user_id: UUID
     action: ClassAccessAction
+
+
+class AuthorizationCheckRequest(RequestModel):
+    user_id: UUID
+    resource_type: AuthorizationResourceType
+    resource_id: UUID
+    action: AuthorizationAction
+
+
+class AuthorizationCheckResponse(BaseModel):
+    allowed: bool
 
 
 class NotificationAudienceDTO(BaseModel):

@@ -5,21 +5,27 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.common.auth_dependencies import (
     CurrentUser,
     get_current_user,
     require_school_scope,
+    require_service_scopes,
     verify_internal_service_key,
 )
 from app.common.db import get_db
 from app.common.errors import AppError, ErrorEnvelope
 from app.common.pagination import Page, Pagination, get_pagination
+from app.common.service_jwt import ServicePrincipal
+from app.modules.classroom.authorization import service_may_authorize
 from app.modules.classroom.permissions import require_admin
-from app.modules.classroom.public import check_class_action
+from app.modules.classroom.public import check_class_action, check_class_authorization_action
 from app.modules.classroom.schemas import (
     AdminCatalogResponse,
+    AuthorizationCheckRequest,
+    AuthorizationCheckResponse,
     ClassAccessAction,
     ClassCreateRequest,
     ClassManagementResponse,
@@ -49,6 +55,10 @@ from app.modules.identity.public import Mutation, get_mutation
 User = Annotated[CurrentUser, Depends(get_current_user)]
 Mutator = Annotated[Mutation, Depends(get_mutation)]
 ServiceScopes = Annotated[frozenset[str], Depends(verify_internal_service_key)]
+AuthorizationService = Annotated[
+    ServicePrincipal,
+    Depends(require_service_scopes("core:check_access", audience="core")),
+]
 REASON_CODES = frozenset({"ADMIN_INTERVENTION", "POLICY_VIOLATION", "USER_REQUEST"})
 ERROR_RESPONSE = {"model": ErrorEnvelope, "description": "Core error envelope"}
 
@@ -477,6 +487,28 @@ def restore_class(
         reason_required=True,
         class_ids=(class_id,),
     )
+
+
+@internal_router.post(
+    "/authorization/check",
+    response_model=AuthorizationCheckResponse,
+    responses={500: ERROR_RESPONSE},
+)
+def check_authorization(
+    body: AuthorizationCheckRequest,
+    principal: AuthorizationService,
+) -> AuthorizationCheckResponse:
+    if not service_may_authorize(principal.service_id, body.action):
+        raise AppError(403)
+    try:
+        allowed = check_class_authorization_action(
+            body.resource_id,
+            body.user_id,
+            body.action,
+        )
+    except SQLAlchemyError as exc:
+        raise AppError(503) from exc
+    return AuthorizationCheckResponse(allowed=allowed)
 
 
 @internal_router.get("/classes/{class_id}/access", response_model=InternalAccessResponse)

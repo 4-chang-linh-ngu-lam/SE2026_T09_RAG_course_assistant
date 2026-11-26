@@ -1,6 +1,7 @@
 """Action-based Classroom boundary for Core modules and the internal API."""
 
 from contextlib import nullcontext
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -13,9 +14,10 @@ from app.modules.classroom.maintenance import (
     maintenance_user_schools,
     seed_dev_classroom,
 )
-from app.modules.classroom.models import ClassStatus
+from app.modules.classroom.models import ClassStatus, SubjectClass, TeachingAssignment
 from app.modules.classroom.repository import ClassroomRepository
 from app.modules.classroom.schemas import (
+    AuthorizationAction,
     ClassAccessAction,
     ClassAccessDTO,
     NotificationAudienceDTO,
@@ -23,11 +25,121 @@ from app.modules.classroom.schemas import (
 )
 from app.modules.identity.public import get_user_roles, get_user_summary
 
-__all__ = ["ClassAccessAction", "ClassAccessDTO", "check_class_action", "get_class_lecturer_ids"]
+__all__ = [
+    "AuthorizationAction",
+    "ClassAccessAction",
+    "ClassAccessDTO",
+    "check_class_action",
+    "check_class_authorization_action",
+    "get_class_lecturer_ids",
+]
 __all__ += ["NotificationAudienceDTO", "get_notification_audience"]
 __all__ += ["RosterImportSnapshot", "admin_append_roster", "admin_preview_roster"]
 __all__ += ["maintenance_provision_schools", "maintenance_schools", "seed_dev_classroom"]
 __all__ += ["maintenance_user_schools"]
+
+
+@dataclass(frozen=True)
+class _ClassAuthorizationContext:
+    user_id: UUID
+    class_id: UUID
+    klass: SubjectClass
+    roles: frozenset[str]
+    repository: ClassroomRepository
+    current_student: bool
+    current_teacher: bool
+    assignment: TeachingAssignment | None
+
+    @property
+    def active_class(self) -> bool:
+        return self.klass.status == ClassStatus.ACTIVE
+
+
+def _class_authorization_context(
+    class_id: UUID,
+    user_id: UUID,
+    db: Session,
+    *,
+    lock: bool,
+) -> _ClassAuthorizationContext | None:
+    user = get_user_summary(user_id, session=db)
+    if user is None or user.status != "ACTIVE" or user.school_id is None:
+        return None
+    repository = ClassroomRepository(db)
+    # Locking here serializes the decision against roster, assignment and lifecycle
+    # mutations when the caller supplies a transaction that needs this guarantee.
+    klass = repository.get_class(class_id, for_share=lock)
+    if klass is None or klass.school_id != user.school_id:
+        return None
+    roles = frozenset(get_user_roles(user_id, session=db))
+    member = repository.active_membership(class_id, user_id)
+    assignment = repository.active_teacher(class_id, user_id)
+    return _ClassAuthorizationContext(
+        user_id=user_id,
+        class_id=class_id,
+        klass=klass,
+        roles=roles,
+        repository=repository,
+        current_student=member is not None and "STUDENT" in roles,
+        current_teacher=assignment is not None and "LECTURER" in roles,
+        assignment=assignment,
+    )
+
+
+def _legacy_class_action_allowed(
+    context: _ClassAuthorizationContext, action: ClassAccessAction
+) -> bool:
+    if action == ClassAccessAction.READ_CLASS_CONTENT:
+        return context.current_student or context.current_teacher
+    if action == ClassAccessAction.PARTICIPATE_CURRENT_CLASS:
+        return context.active_class and (context.current_student or context.current_teacher)
+    if action == ClassAccessAction.MODERATE_CLASS_CONTENT:
+        return context.active_class and (context.current_teacher or "ADMIN" in context.roles)
+    if action == ClassAccessAction.MANAGE_CLASS_CALENDAR:
+        return context.active_class and context.current_teacher
+    if action == ClassAccessAction.READ_OWN_HISTORY:
+        return "STUDENT" in context.roles and context.repository.has_membership_history(
+            context.class_id, context.user_id
+        )
+    if action == ClassAccessAction.READ_DOCUMENT_SOURCE:
+        return context.current_student or context.current_teacher
+    if action == ClassAccessAction.USE_AI_TUTOR:
+        return context.active_class and context.current_student
+    # GRADE_SUBMITTED_WORK; Learning checks the assigned submission separately.
+    return context.active_class and context.current_teacher
+
+
+def _core04_class_action_allowed(
+    context: _ClassAuthorizationContext, action: AuthorizationAction
+) -> bool:
+    compatible_legacy_actions = {
+        AuthorizationAction.DOCUMENT_READ: ClassAccessAction.READ_DOCUMENT_SOURCE,
+        AuthorizationAction.AI_QUERY: ClassAccessAction.USE_AI_TUTOR,
+        AuthorizationAction.GRADE_MANAGE: ClassAccessAction.GRADE_SUBMITTED_WORK,
+    }
+    legacy_action = compatible_legacy_actions.get(action)
+    if legacy_action is not None:
+        return _legacy_class_action_allowed(context, legacy_action)
+
+    if action in {
+        AuthorizationAction.DOCUMENT_SHARE,
+        AuthorizationAction.DOCUMENT_MANAGE,
+        AuthorizationAction.ASSIGNMENT_CREATE,
+        AuthorizationAction.ASSESSMENT_MANAGE,
+    }:
+        # Document must still validate source ownership/grants; Learning owns
+        # draft, primary-approval and assessment-state checks.
+        return context.active_class and context.current_teacher
+    if action == AuthorizationAction.PRACTICE_ACCESS:
+        return context.active_class and context.current_student
+    if action == AuthorizationAction.ASSIGNMENT_SUBMIT:
+        return context.active_class and context.current_student
+    if action == AuthorizationAction.ANALYTICS_VIEW:
+        student_history = "STUDENT" in context.roles and context.repository.has_membership_history(
+            context.class_id, context.user_id
+        )
+        return student_history or context.current_teacher or "ADMIN" in context.roles
+    return False
 
 
 def admin_preview_roster(
@@ -124,54 +236,41 @@ def check_class_action(
         raise AppError(400, "Unknown class action") from exc
 
     with SessionLocal() if session is None else nullcontext(session) as db:
-        user = get_user_summary(user_id, session=db)
-        if user is None or user.status != "ACTIVE" or user.school_id is None:
+        context = _class_authorization_context(class_id, user_id, db, lock=lock)
+        if context is None:
             return ClassAccessDTO(allowed=False, class_id=class_id)
-        repository = ClassroomRepository(db)
-        # lock=True lets a consumer take a FOR SHARE row lock inside its own
-        # write transaction, so Classroom mutations (set_teachers, archive,
-        # enrollment sync, ...) that hold FOR UPDATE commit first and the
-        # access decision cannot race them.
-        klass = repository.get_class(class_id, for_share=lock)
-        if klass is None or klass.school_id != user.school_id:
-            # Unknown or cross-school class stays indistinguishable (404-che).
-            return ClassAccessDTO(allowed=False, class_id=class_id)
-        denied = ClassAccessDTO(allowed=False, class_id=class_id, class_status=klass.status)
-
-        roles = set(get_user_roles(user_id, session=db))
-        member = repository.active_membership(class_id, user_id)
-        assignment = repository.active_teacher(class_id, user_id)
-        current_student = member is not None and "STUDENT" in roles
-        current_teacher = assignment is not None and "LECTURER" in roles
-        is_admin = "ADMIN" in roles
-        active_class = klass.status == ClassStatus.ACTIVE
-
-        if action == ClassAccessAction.READ_CLASS_CONTENT:
-            allowed = current_student or current_teacher
-        elif action == ClassAccessAction.PARTICIPATE_CURRENT_CLASS:
-            allowed = active_class and (current_student or current_teacher)
-        elif action == ClassAccessAction.MODERATE_CLASS_CONTENT:
-            allowed = active_class and (current_teacher or is_admin)
-        elif action == ClassAccessAction.MANAGE_CLASS_CALENDAR:
-            allowed = active_class and current_teacher
-        elif action == ClassAccessAction.READ_OWN_HISTORY:
-            allowed = "STUDENT" in roles and repository.has_membership_history(class_id, user_id)
-        elif action == ClassAccessAction.READ_DOCUMENT_SOURCE:
-            allowed = current_student or current_teacher
-        elif action == ClassAccessAction.USE_AI_TUTOR:
-            allowed = active_class and current_student
-        else:  # GRADE_SUBMITTED_WORK; Learning checks the assigned submission separately.
-            allowed = active_class and current_teacher
-
+        denied = ClassAccessDTO(allowed=False, class_id=class_id, class_status=context.klass.status)
+        allowed = _legacy_class_action_allowed(context, action)
         if not allowed:
             return denied
         return ClassAccessDTO(
             allowed=True,
             class_id=class_id,
-            school_id=klass.school_id,
-            class_status=klass.status,
-            teaching_role=assignment.role if current_teacher else None,
+            school_id=context.klass.school_id,
+            class_status=context.klass.status,
+            teaching_role=context.assignment.role if context.current_teacher else None,
         )
+
+
+def check_class_authorization_action(
+    class_id: UUID,
+    user_id: UUID,
+    action: AuthorizationAction | str,
+    *,
+    session: Session | None = None,
+    lock: bool = False,
+) -> bool:
+    """Return only the Core class-side gate; the resource-owning service must check its own data."""
+    try:
+        action = AuthorizationAction(action)
+    except ValueError as exc:
+        raise AppError(400, "Unknown authorization action") from exc
+
+    with SessionLocal() if session is None else nullcontext(session) as db:
+        context = _class_authorization_context(class_id, user_id, db, lock=lock)
+        if context is None:
+            return False
+        return _core04_class_action_allowed(context, action)
 
 
 def get_class_lecturer_ids(class_id: UUID, *, session: Session | None = None) -> list[UUID]:

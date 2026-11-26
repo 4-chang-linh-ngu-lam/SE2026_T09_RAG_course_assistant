@@ -2592,6 +2592,10 @@
     "HTTPBearer": {
       "scheme": "bearer",
       "type": "http"
+    },
+    "ServiceJWT": {
+      "scheme": "bearer",
+      "type": "http"
     }
   }
 }
