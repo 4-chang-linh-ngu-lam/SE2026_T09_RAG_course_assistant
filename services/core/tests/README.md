@@ -14,11 +14,13 @@ the specified test database. Never point this variable at an operational server.
 
 ```sh
 python -m pytest ../../packages/service-auth/tests -q -W error
+python -m pytest tests/classroom/test_authorization.py tests/classroom/test_contract.py tests/security/test_service_jwt.py -q -W error
 python -m pytest -q -W error -p no:cacheprovider --cov=app --cov-branch --cov-report=xml --junitxml=test-results.xml
 python tests/security/evidence.py --junit test-results.xml --output rule-evidence.json
 python -m pytest tests/identity/test_public.py -q -W error -p no:cacheprovider --cov=app.modules.identity.public --cov-branch --cov-fail-under=100
-python -m ruff check app tests migrations
-python -m ruff format --check app tests migrations
+python -m ruff check app tests migrations ../../packages/service-auth/src ../../packages/service-auth/tests
+python -m ruff format --check app tests migrations ../../packages/service-auth/src ../../packages/service-auth/tests
+python -m pytest tests/classroom/test_authorization.py tests/classroom/test_contract.py tests/security/test_service_jwt.py -q -W error
 ```
 
 Without the test database, DB tests skip; that is not DB verification. The evidence

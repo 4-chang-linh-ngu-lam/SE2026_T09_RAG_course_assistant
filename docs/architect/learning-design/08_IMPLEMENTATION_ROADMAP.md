@@ -17,3 +17,7 @@
 | LRN-13 | Frontend integration | 02–12 |
 | LRN-14 | Security/integration/acceptance | 01–13 |
 Discovery trước code, reuse tương thích. LRN-05/07 phải có outbox trước nghiệm thu publication; LRN-10 cần D6 gốc và AI agreement; LRN-09 real AI phụ thuộc AI team, mock trước. Không expose API thiếu auth. AC mapping chi tiết sau discovery. Preflight Git, scope, test, evidence, TL review; không auto commit/push/merge/deploy. Open: physical schema, DTO, recipient snapshot, late/reopen/rounding, retention, D6 cross-class/streaming, AI contracts.
+
+## CORE04-D01-A approval dependency gate
+
+Do not implement Learning approval flows for official Assessment publication or grade correction until Core exposes and verifies the separate `ASSESSMENT_APPROVE` and `GRADE_CORRECTION_APPROVE` Service-JWT actions. Current `ASSESSMENT_MANAGE` and `GRADE_MANAGE` remain class-side gates, not PRIMARY approval. Learning must not query the Core database. LRN-04/07 approval transitions are blocked by this dependency; no Learning service/code is created by CORE-04-R1.

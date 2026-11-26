@@ -1,5 +1,5 @@
 # Tiêu chí nghiệm thu đề xuất
-Chưa chạy test; kế thừa DOC-T06. Unit, contract, integration PostgreSQL thật, E2E, fault injection. Mỗi AC cần bằng chứng.
+Kế thừa DOC-T06. Unit, contract, integration PostgreSQL thật, E2E, fault injection. Mỗi AC cần bằng chứng.
 | ID | Điều kiện đạt |
 |---|---|
 | C-AC01 | Register hợp lệ, email trùng bị chặn kể cả concurrent |
@@ -23,6 +23,10 @@ Chưa chạy test; kế thừa DOC-T06. Unit, contract, integration PostgreSQL t
 | C-AC19 | Không truy cập DB xuyên service, không leak secrets |
 | C-AC20 | Real integration authorization và event delivery |
 DoD: static/unit/contract/integration phù hợp, không skip vô lý, evidence mock/real riêng, TL review. Load test 358 user theo workload được chốt, không đồng nhất với 358 inference.
+
+## CORE-04 local coverage
+
+CORE-T03 route/action registry có unit/contract/security coverage tại `services/core/tests/classroom/test_authorization.py`, `test_contract.py` và `tests/security/test_service_jwt.py`. Local targeted results và command/exit code được ghi trong [CORE-04 Implementation Report](10_CORE04_IMPLEMENTATION_REPORT.md). Chúng không chứng minh Document/Learning/AI consumer integration hoặc AC20; AC10/12 server verification và real consumer acceptance vẫn riêng biệt.
 
 ## CORE-CR01/02 AC supersession
 

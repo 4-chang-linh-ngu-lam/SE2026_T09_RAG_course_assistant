@@ -46,12 +46,13 @@ services/core/                         # Một service FastAPI; image được b
 │   │   ├── classroom/                 # TV2: School, roster, lớp môn học, AUTO/MANUAL, teaching assignment
 │   │   │   ├── router.py
 │   │   │   ├── schemas.py
+│   │   │   ├── authorization.py       # CORE-T03 caller/action allowlist, không truy cập service DB khác
 │   │   │   ├── models.py
 │   │   │   ├── service.py             # Admin sync/chuyển lớp, phân công, archive/restore; transaction
 │   │   │   ├── repository.py
 │   │   │   ├── permissions.py         # Quyền theo lớp, không chỉ dựa trên role toàn hệ thống
 │   │   │   ├── maintenance.py         # School manifest, lịch sử scope và seed qua workflow Classroom
-│   │   │   └── public.py              # Ví dụ: check_class_access(...) cho các module khác
+│   │   │   └── public.py              # Legacy + Core class-side authorization policy; resource service kiểm tra quyền local
 │   │   ├── social/                    # TV3: chức năng tương tác lớp
 │   │   │   ├── feed/                  # Bài đăng bảng tin, ẩn/xóa theo quyền
 │   │   │   ├── comments/              # Bình luận bài đăng, kiểm tra quyền và trạng thái bài

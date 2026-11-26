@@ -1,6 +1,8 @@
 # CORE-00-R1 — Revised Backlog và Engineering Review Response
 
-**Trạng thái:** CORE-00 — DISCOVERY APPROVED, CLOSED; SYS-02 implementation và design updates đang chờ Technical Lead Engineering Review, chưa commit.
+**Trạng thái discovery:** CORE-00 — DISCOVERY APPROVED, CLOSED.
+**Trạng thái implementation cập nhật:** SYS-02 — LOCAL ENGINEERING ACCEPTED (AC10 vẫn blocked bởi SERVER-01); CORE-04 — LOCAL ENGINEERING ACCEPTED (CORE04-AC01–11 LOCAL PASS, AC12 BLOCKED bởi SERVER-01).
+**Lưu ý:** backlog và coverage bên dưới giữ nguyên snapshot tại CORE-00; trạng thái hiện hành của CORE-04 được ghi trong [CORE-04 Implementation Report](../core-design/10_CORE04_IMPLEMENTATION_REPORT.md) và Core implementation roadmap.
 **Baseline:** 27f5f6371d246f027ae4f501c083e125b7cb1961
 **Ràng buộc:** discovery-only; không sửa code/schema/migration; không bắt đầu CORE-01; không commit/push.
 
