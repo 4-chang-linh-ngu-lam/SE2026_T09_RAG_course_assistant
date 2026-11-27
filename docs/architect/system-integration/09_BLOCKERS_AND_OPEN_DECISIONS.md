@@ -1,7 +1,7 @@
 # Blockers và open decisions
 | ID | Vấn đề | Owner đề xuất | Gate |
 |---|---|---|---|
-| B01 | DOC-00 engineering review, evidence 03/08/09 | TL | DOC-01 |
+| B01 | DOC-01/02 PostgreSQL migration, ACL/concurrency và storage-volume restart verification bị chặn bởi SERVER-01; local engineering đã accepted | TL | Testing verification |
 | B02 | Core ID/schema/migration/RBAC và frontend routes thực tế | TL | contract freeze |
 | B03 | Provision Service JWT keys/trust maps, approve rotation runbook and migrate callers to shared `lumi-service-auth` | TL + service owners | real integration |
 | B04 | AI HTTP adapters, durable job, index readiness/deletion | AI team + TL | DOC-13/LRN-14 |
