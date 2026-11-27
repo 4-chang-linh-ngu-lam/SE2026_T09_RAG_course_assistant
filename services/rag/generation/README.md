@@ -11,15 +11,19 @@ Document hay Learning và không có endpoint; nó nhận evidence đã được
 generation/
   rag_generation.py   Adapter llama.cpp (loopback, khớp SHA, 1 slot). Thêm profile/max_new_tokens/seed
                       theo lần gọi; gọi không tham số vẫn gửi request y hệt bản cũ.
+  openai_compatible.py Adapter HTTP OpenAI-compatible (Structured Outputs / JSON Schema), kết nối
+                      keep-alive qua `httpx.Client` (`max_connections=32`, `max_keepalive_connections=16`,
+                      `follow_redirects=False`, `close()`) và multiline quote snapping an toàn
+                      (`len(q_norm) >= 16` + coverage `>= 75%` trên các quote enum đã kiểm chứng).
   rag_answer.py, answer_contract.py   Hợp đồng cũ, giữ nguyên (chưa chuyển sang TaskSpec).
   pipeline.py         TaskSpec + GroundedTaskPipeline: pack → grammar → generate → parse →
                       kiểm schema lần 2 → validate → verify → retry seed+1 → provenance
   registry.py         (task, version) → TaskSpec
   runtime/            sampling profiles, SlotScheduler P0/P1/P2, BudgetPlanner, provenance (chỉ hash)
   contracts/          evidence items, citation quote-enum, kiểm JSON-Schema subset, lỗi
-  grounding/          số/tên riêng (lexical), bộ tính AST an toàn, judge entailment
+  grounding/          số/tên riêng/biểu thức LaTeX lồng nhau (lexical), bộ tính AST an toàn, judge entailment
   policy/             TutorConfig có kiểu (C6), văn phong theo khối (C4)
-  tasks/qa/           quick (C1–C3), condense + route, step (C4), explain ("Vì sao mình sai?"), render (C2/H4)
+  tasks/qa/           quick (C1–C3), condense + route, step (C4), expand, explain ("Vì sao mình sai?"), render (C2/H4)
   tasks/quiz/         knowledge_units, facts, blueprint (QuizSpec), items (4 loại D2), checks,
                       verify (judge + solver), assemble (xáo cân bằng, dedup, đề song song), review (D1), job
   eval/metrics.py     tổng hợp số liệu QAS-06 / chất lượng quiz từ nhãn — không tự tuyên bố KPI
@@ -46,7 +50,8 @@ Kết quả chỉ là **bản nháp**; `review.review(...)` rồi `review.export
 
 ## Bảo đảm do engine cung cấp
 
-- Citation chỉ chọn được từ quote có thật trong evidence (grammar enum) và map về `source_spans`.
+- Citation chỉ chọn được từ quote có thật trong evidence (grammar enum hoặc Structured Outputs + multiline quote snapping an toàn `len >= 16`, coverage `>= 75%`) và map về `source_spans`.
+- Trích xuất quote (`citations/source_quotes.py`) bảo toàn dấu `;` bên trong ngoặc đơn (`skip_paren_semicolon=True`) để không cắt gãy tọa độ toán học `(x; y)`, đồng thời kiểm tra span 1 lần/item (`_validate_record_spans`) và đối chiếu range O(1).
 - Model không viết tên tài liệu/số trang; `render_answer(answer, locate)` lấy vị trí từ service.
 - `insufficient_evidence` là kết quả hợp lệ; không evidence + tắt kiến thức chung ⇒ không gọi model.
 - Kiến thức chung (`basis: "general"`) chỉ có trong grammar khi giáo viên bật; UI có nhãn riêng.
