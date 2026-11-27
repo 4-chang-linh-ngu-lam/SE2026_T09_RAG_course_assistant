@@ -39,6 +39,10 @@ desktop.ini
 !.gitattributes
 !.env.example
 !.dockerignore
+# Keep the Document CI workflow trackable despite the local-dotfile ignore above.
+!.github/
+!.github/workflows/
+!.github/workflows/document-ci.yml
 
 # Local runs and archival artifacts.
 /tmp/

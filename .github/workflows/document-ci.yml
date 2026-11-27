@@ -1,0 +1,115 @@
+name: Document CI
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "services/document/**"
+      - ".github/workflows/document-ci.yml"
+      - "compose.yaml"
+      - ".env.example"
+  push:
+    branches: [main, "codex/**", "feature/**", "fix/**"]
+    paths:
+      - "services/document/**"
+      - ".github/workflows/document-ci.yml"
+      - "compose.yaml"
+      - ".env.example"
+permissions:
+  contents: read
+concurrency:
+  group: document-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  document-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: document_ci_admin
+          POSTGRES_PASSWORD: doc-ci-admin-${{ github.run_id }}-${{ github.run_attempt }}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U document_ci_admin -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DOCUMENT_DATABASE_ADMIN_URL: postgresql+psycopg://document_ci_admin:doc-ci-admin-${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/postgres
+      DOCUMENT_DATABASE_NAME: test_document_${{ github.run_id }}_${{ github.run_attempt }}
+      DOCUMENT_DATABASE_USER: lumi_document_test_${{ github.run_id }}_${{ github.run_attempt }}
+      DOCUMENT_DATABASE_PASSWORD: doc-ci-user-${{ github.run_id }}-${{ github.run_attempt }}
+      DOCUMENT_DATABASE_URL: postgresql+psycopg://lumi_document_test_${{ github.run_id }}_${{ github.run_attempt }}:doc-ci-user-${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/test_document_${{ github.run_id }}_${{ github.run_attempt }}
+      DOCUMENT_TEST_DATABASE_URL: postgresql+psycopg://lumi_document_test_${{ github.run_id }}_${{ github.run_attempt }}:doc-ci-user-${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/test_document_${{ github.run_id }}_${{ github.run_attempt }}
+      CORE_TEST_DATABASE_URL: postgresql+psycopg://core_ci_${{ github.run_id }}:core-ci-user-${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/test_core_${{ github.run_id }}_${{ github.run_attempt }}
+      UNRELATED_TEST_DATABASE_URL: postgresql+psycopg://unrelated_document_test_${{ github.run_id }}_${{ github.run_attempt }}:unrelated-ci-${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/test_document_${{ github.run_id }}_${{ github.run_attempt }}
+      DOCUMENT_ALLOW_LOCAL_DATABASE_PROVISIONING: "true"
+      DOCUMENT_TEST_DATABASE_DISPOSABLE: "true"
+      DOCUMENT_ALLOW_DESTRUCTIVE_TESTS: "true"
+      DOCUMENT_TEST_ALLOWED_HOSTS: localhost
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Mask per-run database credentials
+        env:
+          POSTGRES_PASSWORD: doc-ci-admin-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          echo "::add-mask::$POSTGRES_PASSWORD"
+          echo "::add-mask::$DOCUMENT_DATABASE_PASSWORD"
+          echo "::add-mask::$DOCUMENT_DATABASE_URL"
+          echo "::add-mask::$DOCUMENT_TEST_DATABASE_URL"
+          echo "::add-mask::$CORE_TEST_DATABASE_URL"
+          echo "::add-mask::$UNRELATED_TEST_DATABASE_URL"
+          echo "::add-mask::$DOCUMENT_DATABASE_ADMIN_URL"
+      - name: Prepare separate synthetic Core database identity
+        env:
+          PGPASSWORD: doc-ci-admin-${{ github.run_id }}-${{ github.run_attempt }}
+          CORE_CI_USER: core_ci_${{ github.run_id }}
+          CORE_CI_PASSWORD: core-ci-user-${{ github.run_id }}-${{ github.run_attempt }}
+          CORE_CI_DATABASE: test_core_${{ github.run_id }}_${{ github.run_attempt }}
+          UNRELATED_CI_USER: unrelated_document_test_${{ github.run_id }}_${{ github.run_attempt }}
+          UNRELATED_CI_PASSWORD: unrelated-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          echo "::add-mask::$PGPASSWORD"
+          echo "::add-mask::$CORE_CI_PASSWORD"
+          psql "host=localhost port=5432 user=document_ci_admin dbname=postgres" \
+            -v ON_ERROR_STOP=1 -v role="$CORE_CI_USER" \
+            -v password="$CORE_CI_PASSWORD" -v dbname="$CORE_CI_DATABASE" \
+            -v unrelated_role="$UNRELATED_CI_USER" \
+            -v unrelated_password="$UNRELATED_CI_PASSWORD" <<'SQL'
+          SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'role', :'password') \gexec
+          SELECT format('CREATE DATABASE %I OWNER %I', :'dbname', :'role') \gexec
+          SELECT format('REVOKE ALL PRIVILEGES ON DATABASE %I FROM PUBLIC', :'dbname') \gexec
+          SELECT format('COMMENT ON DATABASE %I IS %L', :'dbname', 'lumi-core-test-disposable:v1') \gexec
+          SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'unrelated_role', :'unrelated_password') \gexec
+          SQL
+      - name: Install Document package and test dependencies
+        working-directory: services/document
+        run: python -m pip install -e ".[dev]"
+      - name: Provision isolated Document test database
+        working-directory: services/document
+        run: |
+          python -m document_service.bootstrap_database
+          python -m document_service.bootstrap_database
+      - name: Lint, format and check offline migration SQL
+        working-directory: services/document
+        run: |
+          ruff check src tests migrations
+          ruff format --check src tests migrations
+          python -m alembic upgrade head --sql > "$RUNNER_TEMP/document-upgrade.sql"
+          grep -q 'CREATE TABLE document.documents' "$RUNNER_TEMP/document-upgrade.sql"
+      - name: Test Document foundation and PostgreSQL constraints
+        working-directory: services/document
+        run: python -m pytest tests -q -W error -p no:cacheprovider
+      - name: Require PostgreSQL integration tests to execute
+        working-directory: services/document
+        run: |
+          test -n "$DOCUMENT_TEST_DATABASE_URL"
+          test "$DOCUMENT_ALLOW_DESTRUCTIVE_TESTS" = "true"
+          python -m pytest tests/integration/test_postgres_schema.py -q -W error -p no:cacheprovider \
+            --junitxml="$RUNNER_TEMP/document-postgres-tests.xml"
+          python -c "import sys,xml.etree.ElementTree as ET; root=ET.parse('$RUNNER_TEMP/document-postgres-tests.xml').getroot(); skipped=root.findall('.//skipped'); print('PostgreSQL integration skipped:', len(skipped)); sys.exit(bool(skipped))"
+      - name: Validate Compose configuration
+        run: docker compose config --quiet

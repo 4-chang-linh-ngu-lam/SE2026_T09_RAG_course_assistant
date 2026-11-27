@@ -128,5 +128,79 @@ services:
     depends_on:
       core:
         condition: service_healthy
+  document-db-init:
+    image: ${DOCUMENT_IMAGE:-lumi-document:local}
+    build:
+      context: ./services/document
+      dockerfile: Dockerfile
+    command: ["python", "-m", "document_service.bootstrap_database"]
+    environment:
+      DOCUMENT_DATABASE_ADMIN_URL: ${DOCUMENT_DATABASE_ADMIN_URL:-postgresql+psycopg://${POSTGRES_USER:-rag_course}:${POSTGRES_PASSWORD:-change-me-local-only}@db:5432/postgres}
+      DOCUMENT_DATABASE_URL: ${DOCUMENT_DATABASE_URL:-postgresql+psycopg://${DOCUMENT_DATABASE_USER:-lumi_document}:${DOCUMENT_DATABASE_PASSWORD:-change-me-document-local-only}@db:5432/${DOCUMENT_DATABASE_NAME:-lumi_document}}
+      DOCUMENT_DATABASE_NAME: ${DOCUMENT_DATABASE_NAME:-lumi_document}
+      DOCUMENT_DATABASE_USER: ${DOCUMENT_DATABASE_USER:-lumi_document}
+      DOCUMENT_DATABASE_PASSWORD: ${DOCUMENT_DATABASE_PASSWORD:-change-me-document-local-only}
+      DOCUMENT_ALLOW_LOCAL_DATABASE_PROVISIONING: "true"
+      DOCUMENT_TEST_DATABASE_DISPOSABLE: ${DOCUMENT_TEST_DATABASE_DISPOSABLE:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["document"]
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  document-migrate:
+    image: ${DOCUMENT_IMAGE:-lumi-document:local}
+    build:
+      context: ./services/document
+      dockerfile: Dockerfile
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      DOCUMENT_DATABASE_URL: ${DOCUMENT_DATABASE_URL:-postgresql+psycopg://${DOCUMENT_DATABASE_USER:-lumi_document}:${DOCUMENT_DATABASE_PASSWORD:-change-me-document-local-only}@db:5432/${DOCUMENT_DATABASE_NAME:-lumi_document}}
+    depends_on:
+      document-db-init:
+        condition: service_completed_successfully
+    profiles: ["document"]
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  document:
+    image: ${DOCUMENT_IMAGE:-lumi-document:local}
+    build:
+      context: ./services/document
+      dockerfile: Dockerfile
+    environment:
+      DOCUMENT_DATABASE_URL: ${DOCUMENT_DATABASE_URL:-postgresql+psycopg://${DOCUMENT_DATABASE_USER:-lumi_document}:${DOCUMENT_DATABASE_PASSWORD:-change-me-document-local-only}@db:5432/${DOCUMENT_DATABASE_NAME:-lumi_document}}
+      DOCUMENT_STORAGE_ROOT: ${DOCUMENT_STORAGE_ROOT:-/var/lib/lumi-document/files}
+    volumes:
+      - document-files:/var/lib/lumi-document
+    depends_on:
+      document-migrate:
+        condition: service_completed_successfully
+    profiles: ["document"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 volumes:
   pgdata:
+  document-files:
