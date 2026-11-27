@@ -4,12 +4,14 @@ from __future__ import annotations
 import math
 
 
-def _lexical_weight(arm, weight):
-    return weight if (arm == "lexical" or arm == "lexical_accent_fallback"
-                      or arm.startswith("focus_lexical")) else 1.0
+def _arm_weight(arm, lexical_weight, section_weight):
+    if arm == "section":
+        return section_weight
+    return lexical_weight if (arm == "lexical" or arm == "lexical_accent_fallback"
+                              or arm.startswith("focus_lexical")) else 1.0
 
 
-def fuse_rankings(arms, *, method, rrf_constant, lexical_weight=1.0):
+def fuse_rankings(arms, *, method, rrf_constant, lexical_weight=1.0, section_weight=1.0):
     """Keep candidate union and raw scores, with an explicit selected score.
 
     Relative scores are min/max normalized independently inside each returned
@@ -22,6 +24,9 @@ def fuse_rankings(arms, *, method, rrf_constant, lexical_weight=1.0):
     if (type(lexical_weight) not in (int, float) or not math.isfinite(lexical_weight)
             or not 0 < lexical_weight <= 10):
         raise ValueError("lexical_weight must be finite numeric in (0, 10]")
+    if (type(section_weight) not in (int, float) or not math.isfinite(section_weight)
+            or not 0 < section_weight <= 10):
+        raise ValueError("section_weight must be finite numeric in (0, 10]")
     fused = {}
     for arm, qi, ranking in arms:
         if len({cid for cid, _ in ranking}) != len(ranking):
@@ -34,7 +39,7 @@ def fuse_rankings(arms, *, method, rrf_constant, lexical_weight=1.0):
             rrf = 1 / (rrf_constant + rank)
             relative = ((score - low) / (high - low) if high > low
                         else float(len(ranking) == 1))
-            weight = _lexical_weight(arm, lexical_weight)
+            weight = _arm_weight(arm, lexical_weight, section_weight)
             contribution = (rrf if method == "rrf" else relative) * weight
             item = fused.setdefault(cid, {"id": cid, "rrf_score": 0.,
                                          "fusion_score": 0., "matches": []})

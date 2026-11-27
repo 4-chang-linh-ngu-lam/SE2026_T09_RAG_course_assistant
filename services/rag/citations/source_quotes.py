@@ -18,8 +18,11 @@ MAX_QUOTED_CHARS = 32_768
 MAX_SOURCE_CHARS = 256_000
 WINDOW_OVERLAP_CHARS = 32
 
-_SENTENCE_END = re.compile(r"[.!?;](?=\s)|\n+")
-_CLAUSE_END = re.compile(r"[,:(—–](?=\s)")
+# PDF and OCR text wraps lines inside sentences, so a single line break does
+# not end a sentence; punctuation or a blank line does. Each wrapped line is
+# still offered as a clause-level candidate.
+_SENTENCE_END = re.compile(r"[.!?;](?=\s)|\n[ \t]*\n+")
+_CLAUSE_END = re.compile(r"[,:(—–](?=\s)|\n")
 _WORD = re.compile(r"\S+")
 
 
@@ -36,9 +39,27 @@ def _trim_bounds(text: str, start: int, end: int) -> tuple[int, int]:
     return start, end
 
 
-def _ranges(text: str, start: int, end: int, delimiter: re.Pattern[str]):
+def _ranges(
+    text: str,
+    start: int,
+    end: int,
+    delimiter: re.Pattern[str],
+    *,
+    skip_paren_semicolon: bool = False,
+):
     cursor = start
+    depth = 0
+    scan_pos = start
     for match in delimiter.finditer(text, start, end):
+        if skip_paren_semicolon:
+            for ch in text[scan_pos:match.start()]:
+                if ch == "(":
+                    depth += 1
+                elif ch == ")" and depth > 0:
+                    depth -= 1
+            scan_pos = match.start()
+            if match.group(0) == ";" and depth > 0:
+                continue
         boundary = match.end()
         if cursor < boundary:
             yield cursor, boundary
@@ -48,7 +69,9 @@ def _ranges(text: str, start: int, end: int, delimiter: re.Pattern[str]):
 
 
 def _sentence_and_clause_ranges(text: str):
-    for raw_start, raw_end in _ranges(text, 0, len(text), _SENTENCE_END):
+    for raw_start, raw_end in _ranges(
+        text, 0, len(text), _SENTENCE_END, skip_paren_semicolon=True
+    ):
         start, end = _trim_bounds(text, raw_start, raw_end)
         if start >= end:
             continue
@@ -108,9 +131,9 @@ def _record_text(item: Mapping) -> tuple[str, str]:
     return item_id, text
 
 
-def _snippets_for(text: str) -> list[str]:
-    snippets = []
-    seen = set()
+def _snippets_with_ranges(text: str) -> list[tuple[str, int, int]]:
+    snippets: list[tuple[str, int, int]] = []
+    seen: set[str] = set()
     for segment_start, segment_end in _sentence_and_clause_ranges(text):
         if segment_end - segment_start <= MAX_QUOTE_CHARS:
             slices = [(segment_start, segment_end)]
@@ -122,14 +145,58 @@ def _snippets_for(text: str) -> list[str]:
                 continue
             if quote not in seen:
                 seen.add(quote)
-                snippets.append(quote)
+                snippets.append((quote, start, end))
                 if len(snippets) > MAX_SNIPPETS:
                     raise SourceBoundSchemaError("snippet_budget_exceeded")
     # Formula and list fragments can consist entirely of short lines. Offer
     # the exact multiline text if it fits, rather than rewriting its spacing.
-    if not snippets and MIN_QUOTE_CHARS <= len(text.strip()) <= MAX_QUOTE_CHARS:
-        snippets.append(text.strip())
+    if not snippets:
+        start, end = _trim_bounds(text, 0, len(text))
+        quote = text[start:end]
+        if MIN_QUOTE_CHARS <= len(quote) <= MAX_QUOTE_CHARS:
+            snippets.append((quote, start, end))
     return snippets
+
+
+def _snippets_for(text: str) -> list[str]:
+    return [quote for quote, _, _ in _snippets_with_ranges(text)]
+
+
+def _validate_record_spans(text: str, item: Mapping) -> list[dict]:
+    spans = item.get("source_spans")
+    if not isinstance(spans, (list, tuple)) or not isinstance(item.get("source_id"), str) or not item["source_id"]:
+        raise ValueError("invalid_evidence_source_spans")
+    previous_end = 0
+    valid = []
+    for span in spans:
+        a, b, sa, sb = (
+            span.get(k) if isinstance(span, dict) else None
+            for k in ("start", "end", "source_start", "source_end")
+        )
+        if (
+            any(type(v) is not int for v in (a, b, sa, sb))
+            or not previous_end <= a < b <= len(text)
+            or not 0 <= sa < sb
+            or b - a != sb - sa
+        ):
+            raise ValueError("invalid_evidence_source_spans")
+        previous_end = b
+        valid.append(span)
+    return valid
+
+
+def _span_covers_range(text: str, spans: list[dict], start: int, end: int) -> bool:
+    cursor, mapped = start, False
+    for span in spans:
+        a = max(start, span["start"])
+        b = min(end, span["end"])
+        if a >= b:
+            continue
+        if text[cursor:a].strip():
+            return False
+        mapped = True
+        cursor = b
+    return mapped and not text[cursor:end].strip()
 
 
 def source_quote_enums(evidence) -> dict[str, list[str]]:
@@ -153,17 +220,27 @@ def source_quote_enums(evidence) -> dict[str, list[str]]:
         if total_source_chars > MAX_SOURCE_CHARS:
             raise SourceBoundSchemaError("source_work_budget_exceeded")
 
-        snippets = _snippets_for(source_text)
+        snippet_ranges = _snippets_with_ranges(source_text)
         record = item.get("record")
         if isinstance(record, Mapping) and "source_spans" in record:
-            mapped_snippets = []
-            for quote in snippets:
-                try:
-                    quote_spans({"text": source_text, "record": record}, quote)
-                except ValueError:
-                    continue
-                mapped_snippets.append(quote)
-            snippets = mapped_snippets
+            try:
+                valid_spans = _validate_record_spans(source_text, record)
+            except ValueError:
+                snippets = []
+            else:
+                mapped_snippets = []
+                for quote, q_start, q_end in snippet_ranges:
+                    if _span_covers_range(source_text, valid_spans, q_start, q_end):
+                        mapped_snippets.append(quote)
+                        continue
+                    try:
+                        quote_spans({"text": source_text, "record": record}, quote)
+                    except ValueError:
+                        continue
+                    mapped_snippets.append(quote)
+                snippets = mapped_snippets
+        else:
+            snippets = [quote for quote, _, _ in snippet_ranges]
         if not snippets:
             continue
         total_snippets += len(snippets)

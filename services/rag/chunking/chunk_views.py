@@ -175,13 +175,13 @@ def source_spans(parent, a, b, shift=0):
     return _source_spans(parent, a, b, shift)
 
 
-def index_text(child, parents) -> str:
-    """Construct contextualized index text from valid referenced slices and own text."""
+def index_parts(child, parents) -> tuple[str, str]:
+    """Construct contextualized index text and unprefixed index body from valid refs."""
     refs = {}
     for ref in child.get("context_refs", []):
         if not isinstance(ref, dict) or ref.get("index") is not True:
             continue
-        pid = ref.get("parent_id") if isinstance(ref, dict) else None
+        pid = ref.get("parent_id")
         parent = parents.get(pid)
         if not parent or (child.get("source_id") is not None
                           and child.get("source_id") != parent.get("source_id")):
@@ -212,8 +212,13 @@ def index_text(child, parents) -> str:
                                       if span["start"] < item[2] and item[1] < span["end"]), default=10**30),
                                  item[1]))
     own = child.get("text", "")
-    return contextualize(child.get("context_path", child.get("section_path", [])),
-                         "\n\n".join([*(parent["text"][a:b] for parent, a, b in pieces), own]))
+    body = "\n\n".join([*(parent["text"][a:b] for parent, a, b in pieces), own])
+    return contextualize(child.get("context_path", child.get("section_path", [])), body), body
+
+
+def index_text(child, parents) -> str:
+    """Construct contextualized index text from valid referenced slices and own text."""
+    return index_parts(child, parents)[0]
 
 
 def materialize(record, children, parents, eligible):
@@ -238,17 +243,14 @@ def materialize(record, children, parents, eligible):
                     or not 0 <= a < b <= len(parent.get("text", ""))):
                 return None
             ids = parent.get("child_ids", [])
-            covering = [children[item] for item in ids if item in children
-                        and children[item].get("parent_start", 0) < b
+            if not isinstance(ids, list) or not ids or any(item not in children for item in ids):
+                return None
+            covering = [children[item] for item in ids
+                        if children[item].get("parent_start", 0) < b
                         and a < children[item].get("parent_end", 0)]
             # Check the entire dependency set before inspecting referenced text.
-            if not covering or len(covering) != sum(
-                    1 for item in ids if item in children
-                    and children[item].get("parent_start", 0) < b
-                    and a < children[item].get("parent_end", 0)):
-                return None
-            if any(item["id"] not in eligible or item.get("source_id") != record.get("source_id")
-                   for item in covering):
+            if not covering or any(item["id"] not in eligible or item.get("source_id") != record.get("source_id")
+                                   for item in covering):
                 return None
             parent = _reference(ref, owner, children, parents)
             if parent is None:
@@ -290,14 +292,19 @@ def materialize(record, children, parents, eligible):
     text_parts, roles, owner_ids = [], [], set(member_ids)
     source_warnings = list(record.get("source_quality_warnings", []))
     text = record.get("text", "")
+    offset = 0
+    prefix_spans = []
     for _, a, b, parent, ref_roles in slices:
         piece = parent["text"][a:b]
-        prefix = "\n\n" if text_parts else ""
-        start = sum(len(part) for part in text_parts) + len(prefix)
-        new_spans = _source_spans(parent, a, b, start)
+        if text_parts:
+            text_parts.append("\n\n")
+            offset += 2
+        new_spans = _source_spans(parent, a, b, offset)
         if new_spans is None:
             return None
-        text_parts.extend(([prefix] if prefix else []) + [piece])
+        prefix_spans.extend(new_spans)
+        text_parts.append(piece)
+        offset += b - a
         roles.extend(role for role in ref_roles if role not in roles)
         for cid in parent["child_ids"]:
             child = children[cid]
@@ -309,19 +316,11 @@ def materialize(record, children, parents, eligible):
     prefix_text = "".join(text_parts)
     separator = "\n\n" if prefix_text and text else ""
     new_text = prefix_text + separator + text
-    offset = 0
-    source_spans = []
-    for _, a, b, parent, _ in slices:
-        if offset:
-            offset += 2
-        new_spans = _source_spans(parent, a, b, offset)
-        if new_spans is None:
-            return None
-        source_spans.extend(new_spans)
-        offset += b - a
-    source_spans.extend({**span, "start": span["start"] + len(prefix_text) + len(separator),
-                         "end": span["end"] + len(prefix_text) + len(separator)}
-                        for span in record.get("source_spans", []))
+    shift = len(prefix_text) + len(separator)
+    source_spans = prefix_spans + [
+        {**span, "start": span["start"] + shift, "end": span["end"] + shift}
+        for span in record.get("source_spans", [])
+    ]
     output = {**record, "text": new_text, "source_spans": source_spans,
               "child_ids": sorted(owner_ids), "context_roles": roles}
     output["own_level"] = record.get("level", "child")

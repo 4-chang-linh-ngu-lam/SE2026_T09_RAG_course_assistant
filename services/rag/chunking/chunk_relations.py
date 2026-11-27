@@ -4,8 +4,16 @@ from __future__ import annotations
 import re
 import unicodedata
 
-RELATIONS_VERSION = "idp-chunk-relations-1"
-_READ = re.compile(r"^(?:>[ \t]*)*(?:đọc\s+(?:kĩ\s+)?(?:đoạn\s+(?:văn|trích)|văn bản|bài thơ|ngữ liệu)\s+(?:sau|dưới đây)|read\s+the\s+following\s+(?:passage|text|poem))\b", re.I)
+RELATIONS_VERSION = "idp-chunk-relations-2"
+_READ = re.compile(
+    r"^(?:>[ \t]*)*(?:"
+    r"(?:đọc\s+(?:kĩ\s+|kỹ\s+)?|dựa\s+vào\s+|cho\s+|quan\s+sát\s+)"
+    r"(?:đoạn\s+(?:văn|trích|tư\s+liệu|thơ)|văn\s+bản|bài\s+thơ|ngữ\s+liệu|tư\s+liệu)"
+    r"\s+(?:sau|dưới\s+đây|bên\s+dưới)"
+    r"|read\s+the\s+following\s+(?:passage|text|poem|excerpt)"
+    r")\b",
+    re.I,
+)
 
 
 def shared_passages(parents, nodes):

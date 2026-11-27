@@ -54,14 +54,9 @@ def _digest(value):
 
 
 def _document_version(canonical):
-    if canonical["schema_version"] == "idp-canonical-1":
-        version = (canonical.get("source_metadata") or {}).get("document_version")
-        if version is None:
-            return "sha256:" + canonical["source_sha256"]
-        if not isinstance(version, str) or not version.strip():
-            raise ValueError("invalid legacy document version")
-        return version
-    return canonical["document_version"]
+    from idp.canonical.contract import resolve_document_version
+
+    return resolve_document_version(canonical)
 
 
 def iter_retrievable_blocks(canonical, *, trusted_parsers=(), block_scoped_codes=(), policy=None,
@@ -81,110 +76,25 @@ def _retrievable(canonical, trusted_parsers=(), block_scoped_codes=(), policy=No
     drops weaker blocks, which then count as held. A line held only because
     a verified formula replaces it is not a gap.
     """
-    schema = canonical.get("schema_version")
-    if schema == "idp-canonical-2":
-        try:
-            from idp.publish import iter_retrievable_blocks as validate_v2
-        except ModuleNotFoundError as error:
-            if error.name != "idp.publish":
-                raise
-            raise ValueError("Canonical v2 requires the Unified IDP publisher") from error
-        return list(validate_v2(canonical)), set()
-    if schema != "idp-canonical-1":
-        raise ValueError("unsupported canonical schema")
+    from idp.canonical.contract import retrievable_blocks_with_held
 
-    from idp.canonical import (
-        SUPERSEDED_CODES, VERIFICATION_TIERS, audit_canonical, block_verification,
+    return retrievable_blocks_with_held(
+        canonical,
+        trusted_parsers=trusted_parsers,
+        block_scoped_codes=block_scoped_codes,
+        policy=policy,
+        min_verification=min_verification,
     )
-
-    if min_verification is not None and min_verification not in VERIFICATION_TIERS[1:]:
-        raise ValueError(f"min_verification must be one of {VERIFICATION_TIERS[1:]}")
-    # None: no extra floor beyond the publication policy itself.
-    floor = VERIFICATION_TIERS.index(min_verification) if min_verification else 0
-    trusted = set(trusted_parsers)
-    sha = canonical.get("source_sha256")
-    if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{64}", sha):
-        raise ValueError("invalid canonical source checksum")
-    page_ids = [page["page_id"] for page in canonical["pages"]]
-    if any(type(pid) is not int or pid < 1 for pid in page_ids) or len(page_ids) != len(set(page_ids)):
-        raise ValueError("invalid or duplicate legacy canonical page")
-    audit = audit_canonical(
-        canonical, trusted_parsers=set(trusted_parsers),
-        block_scoped_codes=frozenset(block_scoped_codes), policy=policy,
-    )
-    if not audit["pass"]:
-        raise ValueError("Canonical v1 failed IDP structural audit")
-    approved_pages = set(audit["quality"]["auto_publish_pages"])
-    # Held blocks stay out of the index even though the rest of their page
-    # is published.
-    held_blocks = set(audit["quality"]["held_blocks"])
-    output = []
-    for page in canonical["pages"]:
-        if page["page_id"] not in approved_pages:
-            continue
-        after_held = False
-        previous = None
-        for block in page["blocks"]:
-            text = block.get("text", "")
-            bbox = block.get("bbox")
-            key = block.get("block_id")
-            if key in held_blocks and any(
-                f.get("code") in SUPERSEDED_CODES for f in block.get("review_flags") or []
-            ):
-                continue  # replaced by the verified formula placed after it
-            tier = block_verification(block, trusted)
-            if key in held_blocks or (
-                isinstance(text, str) and text.strip()
-                and VERIFICATION_TIERS.index(tier) < floor
-                and block.get("type") not in {"PageHeader", "PageFooter", "PageNumber"}
-            ):
-                after_held = True
-                if previous is not None:
-                    previous["before_held"] = True
-                if key not in held_blocks:
-                    held_blocks.add(key)
-                continue
-            if (
-                block.get("excluded")
-                or block.get("retrieval_eligible") is False
-                or block.get("type") in {"PageHeader", "PageFooter", "PageNumber", "Picture", "PictureGroup", "Diagram", "Chart"}
-                or not isinstance(text, str)
-                or not text.strip()
-            ):
-                continue
-            if (
-                not isinstance(key, str) or not key
-                or not isinstance(bbox, (list, tuple)) or len(bbox) != 4
-                or any(type(n) not in (int, float) or not math.isfinite(n) for n in bbox)
-                or not (0 <= bbox[0] < bbox[2] and 0 <= bbox[1] < bbox[3])
-            ):
-                continue
-            # Legacy blocks have text and coordinates but no L1 identities.
-            previous = {
-                "block_id": key, "source_id": key, "text": text,
-                "page": page["page_id"], "bbox": list(bbox),
-                "region_id": None, "candidate_id": None, "evidence_refs": [],
-                "type": block.get("type"),
-                "section_path": [
-                    x for x in block.get("section_path") or [] if isinstance(x, str)
-                ],
-                "after_held": after_held,
-                "before_held": False,
-                "verification": tier,
-            }
-            output.append(previous)
-            after_held = False
-    return output, held_blocks
 
 
 def _blocks(canonical, trusted_parsers, block_scoped_codes=(), policy=None, min_verification=None):
-    if canonical.get("schema_version") == "idp-canonical-1":
-        return iter_retrievable_blocks(
-            canonical, trusted_parsers=trusted_parsers,
-            block_scoped_codes=block_scoped_codes, policy=policy,
-            min_verification=min_verification,
-        )
-    return iter_retrievable_blocks(canonical)
+    return iter_retrievable_blocks(
+        canonical,
+        trusted_parsers=trusted_parsers,
+        block_scoped_codes=block_scoped_codes,
+        policy=policy,
+        min_verification=min_verification,
+    )
 
 
 def _drop_running(blocks, running):
@@ -288,21 +198,17 @@ def _weakest(tiers):
 
 def build_chunks(canonical, *, max_tokens=256, trusted_parsers=(), block_scoped_codes=(),
                  paragraph_windows=False, policy=None, min_verification=None):
-    if canonical.get("schema_version") == "idp-canonical-1":
-        blocks, held = _retrievable(canonical, trusted_parsers, block_scoped_codes, policy,
-                                    min_verification)
-    else:
-        blocks, held = list(_blocks(canonical, trusted_parsers)), set()
+    from idp.canonical.contract import normalize_canonical
+
+    canonical = normalize_canonical(canonical)
+    blocks, held = _retrievable(canonical, trusted_parsers, block_scoped_codes, policy,
+                                min_verification)
     if paragraph_windows:
         blocks = _drop_running(blocks, _running_lines(canonical))
     version = _document_version(canonical)
     by_source = {b["source_id"]: b for b in blocks}
     groups, assigned = [], set()
-    question_groups = (
-        canonical.get("question_groups", ())
-        if canonical["schema_version"] == "idp-canonical-1"
-        else canonical["structures"].get("questions", ())
-    )
+    question_groups = canonical.get("question_groups", ())
     atomic = {g["id"] for g in question_groups if g.get("status") != "needs_review"}
     for group in question_groups:
         keys = [r["block_id"] for r in group["source_blocks"]]
@@ -365,7 +271,8 @@ def build_chunks(canonical, *, max_tokens=256, trusted_parsers=(), block_scoped_
         bundle = chunk_text(
             text, counter=counter, source_id=source_id, max_tokens=budget
         )
-        errors = validate_chunking(bundle, text, counter)
+        # chunk_text already ran the full validation into its report.
+        errors = bundle["report"]["errors"]
         if errors:
             raise ValueError("existing chunker validation failed: " + str(errors))
         for child in bundle["children"]:

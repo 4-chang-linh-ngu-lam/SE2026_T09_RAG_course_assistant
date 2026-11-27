@@ -16,21 +16,30 @@ import time
 
 from ..chunking.chunking import validate_chunking
 from ..chunking.chunk_views import eligible_with_context
+from ..chunking.token_budget import memoize_counter
 from ..indexing.embedding_store import load_generation, profile_id
+from ..indexing.rag_corpus import input_counter
 from ..packing.retrieval_context import expand_context
 from ..search.retrieval_bridge import bridge_rankings
-from ..search.retrieval_lexical import FieldedBM25, accent_fold
+from ..search.retrieval_lexical import FieldedBM25, accent_fold, normalize_vi_orthography
 from ..search.retrieval_diversity import mmr_ids
 from ..search.retrieval_fusion import fuse_rankings
 from ..search.retrieval_probes import augment_fused, probe_candidates
 from ..packing.passage_context import passage_context
 from ..search.retrieval_plan import (
     SearchRequest, anchors, exercise_anchors, exercise_query_anchors,
-    facet_supported, make_plan, topic_terms,
+    facet_supported, make_plan, terms, topic_terms,
 )
 from ..search.text_reranking import PairBudgetError
 
 RETRIEVAL_VERSION = "idp-text-retrieval-2"
+
+
+def _unaccented_tokens(text: str) -> list[str]:
+    return [
+        tok for tok in terms(text)
+        if any(ch.isalpha() for ch in tok) and accent_fold(tok) == tok.casefold()
+    ]
 
 
 class AccessChangedError(PermissionError):
@@ -57,6 +66,7 @@ class RetrievalConfig:
     accent_fallback: bool = True
     fusion_method: str = "rrf"
     lexical_fusion_weight: float = 1.0
+    section_fusion_weight: float = 0.02
     lexical_probe_limit: int = 0
     lexical_probe_hits: int = 2
     probe_seed_limit: int = 0
@@ -71,6 +81,8 @@ class RetrievalConfig:
     passage_gate: str = "always"
     # Lexical bridge hop (search/retrieval_bridge.py); 0 keeps it off.
     bridge_seeds: int = 0
+    # Experimental Layer B: opt-in additive boost from accent-folded BM25 for accented queries; 0 keeps it off.
+    lexical_folded_boost: float = 0.0
 
     def __post_init__(self):
         if type(self.passage_window) is not int or not 0 <= self.passage_window <= 2:
@@ -92,6 +104,14 @@ class RetrievalConfig:
                 or not math.isfinite(self.lexical_fusion_weight)
                 or not 0 < self.lexical_fusion_weight <= 10):
             raise ValueError("lexical_fusion_weight must be finite numeric in (0, 10]")
+        if (type(self.section_fusion_weight) not in (int, float)
+                or not math.isfinite(self.section_fusion_weight)
+                or not 0 < self.section_fusion_weight <= 10):
+            raise ValueError("section_fusion_weight must be finite numeric in (0, 10]")
+        if (type(self.lexical_folded_boost) not in (int, float)
+                or not math.isfinite(self.lexical_folded_boost)
+                or not 0.0 <= self.lexical_folded_boost <= 1.0):
+            raise ValueError("lexical_folded_boost must be finite numeric in [0, 1]")
         if type(self.bridge_seeds) is not int or not 0 <= self.bridge_seeds <= 4:
             raise ValueError("bridge_seeds must be an integer in 0..4")
         if self.bridge_seeds and "lexical" not in self.arms:
@@ -155,7 +175,10 @@ def authorize(callback, known):
 
 class TextRetriever:
     def __init__(self, bundles, *, sources, generation_dir, encoder, chunk_counter,
-                 context_counter=None, config=None, reranker=None):
+                 context_counter=None, config=None, reranker=None, chunk_validation="fast"):
+        # "fast" rechecks every span, hash, partition, reference, real token
+        # count and eligibility rule; "full" also re-derives each boundary
+        # with the splitter. Corpora are fully validated when they are built.
         import numpy as np
         self.np, self.encoder, self.reranker = np, encoder, reranker
         self.config = RetrievalConfig() if config is None else config
@@ -169,12 +192,13 @@ class TextRetriever:
             raise ValueError("current source chunk bundles required")
         children, parents, bindings = {}, {}, {}
         source_ids = set()
+        memo_counter = memoize_counter(chunk_counter)
         for bundle in bundles:
             sid = bundle["source_id"]
             if sid in source_ids or sid not in sources:
                 raise ValueError("unique, current source texts required")
             source_ids.add(sid)
-            errors = validate_chunking(bundle, sources[sid], chunk_counter)
+            errors = validate_chunking(bundle, sources[sid], memo_counter, level=chunk_validation)
             if errors:
                 raise ValueError("current chunk export failed validation")
             for parent in bundle["parents"]:
@@ -195,11 +219,23 @@ class TextRetriever:
         if {r["chunk_id"] for r in rows} != expected_ids:
             raise ValueError("index does not cover exactly current eligible chunks")
         prefix = encoder.identity.get("passage_prefix", "")
+        same_counter = dict(memo_counter.identity) == dict(input_counter(encoder).identity)
+        self._search_text_tokens: dict[str, int] = {}
+        self._has_matching_child_tokens = (
+            dict(self.counter.identity) == dict(input_counter(encoder).identity)
+        )
         for row in rows:
             cid = row["chunk_id"]
-            text = prefix + children[cid]["search_text"]
+            search_text = children[cid]["search_text"]
+            text = prefix + search_text
+            input_tokens = (
+                memo_counter.count(search_text)
+                if same_counter
+                else encoder.counter.count(text)
+            )
+            self._search_text_tokens[cid] = input_tokens
             expected = {**bindings[cid], "embedding_input_sha256": _sha(text),
-                        "input_tokens": encoder.counter.count(text)}
+                        "input_tokens": input_tokens}
             if any(row.get(k) != v for k, v in expected.items()):
                 raise ValueError("index source/input/token binding differs from current chunks")
         # The generation is immutable. Runtime candidates are indexed by its row
@@ -215,7 +251,19 @@ class TextRetriever:
             cid: anchors(" > ".join(c.get("context_path", c["section_path"])) + " " + c.get("unit_label", ""))
             for cid, c in children.items()
         }
+        self._section_terms = {
+            cid: frozenset(
+                normalize_vi_orthography(t) for t in topic_terms(" > ".join(c["section_path"]))
+                if len(t) >= 2 and not t.isdigit()
+            )
+            for cid, c in children.items()
+        }
         self._exercise_anchors = {cid: exercise_anchors(c) for cid, c in children.items()}
+        # Children of one logical unit (task, example, definition), in bundle order.
+        self._unit_members = defaultdict(list)
+        for cid, child in children.items():
+            if child.get("unit_id"):
+                self._unit_members[(child["source_id"], child["unit_id"])].append(cid)
         self.vectors, self.profile = vectors, profile
         self.identity = {"version": RETRIEVAL_VERSION, "profile_id": profile_id(profile),
             "ordered_ids_sha256": manifest["ordered_ids_sha256"], "config": asdict(self.config),
@@ -231,37 +279,50 @@ class TextRetriever:
                            fold_accents=fold_accents)
 
     def _query_vector(self, text, cache):
-        if text not in cache:
-            vectors, _ = self.encoder.encode([text], role="query", batch_size=1)
-            np = self.np
-            if (not isinstance(vectors, np.ndarray) or vectors.shape != (1, self.vectors.shape[1])
-                    or vectors.dtype != np.float32 or not np.isfinite(vectors).all()
-                    or not .999 <= np.linalg.norm(vectors[0]) <= 1.001):
-                raise ValueError("invalid query vector; refusing mismatched/corrupt search")
-            cache[text] = vectors[0]
-        return cache[text]
-
-    def _collect(self, plan, eligible, lexical, request, depth, cache, folded=None):
+        key = (self.identity["profile_id"], text)
+        cached = cache.get(key)
         np = self.np
+        if cached is not None:
+            if (not isinstance(cached, np.ndarray) or cached.shape != (self.vectors.shape[1],)
+                    or cached.dtype != np.float32 or not np.isfinite(cached).all()
+                    or not .999 <= np.linalg.norm(cached) <= 1.001):
+                raise ValueError("invalid cached query vector; refusing mismatched/corrupt search")
+            return cached
+        vectors, _ = self.encoder.encode([text], role="query", batch_size=1)
+        if (not isinstance(vectors, np.ndarray) or vectors.shape != (1, self.vectors.shape[1])
+                or vectors.dtype != np.float32 or not np.isfinite(vectors).all()
+                or not .999 <= np.linalg.norm(vectors[0]) <= 1.001):
+            raise ValueError("invalid query vector; refusing mismatched/corrupt search")
+        cache[key] = vectors[0]
+        return vectors[0]
+
+    def _collect(self, plan, eligible, lexical, request, depth, cache, folded=None, *, include_trace=True):
         children = [self.children[cid] for cid in self.row_ids if cid in eligible]
         arms = []
         accent_trace = []
         probe_lexical = lexical
         for qi, query in enumerate(plan["queries"]):
+            raw_query = plan["raw_queries"][qi]
             dense, lex = {}, {}
             if "dense" in self.config.arms:
-                ids = [c["id"] for c in children]
-                indices = [self.position[cid] for cid in ids]
-                values = self.vectors[indices] @ self._query_vector(query, cache)
+                if len(children) == len(self.row_ids):
+                    ids = self.row_ids
+                    values = self.vectors @ self._query_vector(query, cache)
+                else:
+                    ids = [c["id"] for c in children]
+                    indices = [self.position[cid] for cid in ids]
+                    values = self.vectors[indices] @ self._query_vector(query, cache)
                 dense = dict(zip(ids, (float(x) for x in values)))
                 ranked = sorted(ids, key=lambda cid: (-dense[cid], cid))
                 arms.append(("dense", qi, [(cid, dense[cid]) for cid in ranked[:depth]]))
             if "lexical" in self.config.arms or "section" in self.config.arms:
                 lex = dict(lexical.rank(query))
                 lexical_arm = "lexical"
-                if folded is not None and accent_fold(query) == query.casefold():
-                    original_matches = lexical.matched_term_count(query)
-                    folded_matches = folded.matched_term_count(query)
+                unaccented = _unaccented_tokens(raw_query)
+                if self.config.accent_fallback and folded is not None and unaccented:
+                    probe_text = " ".join(unaccented)
+                    original_matches = lexical.matched_term_count(probe_text)
+                    folded_matches = folded.matched_term_count(probe_text)
                     used = folded_matches > original_matches
                     accent_trace.append({"query_index": qi, "original_matched_terms": original_matches,
                         "folded_matched_terms": folded_matches, "applied": used})
@@ -273,6 +334,13 @@ class TextRetriever:
                         lexical_arm = "lexical_accent_fallback"
                         if qi == 0:
                             probe_lexical = folded
+                if (lexical_arm == "lexical" and folded is not None
+                        and self.config.lexical_folded_boost > 0.0):
+                    boost = float(self.config.lexical_folded_boost)
+                    blended = dict(lex)
+                    for cid, fscore in folded.rank(query):
+                        blended[cid] = blended.get(cid, 0.0) + boost * fscore
+                    lex = dict(sorted(blended.items(), key=lambda item: (-item[1], item[0])))
                 if "lexical" in self.config.arms:
                     arms.append((lexical_arm, qi, list(lex.items())[:depth]))
                 if self.config.bridge_seeds and qi == 0:
@@ -295,15 +363,24 @@ class TextRetriever:
                 matches.sort(key=lambda cid: (-lex.get(cid, 0), -dense.get(cid, 0), cid))
                 arms.append(("structure", qi, [(cid, float(len(wanted))) for cid in matches[:depth]]))
             if "section" in self.config.arms:
-                wanted = topic_terms(query)
+                raw_wanted = {
+                    normalize_vi_orthography(t) for t in topic_terms(raw_query)
+                    if len(t) >= 2 and not t.isdigit()
+                }
+                wanted = raw_wanted or {
+                    normalize_vi_orthography(t) for t in topic_terms(query)
+                    if len(t) >= 2 and not t.isdigit()
+                }
+                min_overlap = 1 if len(wanted) <= 1 else 2
                 groups = defaultdict(list)
                 group_score = {}
                 for child in children:
-                    score = len(wanted & topic_terms(" > ".join(child["section_path"])))
-                    if score:
+                    sec_terms = self._section_terms[child["id"]]
+                    overlap = len(wanted & sec_terms)
+                    if overlap >= min_overlap and sec_terms and (overlap / len(sec_terms)) >= 0.4:
                         key = (child["source_id"], child["section_id"])
                         groups[key].append(child["id"])
-                        group_score[key] = score
+                        group_score[key] = overlap
                 section_hits = []
                 for key in sorted(groups, key=lambda k: (-group_score[k], k)):
                     best = sorted(groups[key], key=lambda cid: (-lex.get(cid, 0), -dense.get(cid, 0), cid))[:2]
@@ -321,7 +398,8 @@ class TextRetriever:
                         arms.append(("focus_" + name, qi, focused[:depth]))
         ordered = fuse_rankings(arms, method=self.config.fusion_method,
                                 rrf_constant=self.config.rrf_constant,
-                                lexical_weight=self.config.lexical_fusion_weight)
+                                lexical_weight=self.config.lexical_fusion_weight,
+                                section_weight=self.config.section_fusion_weight)
         direct_matches = {cid for name, qi, ranking in arms if name == "structure" and qi == 0
                           for cid, _ in ranking}
         if direct_matches:
@@ -329,11 +407,12 @@ class TextRetriever:
         selected = ordered[:self.config.fusion_limit]
         trace = {
             "depth": depth, "arms": [{"arm": a, "query_index": qi, "count": len(r)} for a, qi, r in arms],
-            "union_count": len(ordered), "candidate_child_ids": [c["id"] for c in ordered],
+            "union_count": len(ordered),
+            "candidate_child_ids": [c["id"] for c in ordered] if include_trace else [],
             "accent_fallback": accent_trace,
             "fusion_method": self.config.fusion_method,
             "lexical_fusion_weight": self.config.lexical_fusion_weight,
-            "fused": copy.deepcopy(selected)}
+            "fused": copy.deepcopy(selected) if include_trace else []}
         probe_order = []
         if self.config.lexical_probe_limit:
             if probe_lexical is None:
@@ -353,25 +432,37 @@ class TextRetriever:
             candidate_ids = list(dict.fromkeys(base_ids + recalled_probe_ids))
             auxiliary_count = sum(c.get("candidate_origin") == "lexical_probe" for c in selected)
             trace.update(base_union_count=len(ordered), union_count=len(candidate_ids),
-                candidate_child_ids=candidate_ids,
-                fused=copy.deepcopy(selected), probes=probe_trace,
+                candidate_child_ids=candidate_ids if include_trace else [],
+                fused=copy.deepcopy(selected) if include_trace else [], probes=probe_trace,
                 probe_seed_candidate_order=selected_order,
                 probe_candidate_count=auxiliary_count,
                 recalled_probe_hit_count=len(set(recalled_probe_ids)))
             probe_order = selected_order
         return selected, trace
 
-    def _rank_and_pack(self, fused, plan, eligible, *, query, deadline, trace):
+    def _rank_and_pack(self, fused, plan, eligible, *, query, raw_query=None, deadline, trace,
+                       packing_allowed=None, skip_rerank=False, include_trace=True):
         config, np = self.config, self.np
         ranked = list(fused)
         rerank_trace = {"status": "not_configured", "count": 0}
         if self.reranker and ranked:
-            if time.perf_counter() >= deadline:
+            if skip_rerank:
+                rerank_trace["status"] = "skipped_by_caller"
+            elif time.perf_counter() >= deadline:
                 rerank_trace["status"] = "skipped_soft_deadline"
             else:
                 head = ranked[:config.rerank_limit]
+                candidate_texts = [self.children[c["id"]]["search_text"] for c in head]
+                used_raw_query = False
                 try:
-                    scores, stats = self.reranker.score(query, [self.children[c["id"]]["search_text"] for c in head])
+                    try:
+                        scores, stats = self.reranker.score(query, candidate_texts)
+                    except PairBudgetError:
+                        if raw_query and raw_query != query:
+                            scores, stats = self.reranker.score(raw_query, candidate_texts)
+                            used_raw_query = True
+                        else:
+                            raise
                     if (not isinstance(scores, np.ndarray) or scores.shape != (len(head),)
                             or not np.isfinite(scores).all()):
                         raise ValueError("invalid reranker output")
@@ -379,6 +470,8 @@ class TextRetriever:
                     rescored.sort(key=lambda c: (-c["reranker_score"], -c["fusion_score"], c["id"]))
                     ranked = rescored + ranked[config.rerank_limit:]
                     rerank_trace = {"status": "applied", "count": len(head), "stats": stats}
+                    if used_raw_query:
+                        rerank_trace["used_raw_query"] = True
                 except (ValueError, RuntimeError) as error:
                     # No score-scale mixing and no silent truncation. The whole
                     # candidate set retains RRF order on a declared fallback.
@@ -432,12 +525,10 @@ class TextRetriever:
             child = self.children[cid]
             if not child.get("unit_id"):
                 continue
-            for other in self.children.values():
-                if (other["id"] in eligible and other["id"] not in seed_ids + related
-                        and other.get("unit_id") == child["unit_id"]
-                        and other["source_id"] == child["source_id"]):
+            for other in self._unit_members[(child["source_id"], child["unit_id"])]:
+                if other in eligible and other not in seed_ids and other not in related:
                     if len(related) < config.linked_unit_limit:
-                        related.append(other["id"])
+                        related.append(other)
         context, passage_trace = None, {"status": "not_configured"}
         if config.context_selection == "passages":
             gate_applied = (config.passage_gate == "always" or any(
@@ -459,17 +550,23 @@ class TextRetriever:
                     "gate_applied": False}
             passage_trace["pool"] = config.passage_pool
         if context is None:
-            context = expand_context(self.bundle, seed_ids + related, allowed_child_ids=eligible,
+            # Oversized but complete formulas/tables of the same authorized scope
+            # may sit next to a seed; they are never seeds themselves.
+            context = expand_context(self.bundle, seed_ids + related,
+                allowed_child_ids=packing_allowed if packing_allowed is not None else eligible,
                 counter=self.counter, max_tokens=config.context_tokens, mode=config.context_expansion,
                 neighbor_radius=config.neighbor_radius,
-                compact_seed_reservation=config.compact_seed_reservation)
+                compact_seed_reservation=config.compact_seed_reservation,
+                child_token_counts=self._search_text_tokens if self._has_matching_child_tokens else None)
         if config.extend_continuations:
             from ..packing.continuation_context import extend_continuations
-            context = extend_continuations(self.bundle, context, allowed_child_ids=eligible,
+            context = extend_continuations(self.bundle, context,
+                allowed_child_ids=packing_allowed if packing_allowed is not None else eligible,
                 counter=self.counter, max_tokens=config.context_tokens)
         missing = [i for i, facet in enumerate(plan["facets"]) if not facet_supported(facet, context["items"])]
         trace.update(rerank=rerank_trace, passage_selection=passage_trace,
-                     ranked=copy.deepcopy(ranked), primary_seeds=seed_ids,
+                     ranked=copy.deepcopy(ranked) if include_trace else [],
+                     primary_seeds=seed_ids,
                      related_unit_seeds=related, missing_lexical_facets=missing,
                      seed_selection=config.seed_selection,
                      mmr_weight=config.mmr_weight if config.seed_selection == "mmr" else None)
@@ -477,8 +574,13 @@ class TextRetriever:
             trace.update(probe_selected_seed_ids=probe_selected, displaced_seed_ids=displaced)
         return ranked, context, missing
 
-    def retrieve(self, request: SearchRequest, *, authorize):
+    def retrieve(self, request: SearchRequest, *, authorize, query_vector_cache: dict | None = None,
+                 skip_rerank: bool = False, include_trace: bool = True):
         started = time.perf_counter()
+        if query_vector_cache is not None and not isinstance(query_vector_cache, dict):
+            raise ValueError("query_vector_cache must be a dict")
+        if type(skip_rerank) is not bool or type(include_trace) is not bool:
+            raise ValueError("skip_rerank and include_trace must be bool")
         if self.encoder.identity != self.profile["encoder"]:
             raise ValueError("query encoder profile changed after index binding")
         if (self.reranker.identity if self.reranker else None) != self.identity["reranker"]:
@@ -492,8 +594,12 @@ class TextRetriever:
             and (request.scope_source_ids is None or self.children[cid]["source_id"] in request.scope_source_ids)}
         scoped_eligible_count = len(eligible)
         eligible = eligible_with_context(self.children, self.parents, eligible)
+        context_only = {cid for cid in allowed if self.children[cid].get("context_eligible")
+            and (request.scope_source_ids is None or self.children[cid]["source_id"] in request.scope_source_ids)}
+        packing_allowed = eligible_with_context(self.children, self.parents, eligible | context_only)
         deadline = started + self.config.soft_deadline_ms / 1000
-        trace = {"identity": copy.deepcopy(self.identity), "query_sha256": _sha(request.query),
+        trace = {"identity": copy.deepcopy(self.identity) if include_trace else {},
+            "query_sha256": _sha(request.query),
             "plan": {"version": plan["version"], "basis": plan["basis"], "query_count": len(plan["queries"]),
                 "query_sha256": [_sha(q) for q in plan["queries"]], "facet_count": len(plan["facets"]),
                 "has_context_hint": plan["has_context_hint"], "anchor_count": len(plan["anchors"])},
@@ -502,12 +608,14 @@ class TextRetriever:
         scope_key = frozenset(eligible)
         lexical = self._lexical_index(scope_key, False) if (
             {"lexical", "section"} & set(self.config.arms)) else None
-        # Build alternate statistics only for an entirely unaccented query and
-        # only over the same authorized/scoped subset. Accented queries retain
-        # the exact original lexical route; this does not guess missing accents.
+        # Build alternate statistics only for queries with unaccented tokens over the
+        # same authorized/scoped subset. Accented queries retain their exact route.
         folded = self._lexical_index(scope_key, True) if (lexical is not None
-            and self.config.accent_fallback and any(accent_fold(q) == q.casefold() for q in plan["queries"])) else None
-        cache, ranked = {}, []
+            and ((self.config.accent_fallback and any(_unaccented_tokens(q) for q in plan["raw_queries"]))
+                 or self.config.lexical_folded_boost > 0.0)) else None
+        cache = query_vector_cache if query_vector_cache is not None else {}
+        before_cache = len(cache)
+        ranked = []
         context = {"context": "", "items": [], "budget_count": self.counter.count(""),
             "budget_unit": "tokens", "seed_child_ids": [], "skipped_budget_child_ids": []}
         for attempt in range(2 if self.config.enable_recovery else 1):
@@ -515,13 +623,18 @@ class TextRetriever:
                 break
             depth = min(200, self.config.recall_per_arm * (attempt + 1))
             begin = time.perf_counter()
-            fused, stage = self._collect(plan, eligible, lexical, request, depth, cache, folded)
+            fused, stage = self._collect(plan, eligible, lexical, request, depth, cache, folded,
+                                         include_trace=include_trace)
             stage["retrieval_ms"] = (time.perf_counter() - begin) * 1000
-            ranked, context, missing = self._rank_and_pack(fused, plan, eligible,
-                query=plan["queries"][0], deadline=deadline, trace=stage)
+            ranked, context, missing = self._rank_and_pack(
+                fused, plan, eligible, query=plan["queries"][0], raw_query=plan["raw_queries"][0],
+                deadline=deadline, trace=stage, packing_allowed=packing_allowed,
+                skip_rerank=skip_rerank, include_trace=include_trace)
             trace["passes"].append(stage)
             anchor_hit = any(any(m["arm"] == "structure" for m in c["matches"]) for c in ranked)
-            needs_recovery = bool(missing) or bool(plan["anchors"] and not anchor_hit) or not ranked
+            can_widen = len(eligible) > depth and any(a["count"] >= depth for a in stage["arms"])
+            anchor_retry = bool(plan["anchors"] and not anchor_hit and "structure" not in self.config.arms)
+            needs_recovery = can_widen and (bool(missing) or anchor_retry or not ranked)
             if not needs_recovery or time.perf_counter() >= deadline:
                 break
         # Revocation may occur during CPU inference. Return no payload/trace if
@@ -545,7 +658,7 @@ class TextRetriever:
         if time.perf_counter() >= deadline:
             flags.append("soft_deadline_exceeded")
         trace["total_ms"] = (time.perf_counter() - started) * 1000
-        trace["query_embeddings_computed"] = len(cache)
+        trace["query_embeddings_computed"] = len(cache) - before_cache
         return {"version": RETRIEVAL_VERSION, "status": "retrieved_unverified" if context["items"] else "no_context",
             "ranked_child_ids": [c["id"] for c in ranked], "context": context, "flags": flags,
             "trace": trace, "grants_authorization": False, "certifies_answerability": False}

@@ -105,3 +105,28 @@ def test_reread_page_keeps_tesseract_where_the_reader_fails(tmp_path):
     summary = vl_reread_page(page, image, reader)
     assert summary["failed"] == 1
     assert {b["block_id"] for b in page["blocks"]} >= {"z"}
+
+
+class SlowKeyedReader:
+    """Answers by crop height (one distinct height per region), out of order."""
+
+    def __init__(self, parallel):
+        self.parallel = parallel
+
+    def __call__(self, image, kind):
+        import time
+        time.sleep(0.05 if image.height < 60 else 0.0)
+        return [tok(f"vùng {image.height}")]
+
+
+def test_parallel_region_reads_keep_region_order(tmp_path):
+    image = tmp_path / "page.png"
+    Image.new("RGB", (400, 300), "white").save(image)
+
+    def run(parallel):
+        page = _page([_line("a", 10, "vùng"), {**_line("b", 120, "vùng"), "bbox": [20, 120, 380, 170]},
+                      {**_line("c", 230, "vùng"), "bbox": [20, 230, 380, 290]}])
+        vl_reread_page(page, image, SlowKeyedReader(parallel))
+        return [(b["block_id"], b["text"]) for b in page["blocks"]]
+
+    assert run(4) == run(1)

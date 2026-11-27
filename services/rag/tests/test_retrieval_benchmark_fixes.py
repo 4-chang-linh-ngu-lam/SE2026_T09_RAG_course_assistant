@@ -118,5 +118,58 @@ def test_page_fusion_prefers_page_that_holds_all_cues():
 def test_local_index_rejects_invalid_switches(tmp_path):
     with pytest.raises(ValueError):
         LocalRagIndex(tmp_path / "x.sqlite3", page_fusion=1)
+
+
+def test_text_retriever_section_arm_does_not_bury_strong_dense_lexical_match(tmp_path):
+    """Reproduction of sgk_05 / sgk_06: section hits must not bury Dense#1+Lexical#1."""
+    encoder = FakeEncoder()
+    # 8 distractors whose section headers contain generic query words ("mệnh đề")
+    # and appear verbatim in their bodies (dense + lexical top 2..9), while one target
+    # chunk answers the rare named-entity question (dense#1 + lexical#1) in another section.
+    sections = [
+        "1. MỆNH ĐỀ",
+        "2. MỆNH ĐỀ PHỦ ĐỊNH",
+        "3. MỆNH ĐỀ KÉO THEO",
+        "4. MỆNH ĐỀ ĐẢO",
+        "5. MỆNH ĐỀ TƯƠNG ĐƯƠNG",
+        "6. MỆNH ĐỀ CHỨA BIẾN",
+        "7. MỆNH ĐỀ PHỦ ĐỊNH ĐÚNG",
+        "8. MỆNH ĐỀ VÀ KÍ HIỆU",
+    ]
+    doc_text = "\n\n".join(
+        f"## {sec}\n\nMệnh đề toán học {i} về phép suy luận và tính đúng sai trong chương {i}."
+        for i, sec in enumerate(sections, 1)
+    ) + (
+        "\n\n## LỊCH SỬ LÔGIC\n\n"
+        "Nhà toán học người Anh George Boole vào năm 1854 thảo luận lôgic mệnh đề trong cuốn sách The Laws of Think.\n"
+    )
+    query = "Nhà toán học người Anh nào thảo luận về lôgic mệnh đề năm 1854 và tên cuốn sách là gì?"
+    build_corpus([TextDocument("sgk", doc_text)], tmp_path, encoder=encoder, max_tokens=64)
+
+    heavy_section = load_retriever(
+        tmp_path,
+        encoder=encoder,
+        config=RetrievalConfig(enable_recovery=False, section_fusion_weight=1.0),
+    )[0]
+    heavy_res = heavy_section.retrieve(SearchRequest(query), authorize=lambda: set(heavy_section.children))
+    heavy_rank = next(
+        idx for idx, cid in enumerate(heavy_res["ranked_child_ids"], 1)
+        if "George Boole" in heavy_section.children[cid]["text"]
+    )
+    assert heavy_rank > 2  # reproduced bug when section weight is 1.0
+
+    default_ret = load_retriever(
+        tmp_path, encoder=encoder, config=RetrievalConfig(enable_recovery=False)
+    )[0]
+    assert default_ret.config.section_fusion_weight == 0.02
+    result = default_ret.retrieve(SearchRequest(query), authorize=lambda: set(default_ret.children))
+    top1_text = default_ret.children[result["ranked_child_ids"][0]]["text"]
+    assert "George Boole" in top1_text and "1854" in top1_text, top1_text
+
+    with pytest.raises(ValueError, match="section_fusion_weight"):
+        RetrievalConfig(section_fusion_weight=0)
+    with pytest.raises(ValueError, match="section_fusion_weight"):
+        RetrievalConfig(section_fusion_weight=11.0)
+
     with pytest.raises(ValueError):
         LocalRagIndex(tmp_path / "x.sqlite3", bridge_seeds=9)

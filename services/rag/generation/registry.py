@@ -5,6 +5,7 @@ from __future__ import annotations
 from .grounding.judge import ENTAILMENT
 from .pipeline import TaskSpec
 from .tasks.qa.condense import CONDENSE
+from .tasks.qa.expand import EXPAND_QUERY
 from .tasks.qa.explain import EXPLAIN_MISTAKE
 from .tasks.qa.quick import QUICK, QUICK_JUDGED
 from .tasks.qa.step import STEP_CHECK, STEP_PLAN
@@ -38,7 +39,7 @@ def catalog() -> list[dict]:
             for s in sorted(_SPECS.values(), key=lambda s: (s.name, s.version))]
 
 
-for _spec in (ENTAILMENT, CONDENSE, QUICK, STEP_PLAN, STEP_CHECK, EXPLAIN_MISTAKE, FACT_EXTRACT, SOLVER,
+for _spec in (ENTAILMENT, CONDENSE, EXPAND_QUERY, QUICK, STEP_PLAN, STEP_CHECK, EXPLAIN_MISTAKE, FACT_EXTRACT, SOLVER,
               *ITEM_SPECS.values()):
     register(_spec)
 register(QUICK_JUDGED, latest=False)

@@ -1,6 +1,6 @@
 """Text-layer math rebuild: geometry -> scripts/fractions, lossless or nothing."""
 
-from idp.documents.text_math import Glyph, rebuild, reconstruct_page_math
+from idp.processing.formula import Glyph, rebuild, reconstruct_page_math
 from rag.search.retrieval_plan import _flatten_latex, terms
 
 MAIN, SCRIPT = 10.9, 7.97
@@ -137,7 +137,7 @@ def test_search_terms_flatten_rebuilt_math():
 def test_ocr_input_is_grayscale_and_only_trusted_dpi_is_passed(tmp_path):
     from PIL import Image
 
-    from idp.ocr.ocr_io import _prepare
+    from idp.backends.text_ocr import _prepare
 
     source, target = tmp_path / "page.png", tmp_path / "staged.png"
     Image.new("RGB", (40, 20), (200, 180, 160)).save(source, dpi=(300, 300))
@@ -155,7 +155,7 @@ def test_ocr_input_is_grayscale_and_only_trusted_dpi_is_passed(tmp_path):
 def test_dual_read_marks_agreement_and_keeps_source_text(tmp_path):
     from PIL import Image
 
-    from idp.ocr.dual_read import comparable_words, dual_read_page
+    from idp.evidence.cross_read import comparable_words, dual_read_page
 
     image = tmp_path / "page.png"
     Image.new("RGB", (200, 100), "white").save(image)
@@ -186,4 +186,4 @@ def test_dual_read_marks_agreement_and_keeps_source_text(tmp_path):
                      "b2": ["OCR_DUAL_READ_FAILED"], "b3": []}
     assert page["blocks"][1]["text"] == "KÉO THE0"  # never replaced
     assert page["blocks"][1]["review_flags"][0]["alternative"] == "KÉO THEO"
-    assert comparable_words("\(AB^{2}\) = 9,5") == comparable_words("AB^2 = 9.5")
+    assert comparable_words(r"\(AB^{2}\) = 9,5") == comparable_words("AB^2 = 9.5")

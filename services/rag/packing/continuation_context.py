@@ -10,6 +10,7 @@ import hashlib
 import re
 
 from ..chunking.boundary_cost import abbreviation_match, sentence_end_matches
+from ..chunking.chunking import protected_spans
 from ..chunking.chunk_views import eligible_with_context, materialize, source_spans
 from .neighbor_context import partition
 from ..chunking.token_budget import contextualize
@@ -147,7 +148,7 @@ def extend_continuations(bundle: dict, context: dict, *, allowed_child_ids: set,
     if len(children) != len(child_rows) or len(parents) != len(parent_rows):
         raise ValueError("duplicate chunk IDs in continuation source bundle")
     eligible = {cid for cid, child in children.items()
-                if cid in allowed_child_ids and child.get("retrieval_eligible")}
+                if cid in allowed_child_ids and (child.get("retrieval_eligible") or child.get("context_eligible"))}
     eligible = eligible_with_context(children, parents, eligible)
     rendered_base = _render(items)
     base_context = output.get("context", rendered_base)
@@ -230,6 +231,12 @@ def extend_continuations(bundle: dict, context: dict, *, allowed_child_ids: set,
         # held child in that interval stops the extension before source access.
         proposed_ends = _sentence_ends(body_text, include_final=not body_scan_capped)
         proposed_ends = [body_start + point for point in proposed_ends if body_start + point <= body_end]
+        # A prose parent may hold display formulas/code; "x = 1." inside one
+        # is not a sentence end.
+        atoms = [(a["start"], a["end"]) for a in parent.get("content_atoms", [])
+                 if isinstance(a, dict) and type(a.get("start")) is int and type(a.get("end")) is int]
+        atoms += protected_spans(parent["text"])
+        proposed_ends = [point for point in proposed_ends if not any(a < point < b for a, b in atoms)]
         candidate_limit_capped = len(proposed_ends) > MAX_SENTENCE_CANDIDATES
         if candidate_limit_capped:
             proposed_ends = proposed_ends[:MAX_SENTENCE_CANDIDATES]

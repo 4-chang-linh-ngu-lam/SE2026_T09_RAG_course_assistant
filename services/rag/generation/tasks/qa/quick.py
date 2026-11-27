@@ -44,6 +44,8 @@ Return JSON with status, claims and missing_parts.
 - Never write document names or page numbers; the system renders citations.
 - status "answered": the evidence supports every requested part. "partially_answered": it supports only some parts; list each unsupported part briefly in missing_parts. "insufficient_evidence": it supports no requested part.
 - Check that subject, relation, time, place and qualifiers match; a statement about a related entity or an altered premise does not answer the question. Do not invent numbers.
+- Accept equivalent phrasing, Vietnamese synonyms, and conversational framing (e.g. "khái niệm", "cách tính", "nhược điểm", "tại sao") when the evidence clearly expresses the same concept or fact.
+- Explain clearly and naturally like a helpful tutor: organize claims logically (definition/core answer first, then key properties, formula, or an example from the evidence when helpful).
 {general}
 Answer only what was asked, in the question's language, in at most {words} words and {claims} claims, without repetition. {style}
 Use context_hint only to resolve references in the question, never as evidence."""
@@ -149,13 +151,24 @@ def _downgrade(answer, dropped_flag):
     return flags
 
 
-def lexical_verifier(answer, _ctx) -> Verdict:
+def lexical_verifier(answer, ctx) -> Verdict:
+    # Numbers and names the student wrote in the question ("Bảng 1", "Tổ 1",
+    # "y = 1") are given, not invented; a claim may restate them. Support is
+    # drawn from the claim's cited evidence chunks (not uncited chunks) so a
+    # PDF line-wrap inside a short quote never drops a grounded math claim.
+    question = (getattr(ctx, "task_input", None) or {}).get("question", "")
+    by_id = {e["id"]: e["text"] for e in (getattr(ctx, "evidence", None) or []) if isinstance(e, dict) and "id" in e}
     kept, dropped = [], 0
     for claim in answer["claims"]:
-        if claim["basis"] == "source" and lexical_gaps(claim["text"], "\n".join(
-                e["quote"] for e in claim["evidence"])):
-            dropped += 1
-            continue
+        if claim["basis"] == "source":
+            support_parts = [
+                *(e["quote"] for e in claim["evidence"]),
+                *(by_id[e["id"]] for e in claim["evidence"] if e.get("id") in by_id),
+                question,
+            ]
+            if lexical_gaps(claim["text"], "\n".join(support_parts)):
+                dropped += 1
+                continue
         kept.append(claim)
     if not dropped:
         return Verdict(answer)
@@ -183,11 +196,11 @@ def judge_verifier(answer, ctx) -> Verdict:
 
 QUICK = TaskSpec(name="qa.quick", version=VERSION, profile=GROUNDED_QA, max_new_tokens=512,
                  build_messages=build_messages, build_schema=build_schema, validate=validate,
-                 verifiers=(lexical_verifier,), trim=TRIM_DROP_TAIL, min_evidence=0)
+                 verifiers=(lexical_verifier,), max_attempts=2, trim=TRIM_DROP_TAIL, min_evidence=0)
 QUICK_JUDGED = TaskSpec(name="qa.quick", version=VERSION + "+judge", profile=GROUNDED_QA,
                         max_new_tokens=512, build_messages=build_messages, build_schema=build_schema,
                         validate=validate, verifiers=(lexical_verifier, judge_verifier),
-                        trim=TRIM_DROP_TAIL, min_evidence=0)
+                        max_attempts=2, trim=TRIM_DROP_TAIL, min_evidence=0)
 
 
 def refusal(reason: str) -> dict:
@@ -198,7 +211,7 @@ def refusal(reason: str) -> dict:
 
 def answer_quick(pipeline: GroundedTaskPipeline, *, question: str, evidence, config=None, grade=None,
                  context_hint: str = "", judge: bool = False, priority: int = P0_INTERACTIVE,
-                 wait_timeout: float | None = None) -> dict:
+                 wait_timeout: float | None = None, cancelled=None) -> dict:
     """Answer one quick question. Returns the answer plus ``provenance`` and ``flags``.
 
     With no evidence and general knowledge disabled no model call is made.
@@ -211,8 +224,10 @@ def answer_quick(pipeline: GroundedTaskPipeline, *, question: str, evidence, con
         return {**refusal("no_evidence"), "flags": [], "provenance": []}
     task_input = {"question": question, "context_hint": context_hint, "grade": grade,
                   "config": config.to_dict()}
-    result = pipeline.run(QUICK_JUDGED if judge else QUICK, task_input, evidence,
-                          priority=priority, wait_timeout=wait_timeout)
+    run_kwargs = {"priority": priority, "wait_timeout": wait_timeout}
+    if cancelled is not None:
+        run_kwargs["cancelled"] = cancelled
+    result = pipeline.run(QUICK_JUDGED if judge else QUICK, task_input, evidence, **run_kwargs)
     if not result.ok:
         return {**refusal(result.error_code or "generation_failed"), "flags": result.flags,
                 "provenance": result.provenance}

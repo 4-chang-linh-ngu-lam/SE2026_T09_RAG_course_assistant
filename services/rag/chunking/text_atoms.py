@@ -116,10 +116,23 @@ def inspect_table(text: str) -> dict:
 
 
 def math_closed(text: str) -> bool:
-    """Return whether text is a closed, nonempty `$$` or `\\[...\\]` block."""
+    """Return whether text is a closed, nonempty display-math block.
+
+    Accepted: multi-line `$$`/`\\[...\\]`, one or more one-line display
+    formulas, and a `\\begin{env}...\\end{env}` math environment.
+    """
+    from .text_source import MATH_ENVIRONMENTS, is_display_line
+
     lines = text.splitlines()
     if not lines:
         return False
+    if all(is_display_line(line) for line in lines):
+        return True
+    begin = re.match(r"^\s*\\begin\{(" + "|".join(MATH_ENVIRONMENTS) + r")(\*?)\}", lines[0])
+    if begin:
+        closing = "\\end{" + begin[1] + begin[2] + "}"
+        payload = text.strip()[len(begin[0].strip()):]
+        return text.rstrip().endswith(closing) and bool(payload[:-len(closing)].strip())
     first, last = lines[0].strip(), lines[-1].strip()
     if first == "$$":
         payload = "\n".join(lines[1:-1]) if last == "$$" else ""

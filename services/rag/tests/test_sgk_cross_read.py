@@ -3,8 +3,8 @@
 import pytest
 
 from idp.canonical import audit_canonical, build_canonical, cross_check_structured
-from idp.structured.cross_read import formula_agreement, table_agreement
-from idp.structured.questions import analyze_questions, numbered_heading, textbook_boundary
+from idp.evidence.cross_read import formula_agreement, table_agreement
+from idp.canonical.questions import analyze_questions, numbered_heading, textbook_boundary
 from rag.retrieval.canonical_harness import build_chunks, iter_retrievable_blocks
 
 SHA = "e" * 64

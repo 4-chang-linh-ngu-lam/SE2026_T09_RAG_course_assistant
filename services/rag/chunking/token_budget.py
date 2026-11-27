@@ -55,3 +55,36 @@ class PrefixCounter:
 def contextualize(path: list[str], text: str) -> str:
     breadcrumb = " > ".join(path)
     return f"{breadcrumb}\n\n{text}" if breadcrumb else text
+
+
+class MemoCounter:
+    """Bounded per-build memo of exact counts; the same identity as its counter.
+
+    Splitting, layout packets and validation ask for the same strings many
+    times. The key is a digest of the complete input, never a sum of parts.
+    """
+
+    def __init__(self, counter, limit: int = 1 << 17):
+        self.counter, self.identity, self.limit = counter, counter.identity, limit
+        self.cache, self.calls, self.hits, self.chars = {}, 0, 0, 0
+
+    def count(self, text: str) -> int:
+        key = (len(text), hashlib.blake2b(text.encode("utf-8"), digest_size=16).digest())
+        value = self.cache.get(key)
+        if value is not None:
+            self.hits += 1
+            return value
+        value = self.counter.count(text)
+        self.calls += 1
+        self.chars += len(text)
+        if len(self.cache) >= self.limit:
+            self.cache.clear()
+        self.cache[key] = value
+        return value
+
+    def stats(self) -> dict[str, int]:
+        return {"counter_calls": self.calls, "counter_cache_hits": self.hits, "tokenized_chars": self.chars}
+
+
+def memoize_counter(counter):
+    return counter if isinstance(counter, MemoCounter) else MemoCounter(counter)

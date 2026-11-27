@@ -8,3 +8,4 @@ binary = next(
 )
 if binary is not None:
     os.environ["PATH"] = str(binary.parent) + os.pathsep + os.environ.get("PATH", "")
+

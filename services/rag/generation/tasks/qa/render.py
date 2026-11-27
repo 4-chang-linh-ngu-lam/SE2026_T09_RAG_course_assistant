@@ -13,6 +13,13 @@ STATUS_NOTICE = {
     "partially_answered": "Tài liệu của lớp chỉ trả lời được một phần câu hỏi.",
     "insufficient_evidence": "Tài liệu của lớp không có đủ căn cứ để trả lời câu hỏi này.",
 }
+REFUSAL_NOTICE = {
+    "no_evidence": "Tài liệu của lớp không có đủ căn cứ để trả lời câu hỏi này.",
+    "insufficient_evidence_input": "Tài liệu của lớp không có đủ căn cứ để trả lời câu hỏi này.",
+    "out_of_scope": "Câu hỏi nằm ngoài phạm vi học tập của lớp học.",
+    "document_unavailable": "Không thể tải nội dung tài liệu của lớp từ hệ thống lúc này. Bạn hãy thử lại sau.",
+}
+MODEL_ERROR_NOTICE = "Lumi gặp lỗi khi xử lý câu trả lời từ tài liệu. Bạn hãy thử gửi lại câu hỏi."
 
 
 def render_answer(answer: dict, locate) -> dict:
@@ -31,8 +38,17 @@ def render_answer(answer: dict, locate) -> dict:
                                           "source_spans": cite["source_spans"],
                                           "location": locate(cite["source_id"], cite["source_spans"])})
         claims.append(rendered)
-    return {"status": answer["status"], "notice": STATUS_NOTICE[answer["status"]],
-            "claims": claims, "missing_parts": list(answer.get("missing_parts", []))}
+    status = answer["status"]
+    refusal_reason = answer.get("refusal_reason")
+    if status == "insufficient_evidence" and isinstance(refusal_reason, str) and refusal_reason:
+        notice = REFUSAL_NOTICE.get(refusal_reason, MODEL_ERROR_NOTICE)
+    else:
+        notice = STATUS_NOTICE[status]
+    out = {"status": status, "notice": notice,
+           "claims": claims, "missing_parts": list(answer.get("missing_parts", []))}
+    if status == "insufficient_evidence" and isinstance(refusal_reason, str) and refusal_reason:
+        out["refusal_reason"] = refusal_reason
+    return out
 
 
 def mask_revoked(rendered: dict, allowed_source_ids) -> dict:

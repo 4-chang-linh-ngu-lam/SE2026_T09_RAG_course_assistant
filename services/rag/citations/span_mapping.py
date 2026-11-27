@@ -29,8 +29,11 @@ def quote_spans(evidence, quote):
             if text[cursor:a].strip():
                 break
             source_start = span["source_start"] + a - span["start"]
-            mapped.append({"source_id": item["source_id"], "start": source_start,
-                           "end": source_start + b - a})
+            entry = {"source_id": item["source_id"], "start": source_start,
+                     "end": source_start + b - a}
+            if isinstance(span.get("page"), int) and span["page"] >= 1:
+                entry["page"] = span["page"]
+            mapped.append(entry)
             cursor = b
         else:
             if mapped and not text[cursor:end].strip():

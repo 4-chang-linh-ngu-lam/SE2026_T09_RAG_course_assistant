@@ -53,7 +53,7 @@ def window(ids, children):
 
 
 def neighbor_context(children, parents, ranked, eligible, *, counter, max_tokens, radius, parent_first=False,
-                    compact_seed_reservation=False):
+                    compact_seed_reservation=False, child_token_counts=None):
     """Reserve fitting hits, compact adjacent hits, then expand into spare budget.
 
     Denied/ineligible/missing neighbors are barriers, never jumped over. A failed
@@ -105,6 +105,31 @@ def neighbor_context(children, parents, ranked, eligible, *, counter, max_tokens
     seeds, raw, skipped = [], [], []
     priorities = {}
     reservation_trace = None
+    use_fast_bounds = (
+        not compact_seed_reservation
+        and counter.identity.get("kind") == "local_huggingface_tokenizer"
+    )
+    empty_tokens = counter.count("") if use_fast_bounds else 0
+    sep_tokens = (
+        max(0, counter.count("a\n\nb") - counter.count("a") - counter.count("b") + empty_tokens)
+        if use_fast_bounds
+        else 0
+    )
+    child_text_tok_cache = {}
+
+    def child_text_tok(cid):
+        cached = child_text_tok_cache.get(cid)
+        if cached is not None:
+            return cached
+        child = children[cid]
+        if child_token_counts is not None and cid in child_token_counts and not child.get("context_path", child["section_path"]):
+            val = max(0, child_token_counts[cid] - empty_tokens)
+        else:
+            val = max(0, counter.count(child["text"]) - empty_tokens)
+        child_text_tok_cache[cid] = val
+        return val
+
+    current_tokens = empty_tokens
     if compact_seed_reservation:
         attempts = []
         chosen = set()
@@ -147,6 +172,36 @@ def neighbor_context(children, parents, ranked, eligible, *, counter, max_tokens
             "raw_count": counter.count(render(raw)),
             "compact_count": counter.count(render(compact(chosen, priorities))) if chosen else 0,
             "admitted_seed_child_ids": list(seeds), "final_representation": representation}
+    elif use_fast_bounds:
+        est_tokens = empty_tokens
+        for priority, cid in enumerate(ranked):
+            record = materialize(_child_record(children[cid]), children, parents, eligible)
+            if record is None:
+                skipped.append(cid)
+                continue
+            item_tok = counter.count(f"[{record['id']}]\n{record['search_text']}") - empty_tokens
+            upper = est_tokens + item_tok + (sep_tokens + 4 if raw else 0)
+            if upper <= max_tokens:
+                raw.append(record)
+                seeds.append(cid)
+                priorities[cid] = priority
+                est_tokens = upper
+            else:
+                exact_raw = counter.count(render(raw + [record]))
+                if exact_raw <= max_tokens:
+                    raw.append(record)
+                    seeds.append(cid)
+                    priorities[cid] = priority
+                    est_tokens = exact_raw
+                else:
+                    skipped.append(cid)
+        chosen = set(seeds)
+        records = compact(chosen, priorities)
+        current_tokens = counter.count(render(records)) if records else empty_tokens
+        if current_tokens > max_tokens:
+            # Tokenizers need not reward concatenation/shorter labels monotonically.
+            records = raw
+            current_tokens = counter.count(render(records)) if records else empty_tokens
     else:
         for priority, cid in enumerate(ranked):
             record = materialize(_child_record(children[cid]), children, parents, eligible)
@@ -184,12 +239,14 @@ def neighbor_context(children, parents, ranked, eligible, *, counter, max_tokens
             for cid in siblings - chosen:
                 order[cid] = priorities[seed]
             candidate = compact(candidate_ids, order)
-            if counter.count(render(candidate)) > max_tokens:
+            cand_tokens = counter.count(render(candidate))
+            if cand_tokens > max_tokens:
                 parent_attempts.append({"parent_id": pid, "status": "budget"})
                 continue
             added = len(siblings - chosen)
             parent_added.update(siblings - chosen)
             chosen, priorities, records = candidate_ids, order, candidate
+            current_tokens = cand_tokens
             if reservation_trace is not None:
                 reservation_trace["final_representation"] = "compact"
             parent_attempts.append({"parent_id": pid, "status": "expanded" if added else "already_covered",
@@ -209,17 +266,22 @@ def neighbor_context(children, parents, ranked, eligible, *, counter, max_tokens
                     break
                 if cid in chosen:
                     continue
+                if use_fast_bounds and current_tokens + child_text_tok(cid) - 12 > max_tokens:
+                    break
                 candidate_ids = chosen | {cid}
                 order = {**priorities, cid: priorities[seed]}
                 candidate = compact(candidate_ids, order)
-                if counter.count(render(candidate)) > max_tokens:
+                cand_tokens = counter.count(render(candidate))
+                if cand_tokens > max_tokens:
                     break
                 chosen, priorities, records = candidate_ids, order, candidate
+                current_tokens = cand_tokens
                 if reservation_trace is not None:
                     reservation_trace["final_representation"] = "compact"
     context = render(records)
+    budget_count = current_tokens if use_fast_bounds else counter.count(context)
     result = {"version": CONTEXT_VERSION, "context": context, "items": records,
-        "budget_count": counter.count(context), "budget_unit": counter.identity["unit"],
+        "budget_count": budget_count, "budget_unit": counter.identity["unit"],
         "skipped_budget_child_ids": skipped, "seed_child_ids": seeds,
         "added_neighbor_child_ids": sorted(chosen - set(seeds) - parent_added),
         "added_parent_child_ids": sorted(parent_added),

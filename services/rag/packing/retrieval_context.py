@@ -15,7 +15,8 @@ from ..chunking.chunk_views import eligible_with_context, materialize, partition
 def expand_context(bundle: dict, ranked_child_ids: list[str], *, allowed_child_ids: set[str],
                    counter, max_tokens: int = 2048, mode: str = "auto",
                    merge_ratio: float = 0.5, neighbor_radius: int = 1,
-                   compact_seed_reservation: bool = False) -> dict:
+                   compact_seed_reservation: bool = False,
+                   child_token_counts: dict[str, int] | None = None) -> dict:
     """Auto merges only when >=2 distinct hits cover merge_ratio of a parent.
 
     Parent expansion additionally requires ALL its children to be authorized,
@@ -41,14 +42,19 @@ def expand_context(bundle: dict, ranked_child_ids: list[str], *, allowed_child_i
     parents = {p["id"]: p for p in bundle["parents"]}
     if len(children) != len(bundle["children"]) or len(parents) != len(bundle["parents"]):
         raise ValueError("duplicate IDs in chunk export")
-    eligible = {cid for cid, c in children.items() if c.get("retrieval_eligible") and cid in allowed_child_ids}
+    # A context-eligible child (complete source, held only for exceeding one
+    # search input) may be packed beside a seed; only searchable ones seed.
+    eligible = {cid for cid, c in children.items()
+                if (c.get("retrieval_eligible") or c.get("context_eligible")) and cid in allowed_child_ids}
     eligible = eligible_with_context(children, parents, eligible)
-    ranked = list(dict.fromkeys(cid for cid in ranked_child_ids if cid in eligible))
+    ranked = list(dict.fromkeys(cid for cid in ranked_child_ids
+                                if cid in eligible and children[cid].get("retrieval_eligible")))
     if mode in {"neighbors", "parent_then_neighbors"}:
         return neighbor_context(children, parents, ranked, eligible, counter=counter,
                                 max_tokens=max_tokens, radius=neighbor_radius,
                                 parent_first=mode == "parent_then_neighbors",
-                                compact_seed_reservation=compact_seed_reservation)
+                                compact_seed_reservation=compact_seed_reservation,
+                                child_token_counts=child_token_counts)
     hits = {}
     for cid in ranked:
         hits.setdefault(children[cid]["parent_id"], set()).add(cid)

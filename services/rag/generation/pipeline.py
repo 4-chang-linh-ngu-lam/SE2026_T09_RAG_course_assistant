@@ -16,12 +16,16 @@ from typing import Any
 
 from .contracts.citations import SourceBoundSchemaError
 from .contracts.errors import ContractError, GenerationUnavailable, parse_json_object
-from .contracts.evidence import evidence_fingerprint
+from .contracts.evidence import evidence_fingerprint, sentence_cut, truncate_item
 from .contracts.schema_subset import SchemaViolation, check
-from .runtime.budget import TRIM_DROP_TAIL, BudgetError, BudgetPlanner
+from .runtime.budget import TRIM_DROP_TAIL, TRIM_NONE, TRIM_SENTENCES, BudgetError, BudgetPlanner
 from .runtime.provenance import generation_record, sha256_json
 from .runtime.sampling import SamplingProfile, derive_seed
 from .runtime.scheduler import P0_INTERACTIVE, SchedulerBusy, SlotScheduler
+
+
+class GenerationCancelled(RuntimeError):
+    """The caller cancelled an in-flight generation task."""
 
 
 @dataclass
@@ -91,7 +95,8 @@ class GroundedTaskPipeline:
         self.planner = BudgetPlanner(generator.count_messages, generator.context_tokens, margin)
 
     def run(self, spec: TaskSpec, task_input: dict, evidence=(), *, seed: int | None = None,
-            priority: int = P0_INTERACTIVE, wait_timeout: float | None = None) -> TaskResult:
+            priority: int = P0_INTERACTIVE, wait_timeout: float | None = None,
+            cancelled=None) -> TaskResult:
         """Run one task. Quality failures return ``ok=False``; runtime failures raise.
 
         Raises ``SchedulerBusy`` when the slot is not free within ``wait_timeout``
@@ -102,6 +107,8 @@ class GroundedTaskPipeline:
             # Deployment error, not a model failure: construct LlamaGenerator with
             # output_ceiling >= the largest spec (768 for true/false clusters).
             raise ValueError(f"{spec.name} needs max_new_tokens={spec.max_new_tokens} > adapter ceiling {ceiling}")
+        if cancelled is not None and cancelled.is_set():
+            raise GenerationCancelled()
         evidence = list(evidence)
         result = TaskResult(spec.name, spec.version, ok=False)
         if len(evidence) < spec.min_evidence:
@@ -113,23 +120,67 @@ class GroundedTaskPipeline:
         except BudgetError:
             result.error_code = "prompt_over_budget"
             return result
+        messages = packed.messages
+        ev = list(packed.evidence)
+        dropped_ids = list(packed.dropped_ids)
+        truncated_ids = list(packed.truncated_ids)
+        prompt_tokens = packed.prompt_tokens
         try:
-            schema = spec.build_schema(task_input, packed.evidence)
+            schema = spec.build_schema(task_input, ev)
         except SourceBoundSchemaError:
             result.error_code = "evidence_not_quotable"
             return result
-        fingerprint = evidence_fingerprint(packed.evidence)
+        if hasattr(self.generator, "count_request_tokens"):
+            limit = self.planner.available(spec.max_new_tokens)
+            while True:
+                actual_tokens = self.generator.count_request_tokens(messages, schema)
+                if actual_tokens <= limit:
+                    prompt_tokens = actual_tokens
+                    break
+                if spec.trim == TRIM_NONE:
+                    result.error_code = "prompt_over_budget"
+                    return result
+                if len(ev) > max(spec.min_evidence, 1):
+                    dropped_ids.append(ev.pop()["id"])
+                elif spec.trim == TRIM_SENTENCES and ev:
+                    last = ev[-1]
+                    target = int(len(last["text"]) * max(0.05, (limit / actual_tokens) * 0.95))
+                    cut = sentence_cut(last["text"], min(target, len(last["text"]) - 1))
+                    if cut < 16 or cut >= len(last["text"]):
+                        result.error_code = "prompt_over_budget"
+                        return result
+                    trimmed = truncate_item(last, cut)
+                    if len(trimmed["text"]) >= len(last["text"]):
+                        result.error_code = "prompt_over_budget"
+                        return result
+                    ev[-1] = trimmed
+                    if last["id"] not in truncated_ids:
+                        truncated_ids.append(last["id"])
+                else:
+                    result.error_code = "prompt_over_budget"
+                    return result
+                messages = spec.build_messages(task_input, ev)
+                try:
+                    schema = spec.build_schema(task_input, ev)
+                except SourceBoundSchemaError:
+                    result.error_code = "evidence_not_quotable"
+                    return result
+        fingerprint = evidence_fingerprint(ev)
         base_seed = seed if seed is not None else derive_seed(
             spec.name, spec.version, sha256_json(task_input), fingerprint["evidence_sha256"])
-        result.seed, result.evidence = base_seed, packed.evidence
-        result.dropped_evidence_ids, result.truncated_evidence_ids = packed.dropped_ids, packed.truncated_ids
+        result.seed, result.evidence = base_seed, ev
+        result.dropped_evidence_ids, result.truncated_evidence_ids = tuple(dropped_ids), tuple(truncated_ids)
         identity = getattr(self.generator, "identity", {}) or {}
 
         for attempt in range(spec.max_attempts):
+            if cancelled is not None and cancelled.is_set():
+                raise GenerationCancelled()
             call_seed = (base_seed + attempt) & 0x7FFFFFFF
             with self.scheduler.slot(priority, wait_timeout) as lease:
+                if cancelled is not None and cancelled.is_set():
+                    raise GenerationCancelled()
                 try:
-                    raw = self.generator.generate(packed.messages, schema, profile=spec.profile,
+                    raw = self.generator.generate(messages, schema, profile=spec.profile,
                                                   max_new_tokens=spec.max_new_tokens, seed=call_seed)
                 except (OSError, TimeoutError, ValueError) as error:
                     raise GenerationUnavailable() from error
@@ -143,8 +194,8 @@ class GroundedTaskPipeline:
                     check(parsed, schema)
                 except SchemaViolation:
                     raise ContractError("schema_violation") from None
-                value = spec.validate(parsed, task_input, packed.evidence)
-                context = RunContext(self, spec, task_input, packed.evidence, call_seed, priority, wait_timeout)
+                value = spec.validate(parsed, task_input, ev)
+                context = RunContext(self, spec, task_input, ev, call_seed, priority, wait_timeout)
                 for verifier in spec.verifiers:
                     verdict = verifier(value, context)
                     value = verdict.value
@@ -154,12 +205,12 @@ class GroundedTaskPipeline:
             except ContractError as error:
                 code = error.code
             result.provenance.append(generation_record(
-                task=spec.name, task_version=spec.version, schema=schema, messages=packed.messages,
+                task=spec.name, task_version=spec.version, schema=schema, messages=messages,
                 evidence_fingerprint=fingerprint, generator_identity=identity,
                 sampling=spec.profile.describe(call_seed), max_new_tokens=spec.max_new_tokens,
                 attempt=attempt + 1, raw=raw, outcome="ok" if code is None else "rejected",
                 error_code=code, flags=flags, waited_seconds=lease.waited_seconds,
-                prompt_tokens=packed.prompt_tokens))
+                prompt_tokens=prompt_tokens))
             if code is None:
                 result.ok, result.value, result.flags, result.error_code = True, value, sorted(set(flags)), None
                 return result
@@ -168,6 +219,7 @@ class GroundedTaskPipeline:
 
 
 __all__ = [
+    "GenerationCancelled",
     "GenerationUnavailable",
     "GroundedTaskPipeline",
     "RunContext",

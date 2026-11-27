@@ -1,27 +1,21 @@
-import argparse
 from unittest.mock import Mock
 
 import pytest
 from PIL import Image, ImageDraw
 
-from idp.canonical import audit_canonical
-from idp.documents.digital import (
+from idp.backends import vision_ocr as local_region
+from idp.backends.native.pdf import (
     _encoding_issues,
-    _native_reading_order,
     _pdf_span_gap,
     _pdf_span_text,
 )
-from idp.documents.layout import prepare_page_figures
-from idp.ocr import local_region
-from idp.ocr.fast import parse_hocr_lines
-from idp.structured.enrichment import (
-    EnrichmentOptions,
-    RegionEnricher,
-    add_structured_arguments,
-    structured_context,
-)
-from idp.structured.structure import RuledTableDetector
-from idp.validation.validate import validate_latex
+from idp.backends.text_ocr import parse_hocr_lines
+from idp.canonical import audit_canonical
+from idp.evidence.fusion import EnrichmentOptions, RegionEnricher
+from idp.processing.figure import prepare_page_figures
+from idp.processing.formula import validate_latex
+from idp.processing.reading_order import _native_reading_order
+from idp.processing.table import RuledTableDetector
 
 
 def test_enrichment_preserves_large_and_late_figures_with_source_geometry(tmp_path):
@@ -79,12 +73,12 @@ def test_figure_caption_and_markdown_survive_export_relocation(tmp_path):
 def test_structured_regions_use_loopback_gguf_for_formulas(monkeypatch):
     read = Mock(return_value={"latex": "x^2"})
     monkeypatch.setattr(local_region, "read_region", read)
-    parser = argparse.ArgumentParser()
-    add_structured_arguments(parser)
-    args = parser.parse_args(["--structured-regions", "--formula-gguf-url", "http://127.0.0.1:8111"])
-    with structured_context(args, parser, detector=object()) as enricher:
-        assert enricher.formula_reader("crop.png", 3) == {"latex": "x^2"}
-        assert not enricher.cacheable
+    enricher = RegionEnricher(
+        detector=object(),
+        formula_reader=local_region.PaddleGGUFFormulaReader("http://127.0.0.1:8111"),
+    )
+    assert enricher.formula_reader("crop.png", 3) == {"latex": "x^2"}
+    assert not enricher.cacheable
     read.assert_called_once_with(
         "crop.png", "Equation", base_url="http://127.0.0.1:8111", timeout=3,
         max_tokens=512, model="paddleocr-vl-1.6", prompt_profile="paddleocr",

@@ -1,3 +1,7 @@
-"""IDP prototype for scanned Vietnamese math textbooks (CPU-only)."""
+"""Adaptive Hybrid IDP package."""
 
-__version__ = "0.1.0"
+from idp.ingest import ingest_file
+
+__version__ = "0.2.0"
+
+__all__ = ["__version__", "ingest_file"]

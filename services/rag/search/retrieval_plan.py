@@ -5,13 +5,25 @@ from dataclasses import dataclass
 import re
 import unicodedata
 
-PLAN_VERSION = "idp-text-search-plan-2"
+PLAN_VERSION = "idp-text-search-plan-5"
 _COMPARE = re.compile(r"^(?:so sánh|compare)\s+(.+?)\s+(?:và|với|and|with)\s+(.+?)[?.!]*$", re.I)
-_ANCHOR = re.compile(r"(?<!\w)(bài tập|câu hỏi|bài|câu|ví dụ|hoạt động|exercise|problem|question|example|activity|section|mục|slide|trang|page)\s+(\d+(?:\.\d+)*)(?!\w|\.\d)", re.I)
-_UNACCENTED_ANCHOR = re.compile(r"(?<!\w)(bai tap|cau hoi|bai|cau|vi du|hoat dong|muc)\s+(\d+(?:\.\d+)*)(?!\w|\.\d)", re.I)
-_ACCENTED_LABEL = dict(zip(("bai tap", "cau hoi", "bai", "cau", "vi du", "hoat dong", "muc"),
-                          ("bài tập", "câu hỏi", "bài", "câu", "ví dụ", "hoạt động", "mục")))
-_STOP = set("a an the is are of in on for to and or with what how which compare versus và với của là có các những một về ở cho nào gì hãy so sánh sự giữa".split())
+# Numbered statement and table-caption labels match the chunker's units (text_units).
+_ANCHOR = re.compile(r"(?<!\w)(bài tập|câu hỏi|bài|câu|ví dụ|hoạt động|định nghĩa|định lý|định lí|"
+                     r"tính chất|hệ quả|bổ đề|bảng|exercise|problem|question|example|activity|definition|"
+                     r"theorem|lemma|corollary|table|section|mục|slide|trang|page)\s+(\d+(?:\.\d+)*)(?!\w|\.\d)", re.I)
+_UNACCENTED_ANCHOR = re.compile(r"(?<!\w)(bai tap|cau hoi|bai|cau|vi du|hoat dong|dinh nghia|dinh ly|dinh li|"
+                                r"tinh chat|he qua|bo de|bang|muc)\s+(\d+(?:\.\d+)*)(?!\w|\.\d)", re.I)
+_ACCENTED_LABEL = dict(zip(("bai tap", "cau hoi", "bai", "cau", "vi du", "hoat dong", "dinh nghia",
+                            "dinh ly", "dinh li", "tinh chat", "he qua", "bo de", "bang", "muc"),
+                          ("bài tập", "câu hỏi", "bài", "câu", "ví dụ", "hoạt động", "định nghĩa",
+                           "định lý", "định lý", "tính chất", "hệ quả", "bổ đề", "bảng", "mục")))
+# Both Vietnamese spellings name the same label.
+_LABEL_ALIAS = {"định lí": "định lý"}
+_STOP = set(
+    "a an the is are of in on for to and or with what how which compare versus "
+    "và với của là có các những một về ở cho nào gì hãy so sánh sự giữa "
+    "tại sao như thế trong khi được cần hỏi nêu biết theo từ đến này đó kia để mà hay hoặc nhưng nếu thì vì bởi do".split()
+)
 
 
 def normalized(text):
@@ -19,21 +31,57 @@ def normalized(text):
 
 
 _LATEX_SCRIPT = re.compile(r"[_^]\{([^{}]*)\}")
-_LATEX_COMMAND = re.compile(r"\\[A-Za-z]+")
+_LATEX_BARE_SUBSCRIPT = re.compile(r"(?<=[^\W_])_([^\W_])")
+_LATEX_FRACTION = re.compile(r"\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}")
+_LATEX_BLACKBOARD = re.compile(r"\\mathbb\{([A-Z])\}")
+_LATEX_COMMAND = re.compile(r"\\([A-Za-z]+)")
+_ATOM = re.compile(r"[^\W_]+")
+_GREEK = {
+    "alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε", "varepsilon": "ε",
+    "theta": "θ", "lambda": "λ", "mu": "μ", "pi": "π", "rho": "ρ", "sigma": "σ", "tau": "τ",
+    "phi": "φ", "varphi": "φ", "omega": "ω", "Delta": "Δ", "Omega": "Ω", "Sigma": "Σ",
+}
+_FUNCTIONS = {"sin", "cos", "tan", "cot", "ln", "log", "exp", "lim", "max", "min"}
+# AB² and AB^{2} must give the same term; scripts are already flattened (y_{1} -> y1).
+# ℝ and \mathbb{R} give "r", as NFKC does in the Tutor fallback.
+_SCRIPT_DIGITS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉ℝℕℤℚℂ", "01234567890123456789RNZQC")
+
+
+def _fraction(match):
+    top, bottom = match.group(1).strip(), match.group(2).strip()
+    if _ATOM.fullmatch(top) and _ATOM.fullmatch(bottom):
+        return f" {top}/{bottom} {top} {bottom} "  # "y1/y2" as typed, and each part
+    return f" {top} {bottom} "
+
+
+def _command(match):
+    name = match.group(1)
+    if name in _GREEK:
+        return f" {_GREEK[name]} "
+    if name in _FUNCTIONS:
+        return f" {name} "
+    return " "
 
 
 def _flatten_latex(text):
-    """Search form of rebuilt math: y_{1} -> y1, \\frac{a}{b} -> a b.
+    """Search form of rebuilt math: y_{1} -> y1, \\frac{y_{1}}{y_{2}} -> y1/y2.
 
     IDP keeps structure in the source text (e^{kt}, not ekt); people type
-    "y1(x)". Lexical terms match the flat form; the stored text is unchanged.
+    "y1(x)", "y1/y2", "cos A", "α". Lexical terms match the flat form; the
+    stored text is unchanged.
     """
-    if "{" not in text and "\\" not in text:
+    text = text.translate(_SCRIPT_DIGITS)
+    if "{" not in text and "\\" not in text and "_" not in text:
         return text
     previous = None
     while previous != text:
         previous, text = text, _LATEX_SCRIPT.sub(r"\1", text)
-    return _LATEX_COMMAND.sub(" ", text).replace("{", " ").replace("}", " ")
+    text = _LATEX_BARE_SUBSCRIPT.sub(r"\1", text)
+    previous = None
+    while previous != text:
+        previous, text = text, _LATEX_FRACTION.sub(_fraction, text)
+    text = _LATEX_BLACKBOARD.sub(r" \1 ", text)
+    return _LATEX_COMMAND.sub(_command, text).replace("{", " ").replace("}", " ")
 
 
 def terms(text):
@@ -50,7 +98,7 @@ _EXERCISE_ALIASES = {"bài", "bài tập", "câu", "câu hỏi", "exercise", "pr
 
 def anchors(text, *, accept_unaccented=False):
     text = normalized(text)
-    result = {(m[1], m[2]) for m in _ANCHOR.finditer(text)}
+    result = {(_LABEL_ALIAS.get(m[1], m[1]), m[2]) for m in _ANCHOR.finditer(text)}
     if accept_unaccented:
         result.update((_ACCENTED_LABEL[m[1]], m[2]) for m in _UNACCENTED_ANCHOR.finditer(text))
     return result
@@ -101,11 +149,15 @@ def make_plan(request, *, decompose_comparisons=True, accent_fallback=False):
     match = _COMPARE.fullmatch(query) if decompose_comparisons and not facets else None
     if match and all(1 <= len(x.strip()) <= 120 for x in match.groups()):
         facets, basis = [x.strip() for x in match.groups()], "simple_explicit_comparison"
-    queries = list(dict.fromkeys([query] + facets))
-    query_anchors = [sorted(anchors(value, accept_unaccented=accent_fallback)) for value in queries]
+    raw_queries = list(dict.fromkeys([query] + facets))
+    query_anchors = [sorted(anchors(value, accept_unaccented=accent_fallback)) for value in raw_queries]
     if request.context_hint.strip():
-        queries = [f"{request.context_hint.strip()}\n{x}" for x in queries]
-    return {"version": PLAN_VERSION, "queries": queries, "facets": facets, "basis": basis,
+        hint = request.context_hint.strip()
+        queries = [f"{hint}\n{x}" for x in raw_queries]
+    else:
+        queries = list(raw_queries)
+    return {"version": PLAN_VERSION, "queries": queries, "raw_queries": raw_queries,
+        "facets": facets, "basis": basis,
         "anchors": query_anchors[0], "query_anchors": query_anchors,
         "has_context_hint": bool(request.context_hint.strip()),
         "claims_semantic_understanding": False}

@@ -114,6 +114,15 @@ def test_short_quotes_do_not_poison_real_evidence():
         source_quote_enums([short])
 
 
+def test_wrapped_sentence_is_one_quote_and_lines_stay_available():
+    text = "y = 1 cũng thỏa mãn nhưng không nhận được từ nghiệm\ntổng quát nào.\n\nMục mới"
+    quotes = source_quote_enums([evidence("S1", text, [span(0, len(text), 0)])])["S1"]
+    assert "y = 1 cũng thỏa mãn nhưng không nhận được từ nghiệm\ntổng quát nào." in quotes
+    assert "y = 1 cũng thỏa mãn nhưng không nhận được từ nghiệm" in quotes
+    assert "Mục mới" in quotes
+    assert not any("\n\n" in quote for quote in quotes)
+
+
 def test_unbroken_overlong_token_leaves_neighbor_quotes_available():
     text = "Căn cứ trước " + "x" * 180 + " căn cứ sau"
     item = evidence("S1", text, [span(0, len(text), 25)])

@@ -18,8 +18,8 @@ class OnnxCrossEncoder:
         from tokenizers import Tokenizer
         if type(threads) is not int or not 1 <= threads <= 16:
             raise ValueError("threads must be in 1..16")
-        if type(max_tokens) is not int or not 8 <= max_tokens <= 512:
-            raise ValueError("pair max_tokens must be in 8..512")
+        if type(max_tokens) is not int or not 8 <= max_tokens <= 8192:
+            raise ValueError("pair max_tokens must be in 8..8192")
         if not isinstance(provenance, dict) or any(not isinstance(provenance.get(k), str)
                 or not provenance[k] for k in ("repo", "revision", "variant")):
             raise ValueError("pinned artifact provenance required")

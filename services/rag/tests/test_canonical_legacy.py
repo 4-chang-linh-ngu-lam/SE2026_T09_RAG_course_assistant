@@ -46,7 +46,7 @@ def test_legacy_index_requires_publication_and_current_access(tmp_path):
 
 
 def test_digital_page_summary_keeps_block_flag_owner():
-    from idp.documents import digital
+    from idp.backends.native import pdf as digital
 
     flag = {"code": "TEXT_ENCODING_REVIEW", "severity": "warning"}
     block = digital._block("p0001_b000", "Text", [10, 10, 200, 30], "x", "x", review_flags=[flag])
@@ -130,7 +130,7 @@ def test_paragraph_windows_keep_block_citations(tmp_path):
 
 
 def test_text_layer_fragment_flags_formula_shards_not_prose():
-    from idp.documents.digital import _text_layer_fragment
+    from idp.backends.native.pdf import _text_layer_fragment
 
     for shard in ("Z x", "y′", "dI(t)", "2N0e−kt.", "k .", "S\nk\n−−−→I ."):
         assert _text_layer_fragment(shard), shard
@@ -140,7 +140,7 @@ def test_text_layer_fragment_flags_formula_shards_not_prose():
 
 
 def test_running_line_entries_need_repetition_at_page_edges():
-    from idp.documents.digital import _running_line_entries
+    from idp.backends.native.pdf import _running_line_entries
 
     def page(index, first, body, last):
         return {"index": index, "entries": [

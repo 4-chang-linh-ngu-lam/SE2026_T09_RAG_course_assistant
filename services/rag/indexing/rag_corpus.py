@@ -8,7 +8,7 @@ from pathlib import Path
 import time
 
 from ..chunking.atomic_io import atomic_write_bytes
-from ..chunking.chunking import chunk_text
+from ..chunking.chunking import CHUNKING_VERSION, chunk_text
 from .source_ranges import merge_ranges, nonspace_prefix
 from .embedding_store import load_generation, profile_id, save_generation
 from ..chunking.token_budget import PrefixCounter
@@ -118,6 +118,8 @@ def build_corpus(documents, directory, *, encoder, max_tokens=384, batch_size=4,
         "sources": len(documents), "children": sum(len(b["children"]) for b in bundles),
         "eligible_children": len(children), "held_children": sum(len(b["children"]) for b in bundles) - len(children),
         "chunking_seconds": chunk_seconds, "embedding_stats": stats,
+        # Lets services probe staleness without reading the bundles payload.
+        "chunking_version": CHUNKING_VERSION,
         "total_seconds": time.perf_counter() - started, "grants_authorization": False}
     atomic_write_bytes(directory / "manifest.json", _bytes(manifest))
     return manifest
@@ -138,6 +140,9 @@ def load_index_bundle(directory):
     sources = {d["source_id"]: d["text"] for d in docs}
     if len(sources) != len(docs) or len(docs) != manifest["sources"] or len(bundles) != len(docs):
         raise ValueError("invalid corpus source registry")
+    if "chunking_version" in manifest and any(
+            not isinstance(b, dict) or b.get("version") != manifest["chunking_version"] for b in bundles):
+        raise ValueError("corpus manifest chunking version differs from its bundles")
     if "source_coverage" in manifest and manifest["source_coverage"] != source_coverage(bundles, sources):
         raise ValueError("corpus coverage report differs from current source chunks")
     return {"directory": directory, "generation_dir": directory / "embeddings",

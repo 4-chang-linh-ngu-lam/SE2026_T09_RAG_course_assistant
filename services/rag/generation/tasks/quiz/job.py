@@ -88,7 +88,7 @@ def run_job(pipeline: GroundedTaskPipeline, spec: QuizSpec, units, *, job_id: st
         drafts.append(draft)
         if progress:
             progress({"kind": "item_done", "slot_id": slot["slot_id"], "status": draft["status"],
-                      "done": index + 1, "total": len(plan["slots"])})
+                      "done": index + 1, "total": len(plan["slots"]), "draft": draft})
 
     usable = [d for d in drafts if d["item"] is not None]
     duplicates = near_duplicates([(d["slot_id"], item_text(d["item"])) for d in usable], bank_texts, embed=embed)

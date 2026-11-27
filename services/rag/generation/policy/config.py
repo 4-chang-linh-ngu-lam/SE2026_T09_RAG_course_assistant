@@ -18,7 +18,7 @@ class TutorConfig:
     hint_reveal_after: int = 3              # PENDING GD-06: wrong checks on a step before its answer is shown
     allow_solution_reveal: bool = True      # may the student ask to see the full worked solution
     guidance_level: str = "balanced"        # how strongly step-by-step withholds answers
-    max_answer_words: int = 120             # quick QA length ceiling
+    max_answer_words: int = 220             # quick QA length ceiling
 
     def __post_init__(self):
         if (type(self.allow_general_knowledge) is not bool or type(self.allow_solution_reveal) is not bool

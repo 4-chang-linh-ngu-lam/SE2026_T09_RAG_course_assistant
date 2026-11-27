@@ -4,10 +4,10 @@ from PIL import Image
 import pytest
 
 from idp.canonical import audit_canonical, build_canonical
-from idp.documents.digital import _encoding_issues
-from idp.documents.text_math import _encoding_problem
-from idp.ocr.recovery import RecoveryOptions, recover_text_regions
-from idp.structured.enrichment import EnrichmentOptions, RegionEnricher
+from idp.input.validation import _encoding_issues
+from idp.processing.formula import _encoding_problem
+from idp.evidence.recovery import RecoveryOptions, recover_text_regions
+from idp.evidence.fusion import EnrichmentOptions, RegionEnricher
 from rag.retrieval.canonical_harness import (
     build_chunks,
     citation_index,
